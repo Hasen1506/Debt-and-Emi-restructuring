@@ -6,6 +6,8 @@
  * holds the three orders side by side (R6.3), worked out on the server and
  * passed in; it is left out when there's no debt to order.
  */
+import { PrivacyPromise } from '@/components/PrivacyPromise';
+import { ThemeToggle } from '@/components/site/ThemeToggle';
 import { useEffect, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import Decimal from 'decimal.js';
@@ -16,6 +18,7 @@ import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currenc
 import { loanLabel } from '@/lib/loan-types';
 import { requiredMonthly } from '@/lib/min-payment';
 import { placeLabel } from '@/lib/locations';
+import { abroadLabel, livesAbroad } from '@/lib/tax-setup';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
   under_25: 'Under 25',
@@ -23,6 +26,7 @@ const AGE_LABEL: Record<AgeBracket, string> = {
   '35_50': '35 to 50',
   '50_plus': '50 to 59',
   '60_plus': '60 or over',
+  '80_plus': '80 or over',
 };
 
 /** Form sections, by the index the form uses for them. */
@@ -96,13 +100,13 @@ export function ProfileSummary({
         </LSectionHeader>
         <Rows
           rows={[
-            ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${user.is_nri_us ? ', with loans in India' : ''}`],
+            ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${user.is_nri_us ? ', with loans in India' : ''}${livesAbroad(user) ? ` (${abroadLabel(user.nri_residence)})` : ''}`],
             ['Lives in', placeLabel(user) || <Muted key="p">Not set</Muted>],
             user.country === 'IN'
               ? ['Tax regime', user.tax_regime === 'old' ? 'Old regime' : 'New regime']
               : [
                   'Filing as',
-                  `${{ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household' }[user.filing_status ?? 'single']}${
+                  `${{ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household', mfs: 'Married, filing separately' }[user.filing_status ?? 'single']}${
                     Number(user.state_marginal_rate) > 0
                       ? ` · state tax ${(Number(user.state_marginal_rate) * 100).toFixed(1)}%`
                       : ''
@@ -114,7 +118,7 @@ export function ProfileSummary({
           ]}
         />
         {/* What the tax details change, and (India) which law the section numbers come from. */}
-        <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
           {user.country === 'IN'
             ? 'The plan uses these for the tax break on home-loan and education-loan interest and to weigh paying early against investing, after tax. The Income-tax Act, 2025 renumbered the sections from 1 April 2026 with the same limits (24(b) is now s.22, 80C s.123, 80E s.129, the new regime s.202).'
             : 'The plan uses these for the mortgage and student-loan interest deductions and to weigh paying early against investing, after tax.'}{' '}
@@ -158,9 +162,9 @@ export function ProfileSummary({
           <Rows rows={[['Loans', <Muted key="n">None</Muted>]]} />
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-dense)' }}>
               <thead>
-                <tr style={{ color: L_T.muted, fontSize: 10, letterSpacing: '0.12em', textAlign: 'right' }}>
+                <tr style={{ color: L_T.muted, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textAlign: 'right' }}>
                   <th scope="col" style={{ ...cell, textAlign: 'left', fontWeight: 500 }}>LOAN</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>OWED</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>RATE</th>
@@ -280,10 +284,10 @@ export function ProfileSummary({
         <LSectionHeader step={payoffOrder ? 9 : 8}>
           <span id="pf-privacy">Privacy</span>
         </LSectionHeader>
-        <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.6 }}>
-          Your details stay in this browser, and in your account if you sign in. The engine sees them only to work
-          out your plan.
-        </p>
+        {/* Audit 80 B8: the one in-app wording. */}
+        <PrivacyPromise style={{ color: L_T.muted }} />
+        {/* UX2 #23: light, dark, or as the device is set. */}
+        <div style={{ marginTop: 14 }}><ThemeToggle /></div>
       </section>
     </div>
   );

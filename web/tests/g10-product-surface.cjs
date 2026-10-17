@@ -89,7 +89,9 @@ test('honest copy: no straw-man baseline, no "restructuring", six tools', () => 
   assert.doesNotMatch(text, /reviewed by|approved by (a |an )?(professional|expert|CA|advisor)/i);
   assert.doesNotMatch(text, /\b(nine|9) tools\b/i);
   assert.match(text, /SIX TABS/);
-  assert.match(text, /TOOLS · SIX/);
+  // Audit 80 B11: the heading carries no count (the US view shows five cards).
+  assert.match(text, /TOOLS · ONE QUESTION EACH/);
+  assert.doesNotMatch(text, /TOOLS · SIX/);
   // The "only what's due" figure is a labelled ceiling, never the headline.
   assert.match(text, /that is the most a plan can save, not what it saves most people/);
   const { TOOLS } = lib('tools.ts');

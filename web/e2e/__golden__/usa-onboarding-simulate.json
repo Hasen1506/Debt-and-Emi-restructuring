@@ -1,7 +1,7 @@
 {
-  "debt_free_month": 86,
-  "total_interest_paid": "93496.08",
-  "months_in_horizon": 86,
+  "debt_free_month": 124,
+  "total_interest_paid": "94416.01",
+  "months_in_horizon": 124,
   "yearly": [
     {
       "month": 1,
@@ -11,51 +11,69 @@
     },
     {
       "month": 12,
-      "balance": "320472.59",
-      "interest": "1795.03",
+      "balance": "320417.27",
+      "interest": "1794.72",
       "paid": "5300.00"
     },
     {
       "month": 24,
-      "balance": "276858.17",
-      "interest": "1553.36",
+      "balance": "276798.99",
+      "interest": "1553.03",
       "paid": "5300.00"
     },
     {
       "month": 36,
-      "balance": "230236.34",
-      "interest": "1295.00",
+      "balance": "230173.04",
+      "interest": "1294.65",
       "paid": "5300.00"
     },
     {
       "month": 48,
-      "balance": "180399.35",
-      "interest": "1018.80",
+      "balance": "180331.64",
+      "interest": "1018.42",
       "paid": "5300.00"
     },
     {
       "month": 60,
-      "balance": "127125.10",
-      "interest": "723.50",
+      "balance": "127052.67",
+      "interest": "723.10",
       "paid": "5300.00"
     },
     {
       "month": 72,
-      "balance": "70176.09",
-      "interest": "407.81",
+      "balance": "70098.62",
+      "interest": "407.38",
       "paid": "5300.00"
     },
     {
       "month": 84,
-      "balance": "9298.42",
-      "interest": "70.30",
-      "paid": "5300.00"
+      "balance": "10710.11",
+      "interest": "69.84",
+      "paid": "3805.45"
     },
     {
-      "month": 86,
+      "month": 96,
+      "balance": "7622.10",
+      "interest": "36.14",
+      "paid": "300.00"
+    },
+    {
+      "month": 108,
+      "balance": "4359.89",
+      "interest": "21.26",
+      "paid": "300.00"
+    },
+    {
+      "month": 120,
+      "balance": "913.67",
+      "interest": "5.54",
+      "paid": "300.00"
+    },
+    {
+      "month": 124,
       "balance": "0.00",
-      "interest": "18.52",
-      "paid": "4059.56"
+      "interest": "0.10",
+      "paid": "22.26"
     }
   ]
 }

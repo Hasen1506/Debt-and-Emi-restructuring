@@ -64,17 +64,9 @@ INDIA_STAMP_DUTY = {
     "Punjab":       D("0.06"),
 }
 
-INDIA_REGISTRATION_FEE = D("0.01")    # 1% across most states
-
-
 def lookup_stamp_duty(state: str) -> Decimal:
     """Returns stamp duty rate for the state. Unknown state defaults to 6% (typical)."""
     return INDIA_STAMP_DUTY.get(state, D("0.06"))
-
-
-def india_buying_cost_pct(state: str) -> Decimal:
-    """Buyer's one-time cost as a fraction of the price: stamp duty + 1% registration."""
-    return lookup_stamp_duty(state) + INDIA_REGISTRATION_FEE
 
 
 def india_selling_cost_pct(state: str, brokerage_rate: Decimal = D("0.015")) -> Decimal:
@@ -202,36 +194,6 @@ def lookup_asset_return(asset_type: str, country: Country = Country.IN, override
         return overrides[asset_type]
     table = ASSET_DEFAULT_RETURNS_IN if country == Country.IN else ASSET_DEFAULT_RETURNS_US
     return table.get(asset_type, D("0.06"))
-
-
-def project_future_value(
-    current_value: Decimal,
-    asset_type: str,
-    country: Country,
-    months_forward: int,
-    user_cagr_override: Optional[Decimal] = None,
-) -> Decimal:
-    """Compound a holding's current market value forward by `months_forward`
-    using the user's per-asset CAGR override when set, falling back to the
-    country-default for the asset type. Conservative compounding: monthly
-    rate r/12 applied `months_forward` times.
-
-    Used by the goal-achievability tier-3 (will my liquidatable corpus be
-    big enough by the target month?) and the portfolio advisor (which of
-    these is the best to liquidate next year vs now?).
-
-    Zero months → returns current_value unchanged. Negative cagr → value
-    decays. Conservative cap: if the implied rate is > 100%/yr the helper
-    still computes — caller is expected to sanity-check the input.
-    """
-    if months_forward <= 0:
-        return current_value
-    cagr = user_cagr_override if user_cagr_override is not None else lookup_asset_return(asset_type, country)
-    if cagr == 0:
-        return current_value
-    monthly = cagr / D("12")
-    factor = (D("1") + monthly) ** months_forward
-    return current_value * factor
 
 
 # ─── US real-estate selling costs (closing costs + agent commission) ─────────

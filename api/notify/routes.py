@@ -5,6 +5,7 @@ Signed in (session cookie):
   GET  /api/notify/settings               this user's settings
   PUT  /api/notify/payday                 {on, day, snapshot}: turn on/off, refresh the payment list
   PUT  /api/notify/reminders              {on, items}: deadline reminders
+  PUT  /api/notify/rate-move              {on, loans}: A13 email after an RBI repo move
   GET  /api/notify/answers                answers from email links/replies, not yet applied in the app
   POST /api/notify/answers/{id}/applied   the app has shown / applied it
 
@@ -14,8 +15,13 @@ From an email (signed link, no sign-in):
   GET/POST /api/notify/unsubscribe?t=...  turn every email off (POST is RFC 8058 one-click)
 
 Scheduler (Authorization: Bearer NOTIFY_CRON_SECRET):
-  POST /api/notify/run                    send what is due today
+  POST /api/notify/run                    send what is due today (409 while another run holds the lock)
   GET  /api/notify/metrics                D30 / D60 return among opted-in users
+  GET  /api/notify/status                 which flags/settings are missing, today's email budget
+
+The scheduler is .github/workflows/notify.yml (daily 09:00 IST) or any HTTP
+cron that can send a POST with an Authorization header (cron-job.org can);
+two schedulers calling at once is safe: one run holds a lock.
 
 Resend webhook: POST /api/notify/inbound  a "done" reply (PAYDAY_REPLY_INBOUND=true)
 
@@ -39,9 +45,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from api.notify import flags, inbound, sender, tokens
+from api.notify import budget as budget_mod
+from api.notify import flags, inbound, queue, sender, tokens
 from api.notify.store import store
-from engine import payday, reminders, retention
+from engine import payday, policy_rates, rate_move, reminders, retention
+from engine.models import Country
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/notify", tags=["notify"])
@@ -92,6 +100,7 @@ def get_flags() -> dict[str, bool]:
         "payday_email": flags.payday_enabled(),
         "deadline_reminders": flags.reminders_enabled(),
         "reply_done": flags.inbound_enabled(),
+        "rate_move": flags.rate_move_enabled(),
     }
 
 
@@ -99,6 +108,7 @@ def get_flags() -> dict[str, bool]:
 async def get_settings(user: Annotated[NotifyUser, Depends(notify_user)]) -> dict[str, Any]:
     _need(flags.any_enabled())
     s = await store().get(user.id)
+    w = await store().get_rate_watch(user.id) if flags.rate_move_enabled() else None
     return {
         "payday": {
             "available": flags.payday_enabled(),
@@ -111,6 +121,11 @@ async def get_settings(user: Annotated[NotifyUser, Depends(notify_user)]) -> dic
             "available": flags.reminders_enabled(),
             "on": bool(s and s["reminders_on"]),
             "count": len(s["reminder_items"]) if s else 0,
+        },
+        "rate_move": {
+            "available": flags.rate_move_enabled(),
+            "on": bool(w and w["watch_on"]),
+            "count": len(w["loans"]) if w else 0,
         },
         "email": user.email,
     }
@@ -175,6 +190,35 @@ async def put_reminders(body: RemindersIn, user: Annotated[NotifyUser, Depends(n
     ) if body.on else []
     nxt = upcoming[0] if upcoming else None
     return {"ok": True, "on": body.on, "next": {"send_on": nxt.send_on.isoformat(), "text": nxt.text} if nxt else None}
+
+
+class RateLoanIn(BaseModel):
+    name: str = Field(max_length=60)
+    outstanding: float = Field(gt=0, le=1e10)
+    rate: float = Field(ge=0, lt=0.5)                 # annual decimal: 0.085
+    emi: Optional[float] = Field(default=None, gt=0, le=1e9)
+    months_left: Optional[int] = Field(default=None, ge=1, le=600)
+
+
+class RateMoveIn(BaseModel):
+    on: bool
+    loans: list[RateLoanIn] = Field(default_factory=list, max_length=8)
+
+
+@router.put("/rate-move")
+async def put_rate_move(body: RateMoveIn, user: Annotated[NotifyUser, Depends(notify_user)]) -> dict[str, Any]:
+    """A13: watch these repo-linked loans; email after the next RBI move."""
+    _need(flags.rate_move_enabled())
+    if body.on and not body.loans:
+        raise HTTPException(422, {"field": "loans", "message": "Pick at least one repo-linked loan to watch."})
+    loans = []
+    for l in body.loans:
+        if l.emi is None and l.months_left is None:
+            raise HTTPException(422, {"field": "loans", "message": f"{l.name}: add the EMI or the months left."})
+        loans.append({"name": " ".join(l.name.split())[:60], "outstanding": str(l.outstanding), "rate": str(l.rate),
+                      "emi": str(l.emi) if l.emi else None, "months_left": l.months_left})
+    await store().set_rate_watch(user.id, user.email, on=body.on, loans=loans, today=today_fn("IN"))
+    return {"ok": True, "on": body.on, "count": len(loans) if body.on else 0}
 
 
 @router.get("/answers")
@@ -328,7 +372,9 @@ def _links(user_id: str, month: str) -> dict[str, str]:
         "all_paid": f"{base}/ack?t={tokens.sign(user_id, month, 'all')}",
         "some_paid": f"{base}/ack?t={tokens.sign(user_id, month, 'some')}",
         "cant_pay": f"{base}/ack?t={tokens.sign(user_id, month, 'cant')}",
-        "open_app": f"{flags.app_url()}/",
+        # A14: the payday ritual opens Home on "Pay this month" with the
+        # 60-second check (paste the bank SMS or tap paid; the counter moves).
+        "open_app": f"{flags.app_url()}/?ritual=payday&m={month}#home-pay",
         "unsubscribe": f"{base}/unsubscribe?t={tokens.sign(user_id, '-', 'unsub')}",
     }
 
@@ -337,13 +383,15 @@ def _unsub_headers(url: str) -> dict[str, str]:
     return {"List-Unsubscribe": f"<{url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
 
 
-async def _send_payday(sub: dict, today: date) -> str:
+async def _send_payday(sub: dict, today: date, budget: budget_mod.Budget) -> str:
     snap_json = sub.get("snapshot")
     if not snap_json:
         return "no_list"
     pd = payday.due_payday(today, int(sub["payday_day"]), sub.get("last_sent_month"))
     if pd is None:
         return "not_due"
+    if not budget.take("payday"):
+        return "deferred"           # over today's email budget: a later run sends it
     snap = payday.parse_snapshot(snap_json)
     month = f"{today:%Y-%m}"
     links = _links(sub["user_id"], month)
@@ -357,52 +405,214 @@ async def _send_payday(sub: dict, today: date) -> str:
     ok = sender.send(sender.Message(sub["email"], d.subject, d.html, d.text,
                                     _unsub_headers(links["unsubscribe"]), reply_to))
     if not ok:
+        budget.give_back()
         return "not_sent"
     await store().mark_sent(sub["user_id"], month, today, code)
     return "sent"
 
 
-async def _send_reminders(sub: dict, today: date) -> int:
-    items = [reminders.Item(i["key"], i["label"], date.fromisoformat(i["day"]), i.get("source", "complaint"),
-                            done=i.get("state") in ("done", "missed")) for i in sub["reminder_items"]]
-    due = [r for r in reminders.due_on(reminders.schedule(items, today=today), today)
-           if f"{r.key}|{r.send_on.isoformat()}" not in sub["reminders_sent"]]
-    if not due:
+async def _send_reminders(sub: dict, today: date, budget: budget_mod.Budget,
+                          due: Optional[list[queue.DueReminder]] = None) -> int:
+    if due is None:
+        due = _due_reminders(sub, today)
+    if not due or not budget.take("reminders"):
         return 0
     unsub = f"{flags.app_url()}/api/notify/unsubscribe?t={tokens.sign(sub['user_id'], '-', 'unsub')}"
-    lines = [r.text for r in due]
-    subject = due[0].text if len(due) == 1 else f"{len(due)} dates to know about today"
+    lines = [d.reminder.text for d in due]
+    subject = lines[0] if len(lines) == 1 else f"{len(lines)} dates to know about today"
     text = "\n\n".join([*lines, f"Open RightDue: {flags.app_url()}/tools/loan-check",
                         f"Turn these emails off: {unsub}"])
     body = "".join(f"<p>{html.escape(x)}</p>" for x in lines) + (
         f"<p><a href='{html.escape(flags.app_url())}/tools/loan-check'>Open RightDue</a></p>"
         f"<p style='font-size:12px;color:#666'><a href='{html.escape(unsub)}'>Turn these emails off</a></p>")
     if not sender.send(sender.Message(sub["email"], subject[:120], body, text, _unsub_headers(unsub))):
+        budget.give_back()
         return 0
-    await store().mark_reminders_sent(sub["user_id"], [f"{r.key}|{r.send_on.isoformat()}" for r in due])
+    await store().mark_reminders_sent(sub["user_id"], [k for d in due for k in d.sent_keys])
     await store().add_event(sub["user_id"], "reminder", None, today)
     return len(due)
 
 
+def _due_reminders(sub: dict, today: date) -> list[queue.DueReminder]:
+    items = [reminders.Item(i["key"], i["label"], date.fromisoformat(i["day"]), i.get("source", "complaint"),
+                            done=i.get("state") in ("done", "missed")) for i in sub["reminder_items"]]
+    return queue.due_reminders(items, today, sub["reminders_sent"])
+
+
+# How long after an RBI decision the rate-move email is still worth sending.
+RATE_MOVE_SEND_WINDOW_DAYS = 14
+RUN_LOCK_SECONDS = 600
+
+
+def latest_repo_move(today: date) -> Optional[tuple[date, Any, Any]]:
+    """(decision day, repo before, repo after) of the last RBI move on or before today."""
+    hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= today]
+    if len(hist) < 2:
+        return None
+    return hist[-1][0], hist[-2][1], hist[-1][1]
+
+
+def rate_move_email(w: dict, move: tuple[date, Any, Any]) -> Optional[tuple[str, str, str]]:
+    """Subject, HTML and text for one user's rate-move email; None if no loan computes."""
+    from decimal import Decimal as Dm
+    day, before, after = move
+    blocks: list[list[str]] = []
+    for l in w["loans"]:
+        try:
+            m = rate_move.rate_move(
+                name=l["name"], outstanding=Dm(l["outstanding"]), rate=Dm(l["rate"]), decision_day=day,
+                repo_from=before, repo_to=after, emi_now=Dm(l["emi"]) if l.get("emi") else None,
+                months_left=l.get("months_left"))
+        except rate_move.RateMoveError:
+            continue
+        blocks.append(rate_move.email_lines(m))
+    if not blocks:
+        return None
+    verb = "raised" if after > before else "cut"
+    due = rate_move.check_by(day)
+    subject = f"RBI {verb} the repo rate: check your loan by {due:%d %b %Y}"
+    unsub = f"{flags.app_url()}/api/notify/unsubscribe?t={tokens.sign(w['user_id'], '-', 'unsub')}"
+    loan_check = f"{flags.app_url()}/tools/loan-check"
+    note = ("These numbers assume the rate you entered in RightDue was your rate before this move, and that "
+            "your bank keeps the same spread over repo.")
+    text = "\n\n".join(["\n".join(b) for b in blocks] + [note, f"Check it against your statement: {loan_check}",
+                                                          f"Turn these emails off: {unsub}"])
+    body = "".join("<div style='margin:0 0 16px'>" + "".join(f"<p>{html.escape(x)}</p>" for x in b) + "</div>"
+                   for b in blocks) + (
+        f"<p style='color:#555'>{html.escape(note)}</p>"
+        f"<p><a href='{html.escape(loan_check)}'>Check it with Loan Check</a></p>"
+        f"<p style='font-size:12px;color:#666'><a href='{html.escape(unsub)}'>Turn these emails off</a></p>")
+    return subject, body, text
+
+
+async def _send_rate_move(w: dict, today: date, budget: budget_mod.Budget) -> str:
+    move = latest_repo_move(today)
+    if move is None:
+        return "no_move"
+    day = move[0]
+    if (today - day).days > RATE_MOVE_SEND_WINDOW_DAYS:
+        return "no_recent_move"
+    if w.get("last_decision") == day.isoformat():
+        return "already_sent"
+    msg = rate_move_email(w, move)
+    if msg is None:
+        return "no_loans"
+    if not budget.take("rate_move"):
+        return "deferred"
+    subject, body, text = msg
+    unsub = f"{flags.app_url()}/api/notify/unsubscribe?t={tokens.sign(w['user_id'], '-', 'unsub')}"
+    if not sender.send(sender.Message(w["email"], subject, body, text, _unsub_headers(unsub))):
+        budget.give_back()
+        return "not_sent"
+    await store().mark_rate_sent(w["user_id"], day.isoformat(), today)
+    return "sent"
+
+
 @router.post("/run")
-async def run(authorization: Annotated[Optional[str], Header()] = None) -> dict[str, Any]:
+async def run(authorization: Annotated[Optional[str], Header()] = None) -> Any:
     _need(flags.any_enabled())
     _cron(authorization)
+    if not await store().try_lock("run", RUN_LOCK_SECONDS):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"busy": True, "detail": "Another run is sending; nothing was sent twice."}, status_code=409)
+    try:
+        return await _run_once()
+    finally:
+        await store().unlock("run")
+
+
+def _rate_move_due(w: dict, today: date) -> tuple[Optional[date], str]:
+    """(RBI decision day this watcher is still owed an email for, or None; why not)."""
+    move = latest_repo_move(today)
+    if move is None:
+        return None, "no_move"
+    if (today - move[0]).days > RATE_MOVE_SEND_WINDOW_DAYS:
+        return None, "no_recent_move"
+    if w.get("last_decision") == move[0].isoformat():
+        return None, "already_sent"
+    return move[0], ""
+
+
+async def _run_once() -> dict[str, Any]:
+    """Collect everything due, put it in the fair order (api/notify/queue.py),
+    then send while the shared budget (api/notify/budget.py) lasts."""
+    day_in = today_fn("IN")
+    counts_in = await budget_mod.gather(day_in, store())
+    plan = budget_mod.plan(counts_in)
+    budget = budget_mod.Budget(plan.room, used=counts_in.notify_today)
     counts: dict[str, int] = {}
+    rate_counts: dict[str, int] = {}
     reminders_sent = 0
+
+    def bump(d: dict[str, int], k: str) -> None:
+        d[k] = d.get(k, 0) + 1
+
+    cands: list[queue.Candidate] = []
     for sub in await store().active():
         country = (sub.get("snapshot") or {}).get("country", "IN")
         today = today_fn(country)
         try:
             if flags.payday_enabled() and sub["payday_on"]:
-                r = await _send_payday(sub, today)
-                counts[r] = counts.get(r, 0) + 1
+                pd = (payday.due_payday(today, int(sub["payday_day"]), sub.get("last_sent_month"))
+                      if sub.get("snapshot") else None)
+                if not sub.get("snapshot"):
+                    bump(counts, "no_list")
+                elif pd is None:
+                    bump(counts, "not_due")
+                else:
+                    cands.append(queue.Candidate(queue.CLASS_OTHER, pd, sub["user_id"], "payday", (sub, today)))
             if flags.reminders_enabled() and sub["reminders_on"]:
-                reminders_sent += await _send_reminders(sub, today)
+                due = _due_reminders(sub, today)
+                if due:
+                    cands.append(queue.Candidate(queue.CLASS_DEADLINE, min(d.due_since for d in due),
+                                                 sub["user_id"], "reminders", (sub, today, due)))
         except Exception:                       # one bad row must not stop the rest
             log.exception("notify run failed for one subscriber")
-            counts["error"] = counts.get("error", 0) + 1
-    return {"payday": counts, "reminders_sent": reminders_sent}
+            bump(counts, "error")
+    if flags.rate_move_enabled():
+        for w in await store().active_rate_watch():
+            try:
+                day, why = _rate_move_due(w, day_in)
+            except Exception:
+                log.exception("rate-move check failed for one subscriber")
+                bump(rate_counts, "error")
+                continue
+            if day is None:
+                bump(rate_counts, why)
+            else:
+                cands.append(queue.Candidate(queue.CLASS_OTHER, day, w["user_id"], "rate_move", (w, day_in)))
+
+    for c in queue.order(cands):
+        try:
+            if c.kind == "payday":
+                bump(counts, await _send_payday(c.payload[0], c.payload[1], budget))
+            elif c.kind == "reminders":
+                sub, today, due = c.payload
+                reminders_sent += await _send_reminders(sub, today, budget, due)
+            else:
+                bump(rate_counts, await _send_rate_move(c.payload[0], c.payload[1], budget))
+        except Exception:
+            log.exception("notify send failed for one subscriber")
+            bump(rate_counts if c.kind == "rate_move" else counts, "error")
+    return {"payday": counts, "reminders_sent": reminders_sent, "rate_move": rate_counts,
+            "budget": {"allowance": budget.allowance, "used_today": budget.used, "deferred": budget.deferred,
+                       "deferred_by": budget.deferred_by, "plan": plan.explain()}}
+
+
+@router.get("/status")
+async def status(authorization: Annotated[Optional[str], Header()] = None) -> dict[str, Any]:
+    """For the founder: why emails are (not) going out. Needs the scheduler secret;
+    answers even with every flag off, so it can say what's missing."""
+    _cron(authorization)
+    day = today_fn("IN")
+    if flags.any_enabled():
+        counts = await budget_mod.gather(day, store())
+    else:
+        codes = await budget_mod.code_counts_fn(day)
+        counts = budget_mod.Counts(today=day, codes_today=codes[0], codes_yesterday=codes[1], codes_month=codes[2])
+    plan = budget_mod.plan(counts)
+    return {"flags": get_flags(), "missing": flags.missing_config(),
+            "budget": {"allowance_today": plan.room, "sent_today": counts.notify_today, **plan.explain()}}
 
 
 @router.get("/metrics")

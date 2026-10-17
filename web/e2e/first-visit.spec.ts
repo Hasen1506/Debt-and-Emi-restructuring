@@ -18,8 +18,8 @@ test('first visit: / is the public landing, no app state, no cookies', async ({ 
   expect(res?.status()).toBe(200);
   await expect(page).toHaveURL(/\/$/);              // rewritten, not redirected
   await expect(page.getByRole('link', { name: /sign in|start|try/i }).first()).toBeVisible();
-  // No app chrome: the five-tab nav belongs to signed-in pages.
-  await expect(page.getByRole('link', { name: 'ACTIVITY', exact: true })).toHaveCount(0);
+  // No app chrome: the tab nav belongs to signed-in pages.
+  await expect(page.getByRole('link', { name: /^\[?activity\]?$/i })).toHaveCount(0);
   // The one cookie a first visit may get is G10's non-identifying landing
   // country (rd_country=IN|US, read by the static page to pick ₹ or $
   // examples). No session, app or tracking cookie.

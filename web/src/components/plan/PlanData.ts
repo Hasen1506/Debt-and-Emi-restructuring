@@ -2,6 +2,7 @@
  * Shared shape produced by the Plan page's data loader (load-plan.ts) and
  * consumed by LedgerPlan and the home page.
  */
+import type { OwedTodayFigures } from '@/lib/owed-today';
 import type {
   PlanRunArgs,
   RestructuringHeldBack,
@@ -63,8 +64,10 @@ export interface PlanData {
    *  its interest total is unbounded and is not compared. */
   baselineNeverClears?: boolean;
   /** Live re-test 2 NEW-2: the plan never clears, so the schedule stops at
-   *  `month` (30 years, or where what's owed would pass 100x the start). */
-  scheduleCut?: { month: number | null; growsWithoutLimit: boolean } | null;
+   *  `month` (30 years, or where what's owed would pass 100x the start).
+   *  Integration phase 5 (C11): a capped plan stops at its first unfundable
+   *  month (`notFundableFrom`), and `debtFreeMonth` is null. */
+  scheduleCut?: { month: number | null; growsWithoutLimit: boolean; notFundableFrom?: number | null } | null;
   trajectory: TrajectoryPoint[];
   debtFreeMonth: number | null;
   totalInterest: string;
@@ -111,6 +114,12 @@ export interface PlanData {
    *  reduce available surplus → debt-free month pushes out. Surfaced in
    *  the panel as "penalty is costing you ~₹X/mo" for visibility. */
   advanceTaxPenaltyMonthly: number;
+  /** Round 2: why the panel shows for a salaried user (non-TDS income) and
+   *  what skipping it costs; null/absent for business income. */
+  advanceTaxNote?: string | null;
+  /** Round 2 (item 4): the plan ran on the user's seasonal pattern; both
+   *  versions (reserve on / off) for the honest interest line. */
+  seasonal?: import('@/lib/api').SeasonalOutRaw | null;
   /** Auto-reinvest tax-savings toggle. When 'on', the simulation includes
    *  per-year reinvest events routed to the highest-effective-APR loan.
    *  See [[lib/tax-reinvest]] and `taxReinvestProjection` below. */
@@ -126,6 +135,10 @@ export interface PlanData {
   /** The settings this plan ran with (user as adjusted for activity,
    *  goals, EF split, planned events...), for the what-if panel. */
   runArgs: PlanRunArgs | null;
+  /** Month 1, by loan index (engine/debt_status.py): the overdue the plan pays
+   *  on a behind loan (loan currency) and each collections loan's settlement
+   *  pot (user currency). Absent on the offline sample. */
+  debtStatusMonth1?: { catchUp: Record<string, string>; pot: Record<string, string> };
   /** Month-1 payment per loan on the pay-minimums run (loan index → amount). */
   firstMonthMinimums: Record<number, string>;
   /** Summary of activity-ledger deltas applied to the projection. Null
@@ -230,6 +243,12 @@ export interface PlanData {
   shortfall: number;
   /** First later month whose projected minimums cannot be funded. */
   futureShortfall?: {month:number;amount:number};
+  /** Audit 80+ C11 (W1b): first month the gap can't be borrowed within the
+   *  credit limit; set, the plan is not fundable as it stands from then. */
+  infeasibleFrom?: number | null;
+  /** UX walkthrough fix 4: what you owe today (engine/owed_today) against the
+   *  plan's opening balance, with the interest inside the EMIs already paid. */
+  owedToday?: OwedTodayFigures | null;
   /** Grill #38 / live tests #15-#17: how short months are funded (the
    *  emergency fund, then card-rate borrowing repaid first) and the date
    *  if this month's gap closes. Null when nothing was ever short. */

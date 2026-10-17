@@ -50,6 +50,47 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* E10: metric-matched stand-ins while Plex loads (size-adjust etc. as next/font
+   computes them from public/fonts; Liberation has Arial's / Courier New's
+   metrics), so the swap doesn't reflow the page on a slow connection. */
+@font-face { font-family: 'RD Sans Fallback'; src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('LiberationSans'); size-adjust: 101.13%; ascent-override: 101.35%; descent-override: 27.19%; line-gap-override: 0%; }
+@font-face { font-family: 'RD Mono Fallback'; src: local('Courier New'), local('CourierNewPSMT'), local('Liberation Mono'), local('LiberationMono'); size-adjust: 99.98%; ascent-override: 102.52%; descent-override: 27.5%; line-gap-override: 0%; }
+
+/* Audit 80+ B5: IBM Plex Sans for body text (same family as the mono, so
+   the Ledger look holds); mono stays for figures, labels and tables. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-sans-400-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-sans-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-sans-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-sans-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Global styles — the ledger token set as CSS variables */
 
 :root {
@@ -75,10 +116,32 @@
   --highlight: #fff3a3;
   --highlight-soft: #fff8d3;
   --rule-soft: #d8d6cd;          /* slider track */
+  --ink-soft: #2a2a26;
+  color-scheme: light;
 
-  --font-sans: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-display: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', 'RD Sans Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'RD Mono Fallback', ui-monospace, monospace;
+  --font-display: 'IBM Plex Mono', 'RD Mono Fallback', ui-monospace, monospace;
+
+  /* Audit 80+ B5 type scale. Components use these (inline styles read
+     them as 'var(--fs-…)'); nothing visible is set under 12px, and
+     web/tests/w7-visual-system.cjs fails a numeric inline fontSize under 12.
+       label  12px  mono, uppercase, letter-spaced: ≤ 3-word labels only
+       small  14px  sentence-case helper text, hints, captions
+       table  14px  dense table cells and month cards
+       dense  15px  secondary body copy
+       body   16px  body copy (phones and desktop)
+       lead   18px  the one answer on a screen
+       figure 20px  KPI figures (mono, tabular)
+       h1     24px  page title */
+  --fs-label: 12px;
+  --fs-small: 14px;
+  --fs-table: 14px;
+  --fs-dense: 15px;
+  --fs-body: 16px;
+  --fs-lead: 18px;
+  --fs-figure: 20px;
+  --fs-h1: 24px;
 
   --radius-sm: 0;
   --radius-md: 0;
@@ -87,6 +150,66 @@
 
   --shadow-card: none;
   --shadow-elev: none;
+}
+
+/* UX2 #23 dark mode. The page follows the system setting
+   (prefers-color-scheme) unless Profile > Appearance chose one: the inline
+   script in app/layout.tsx sets <html data-theme> before the first paint
+   (lib/theme.ts), so there is no light flash. Screen only: printing stays
+   light. Every pair used for text is 4.5:1 or more (WCAG AA), checked by
+   web/tests/r3d-ux2.cjs against these values. Components read these
+   tokens (L_T in ledger/primitives is var(--…) of them). */
+@media screen {
+  :root[data-theme='dark'] {
+  --canvas: #141412;
+  --card: #1d1d1a;
+  --ink: #ecebe3;
+  --ink-soft: #d6d5cc;
+  --muted: #a8a79e;
+  --soft: #6e6d66;
+  --border: #ecebe3;
+  --dash: #6e6d66;
+  --accent: #e8906e;
+  --accent-muted: #7a3f2b;
+  --accent-ink: #f2a98b;
+  --negative: #f28b82;
+  --positive: #5dd08c;
+  --warning: #e6a85a;
+  --soft-bg: #23231f;
+  --calm-bg: #1d1d1a;
+  --overwhelmed-bg: #211e1a;
+  --highlight: #3d3610;
+  --highlight-soft: #2d2a16;
+  --rule-soft: #3a3934;
+  --masthead-edge: #000000;
+  color-scheme: dark;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --canvas: #141412;
+  --card: #1d1d1a;
+  --ink: #ecebe3;
+  --ink-soft: #d6d5cc;
+  --muted: #a8a79e;
+  --soft: #6e6d66;
+  --border: #ecebe3;
+  --dash: #6e6d66;
+  --accent: #e8906e;
+  --accent-muted: #7a3f2b;
+  --accent-ink: #f2a98b;
+  --negative: #f28b82;
+  --positive: #5dd08c;
+  --warning: #e6a85a;
+  --soft-bg: #23231f;
+  --calm-bg: #1d1d1a;
+  --overwhelmed-bg: #211e1a;
+  --highlight: #3d3610;
+  --highlight-soft: #2d2a16;
+  --rule-soft: #3a3934;
+  --masthead-edge: #000000;
+  color-scheme: dark;
+  }
 }
 
 * {
@@ -100,8 +223,8 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -159,7 +282,7 @@ optgroup {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -195,7 +318,7 @@ optgroup {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.12em;
@@ -222,7 +345,7 @@ optgroup {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   color: var(--muted);
   background: transparent;
   letter-spacing: 0.08em;
@@ -262,6 +385,11 @@ optgroup {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+/* Audit 80+ B20: the payoff-order segments sit edge to edge inside one
+   border, so their ring is drawn inside the segment, not under its neighbour. */
+.rd-payoff-seg:focus-visible {
+  outline-offset: -3px;
 }
 
 /* "Skip to content": off screen until a keyboard user tabs to it. */
@@ -506,16 +634,35 @@ button.l-hit {
     width: 100% !important;
   }
   /* The schedule scrolls in a box on screen; on paper every row it holds
-     shows, and the "swipe sideways" hint goes. */
+     shows. */
   [role='region'] {
     overflow: visible !important;
     max-height: none !important;
-  }
-  .rd-scroll-hint {
-    display: none !important;
   }
   a[href] {
     color: inherit !important;
     text-decoration: none !important;
   }
 }
+
+/* Audit 80+ E10: Home's "This month" strip and its placeholder share one
+   height, so the sections under it don't move when the plan streams in. */
+.rd-this-month {
+  min-height: 92px;
+}
+@media (max-width: 640px) {
+  .rd-this-month {
+    min-height: 124px;
+  }
+}
+
+/* E10: Reserve (ledger/primitives) holds the longest text a line can turn into. */
+.rd-ghost { grid-area: 1 / 1; visibility: hidden; pointer-events: none; }
+.rd-ghost::before { content: attr(data-ghost); }
+
+/* Audit 80+ E10: Setup holds a screen's height while its form loads. */
+.rd-setup-shell {
+  min-height: calc(100vh - 120px);
+  min-height: calc(100svh - 120px);
+}
+

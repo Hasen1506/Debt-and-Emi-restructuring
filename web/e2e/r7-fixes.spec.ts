@@ -79,6 +79,8 @@ test('R7-7: US Setup says monthly payment, not EMI, and has no gold loan', async
   await signIn(page, 'golden-r7-us@rightdue.app');
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByRole('group', { name: 'Where you live' }).getByRole('button', { name: /USA/ }).click();
+  // R3C-1: Setup asks how a US filer files (no silent Single).
+  await page.getByRole('group', { name: 'How you file your tax return' }).getByRole('button', { name: /^Single$/ }).click();
   await expect(page.getByLabel('Spending a month, without monthly payments')).toBeVisible();
   await page.getByLabel(/Take-home pay a month/).fill('6500');
   await page.getByLabel(/Spending a month/).fill('3800');
@@ -94,6 +96,7 @@ test('R7-7: US Setup says monthly payment, not EMI, and has no gold loan', async
   await expect(page.getByRole('textbox', { name: 'EMI a month' })).toHaveCount(0);
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await expect(page).toHaveURL(/step=plan/);
-  await expect(page.getByText(/Pay every monthly payment and card minimum/).first()).toBeVisible();
+  // Audit 80 (W6) US wording: "Make every payment and card minimum".
+  await expect(page.getByText(/Make every payment and card minimum/).first()).toBeVisible();
   await expect(page.getByText(/Pay every EMI/)).toHaveCount(0);
 });

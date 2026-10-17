@@ -7,7 +7,7 @@
  * Every figure asserted here comes from the real engine on fixed inputs:
  * fixed FX (1 USD = ₹83.25), fixed day (7 Oct 2026), fixed OTP.
  */
-import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 
 const EMAIL = 'golden-india@rightdue.app';
 
@@ -39,7 +39,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   });
 
   await test.step('onboarding: plan preview (golden)', async () => {
-    const sim = page.waitForResponse(isPlanCall('/api/simulate'));
+    const sim = page.waitForResponse(isSetupPlanCall());
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     expect(JSON.stringify(await planSummary(await sim), null, 2)).toMatchSnapshot('india-onboarding-simulate.json');
     await expect(page.getByText('Nov 2030')).toBeVisible();
@@ -58,7 +58,8 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     const main = page.locator('#main');
     await expect(main.getByText('NOV 2030').first()).toBeVisible();
     await expect(main.getByText('₹8,56,170').first()).toBeVisible();
-    await expect(main.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
+    // Audit 80 B4: the minimums figure moved into the worst-case expander.
+    await expect(main.getByTestId('plan-worst-case')).toContainText('₹22,39,836 more interest');
     expect(await planText(page)).toMatchSnapshot('india-plan-schedule.txt');
   });
 
@@ -82,10 +83,11 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.getByLabel('Country', { exact: true }).selectOption('US');
     const dialog = page.getByRole('dialog', { name: 'Change country' });
     await expect(dialog.getByText('Your amounts are in ₹. The USA uses $.')).toBeVisible();
-    await expect(dialog.getByRole('textbox')).toHaveValue(/^0\.0120120/);
+    // UX2B-19: the rate is shown to 4 significant figures and the dialog also asks the new take-home.
+    await expect(dialog.getByRole('textbox', { name: /Exchange rate/ })).toHaveValue('0.01201');
     await dialog.getByRole('checkbox').uncheck();
     await dialog.getByRole('button', { name: 'CONVERT AND SWITCH TO USA' }).click();
-    await expect(page.getByText(/Converted at ₹1 = \$0\.0120120\d*\. Your loans were converted too\./)).toBeVisible();
+    await expect(page.getByText(/Converted at ₹1 = \$0\.01201\. Your loans were converted too\./)).toBeVisible();
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
     await expect(page.getByText('$1,801.80 a month')).toBeVisible();

@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -63,7 +64,7 @@ test('Plan schedule: principal + interest = cash, and principal ties out to toda
   assert.ok(!reconcileSchedule([{ principal: 1000, interest: 0 }], 5000).tiesOut);
   assert.match(scheduleColumnHelp(true, '18').INTEREST, /18% GST/);
   const s = src('components/plan/PlanSchedule.tsx');
-  assert.match(s, /<ScheduleFooter /); assert.match(s, /title=\{help\[h\]\}/);
+  assert.match(s, /<ScheduleFooter\s/); assert.match(s, /title=\{help\[h\]\}/);
 });
 
 test('Profile: the emergency-fund time-to-fill follows the Plan slider, not a fixed 30%', () => {
@@ -72,7 +73,7 @@ test('Profile: the emergency-fund time-to-fill follows the Plan slider, not a fi
   assert.equal(efMonthsToFill(60000, 0, 10000, '0.6'), 10);
   assert.equal(efMonthsToFill(60000, 0, 10000, '0'), Infinity);
   assert.equal(efMonthsToFill(60000, 70000, 10000, '0.3'), 0);
-  assert.doesNotMatch(src('app/profile/ProfileClient.tsx'), /surplus \* 0\.3\b/);
+  assert.doesNotMatch(profileSource(), /surplus \* 0\.3\b/);
 });
 
 test('Tax bracket: a stale 0% estimate is replaced after switching India → US with the same take-home', () => {

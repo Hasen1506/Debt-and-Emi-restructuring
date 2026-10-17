@@ -4,7 +4,7 @@
  * amortisation table's ★ rows so the two can't disagree.
  */
 import type { PlanData } from './PlanData';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { deriveMetrics } from '@/lib/derived';
 import type { StoredProfile } from '@/lib/user-store';
 
@@ -24,6 +24,9 @@ export function loanClears(plan: PlanData): LoanClear[] {
   const lastMonth = traj[traj.length - 1]?.month ?? 0;
   const typeCount = new Map<string, number>();
   for (const l of loans) typeCount.set(l.loan_type, (typeCount.get(l.loan_type) ?? 0) + 1);
+  // UX walkthrough fix 7: two loans that would read the same get the one
+  // name they carry everywhere else ("Card 1", "Card 2"), never "Credit card" twice.
+  const named = disambiguateLoans(loans);
   const out: LoanClear[] = [];
   loans.forEach((loan, index) => {
     if (!traj.some((p) => p.balancesByLoanIndex)) return;
@@ -43,9 +46,10 @@ export function loanClears(plan: PlanData): LoanClear[] {
     if (closing == null || Number(closing) > 0.01) return;
     const type = LOAN_TYPE_NAME[loan.loan_type];
     const name =
-      (typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank
+      loanNickname(named[index]) ||
+      ((typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank
         ? `${loan.bank.replace(/\s+bank$/i, '')} ${type}`
-        : type.charAt(0).toUpperCase() + type.slice(1);
+        : type.charAt(0).toUpperCase() + type.slice(1));
     out.push({ index, month, name });
   });
   return out.sort((a, b) => a.month - b.month || a.index - b.index);

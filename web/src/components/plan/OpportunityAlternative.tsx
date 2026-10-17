@@ -56,7 +56,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
       style={{
         marginTop: 8,
         padding: '8px 12px',
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.55,
         background: 'var(--soft-bg)',
         border: '1px dashed var(--border)',
@@ -90,7 +90,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
             color: 'var(--accent)',
             padding: 0,
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             textDecoration: 'underline',
             fontFamily: 'inherit',
           }}
@@ -103,7 +103,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
               marginTop: 6,
               padding: '6px 0',
               color: 'var(--ink)',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
             }}
           >
             Switching to {altBank} would cost you the friction of fresh KYC,
@@ -173,7 +173,7 @@ export function UpdateTermsButton({
           color: 'var(--accent)',
           borderRadius: 0,
           cursor: 'pointer',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)',
           fontWeight: 600,
           fontFamily: 'inherit',
           letterSpacing: '0.06em',
@@ -233,7 +233,7 @@ export function EligibilityCaveat({
       style={{
         marginTop: 6,
         padding: '6px 10px',
-        fontSize: 11,
+        fontSize: 'var(--fs-small)',
         lineHeight: 1.5,
         background: 'transparent',
         border: '1px dotted var(--border)',
@@ -248,35 +248,6 @@ export function EligibilityCaveat({
       best/typical end for your income type; underwriting may re-price.
       {' '}{kindNote}{' '}Apply to confirm before banking on the saving figure.
     </div>
-  );
-}
-
-/**
- * Small "you already bank with this lender" tag rendered next to the
- * opportunity's target bank when `target_is_existing_relationship` is true.
- */
-export function RelationshipBadge({
-  variant = 'existing',
-}: {
-  variant?: 'existing' | 'ledger' | 'editorial';
-}) {
-  return (
-    <span
-      style={{
-        marginLeft: 6,
-        padding: '2px 6px',
-        fontSize: 10,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        background: 'var(--positive-soft, rgba(0,150,80,0.1))',
-        color: 'var(--positive)',
-        borderRadius: variant === 'ledger' ? 0 : 4,
-        fontWeight: 600,
-        fontFamily: variant === 'ledger' ? 'var(--font-mono)' : undefined,
-      }}
-    >
-      your bank
-    </span>
   );
 }
 
@@ -303,7 +274,7 @@ export function RateAsOfBadge({
       style={{
         marginLeft: 6,
         padding: '2px 6px',
-        fontSize: 10,
+        fontSize: 'var(--fs-label)',
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
         background: 'transparent',

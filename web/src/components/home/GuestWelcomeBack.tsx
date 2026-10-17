@@ -76,7 +76,7 @@ export function GuestWelcomeBack() {
 
   const btn = (primary: boolean) => ({
     fontFamily: L_MONO,
-    fontSize: 11,
+    fontSize: 'var(--fs-label)',
     fontWeight: 700,
     letterSpacing: '0.12em',
     padding: '10px 16px',
@@ -97,25 +97,25 @@ export function GuestWelcomeBack() {
       <h2 id="guest-back-title" style={{ margin: '0 0 6px', fontSize: 15, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {GUEST_COPY.title}
       </h2>
-      <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 12px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         {GUEST_COPY.body}
         {since && <> Last opened {since}.</>}
       </p>
       {!confirming ? (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" style={btn(true)} onClick={onContinue}>[ {GUEST_COPY.cont} ]</button>
-          <button type="button" style={btn(false)} onClick={() => setConfirming(true)}>[ {GUEST_COPY.fresh} ]</button>
+          <button type="button" style={btn(true)} onClick={onContinue}><span aria-hidden="true">[ </span>{GUEST_COPY.cont}<span aria-hidden="true"> ]</span></button>
+          <button type="button" style={btn(false)} onClick={() => setConfirming(true)}><span aria-hidden="true">[ </span>{GUEST_COPY.fresh}<span aria-hidden="true"> ]</span></button>
         </div>
       ) : (
         <div role="alertdialog" aria-label={GUEST_COPY.fresh} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <p style={{ margin: 0, fontSize: 13, color: L_T.negative }}>{GUEST_COPY.confirm}</p>
+          <p style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.negative }}>{GUEST_COPY.confirm}</p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" style={btn(true)} onClick={() => void onFresh()}>[ {GUEST_COPY.confirmYes} ]</button>
-            <button type="button" style={btn(false)} onClick={() => setConfirming(false)}>[ {GUEST_COPY.confirmNo} ]</button>
+            <button type="button" style={btn(true)} onClick={() => void onFresh()}><span aria-hidden="true">[ </span>{GUEST_COPY.confirmYes}<span aria-hidden="true"> ]</span></button>
+            <button type="button" style={btn(false)} onClick={() => setConfirming(false)}><span aria-hidden="true">[ </span>{GUEST_COPY.confirmNo}<span aria-hidden="true"> ]</span></button>
           </div>
         </div>
       )}
-      {!AUTH_DISABLED && <p style={{ margin: '10px 0 0', fontSize: 11, color: L_T.muted }}>{GUEST_COPY.note}</p>}
+      {!AUTH_DISABLED && <p style={{ margin: '10px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>{GUEST_COPY.note}</p>}
     </section>
   );
 }

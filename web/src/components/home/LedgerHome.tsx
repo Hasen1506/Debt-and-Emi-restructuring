@@ -12,9 +12,10 @@
  * date and payments are streamed in by the page.
  */
 
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms } from '@/lib/terms';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { formatTaxRate } from '@/lib/tax-profile';
+import { taxRateLabel } from '@/lib/tax-profile';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -40,8 +41,9 @@ import {
 } from '@/components/ledger/primitives';
 import { OpenPositions } from './OpenPositions';
 import { useOwedNow } from '@/lib/owed-now';
+import { StudentLoanHold } from '@/components/plan/StudentLoanHold';
 import { ToolStrip } from '@/components/goals/ToolsList';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, loanLabel } from '@/lib/loan-types';
 
 /** The plan's debt-free date and caption, streamed in by the page. */
 export interface DebtFreeSlot {
@@ -64,6 +66,13 @@ interface HomeProps {
   /** Re-test 10: this month's interest from the plan (as Plan and its CSV
    *  show it), streamed in by the page. */
   interest?: { v: ReactNode; s: ReactNode };
+  /** Audit 80+ A1/A5/A6: the plan-insight cards, first on the page. */
+  insights?: ReactNode;
+  /** UX2B-8: the cash flow and the loans' EMIs + minimums total with this
+   *  month's dues from the plan (the figure "This month" and the offers
+   *  use), streamed in by the page; until then, the profile's estimate. */
+  cashFlow?: ReactNode;
+  dues?: ReactNode;
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -75,7 +84,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights, cashFlow, dues }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -86,6 +95,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
 
   // A loan with no rate or EMI on file: no rates until it's added.
   const gaps = projectionGaps(profile.user);
+  const costliest = m.loans.filter((l) => l.outstanding.gt(0)).reduce<(typeof m.loans)[number] | null>((a, l) => (!a || l.effective.gt(a.effective) ? l : a), null);
   const fxMissing = m.fxMissing.length > 0;
   const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(owedRows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
@@ -101,18 +111,21 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         }}
       >
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
-        </p>
+        </FirstVisitIntro>
         {thisMonth}
-        <ContextLine profile={profile} />
-        <CashFlow profile={profile} m={m} />
+        {/* UX walkthrough fix 10/11: what to pay comes right after the
+            month's one line (on a phone it was ~3 screens down, under the
+            cash flow, the figures and the offers). */}
+        {register}
 
         <section aria-labelledby="home-status">
           <LSectionHeader>
             <span id="home-status">Where you stand</span>
           </LSectionHeader>
           <LKpi
+            label="Where you stand"
             cols={4}
             items={[
               // With no exchange rate the ₹ and $ can't be added up.
@@ -120,29 +133,45 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
                 ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
                 : { l: 'OUTSTANDING', v: fc(totalNow.toFixed(0)), s: `${m.loans.length} OPEN` },
               debtFree
-                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                ? // UX walkthrough fix 9: the value colours itself (short or
+                  // capped in red, a date in green); the caption stays muted.
+                  { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.ink }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               fxMissing
                 ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
                 : interest
-                  ? { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.negative }
+                  ? // Audit 80+ B19: this month's expected interest is a planned
+                    // figure, in ink; red is for what needs acting on.
+                    { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.ink }
                   : {
                       l: 'INTEREST',
                       v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
                       s: "AT TODAY'S BALANCES AND RATES",
-                      tone: L_T.negative,
+                      tone: L_T.ink,
                     },
-              gaps.length > 0
-                ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }
-                : { l: 'COST OF DEBT', v: `${fmtPct(m.blendedEffective)}/YR`, s: 'AVERAGE · COMPOUNDED, AFTER TAX' },
+              // Audit 80 B13: no average rate across a card and a loan (it
+              // answers no decision); the costliest loan's own rate instead.
+              gaps.length > 0 || !costliest
+                ? { l: 'COSTLIEST', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : { l: 'COSTLIEST', v: `${fmtPct(costliest.nominal)}/YR`, s: `${loanLabel(costliest.loan).toUpperCase()} · ABOUT ${fmtPct(costliest.effective)} ALL-IN` },
             ]}
           />
         </section>
 
-        {register}
+        {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
+        <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
+        {cashFlow ?? <CashFlow profile={profile} />}
+        <ContextLine profile={profile} />
+
+        {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan
+            and can be ~1,500 px tall on a phone; above "This month" they
+            pushed the whole page down (Home CLS 0.81 at 390 px, budget 0.1,
+            E10). Here they land below the first screen. */}
+        {insights}
+
         {cheaper}
 
-        <OpenPositions profile={profile} m={m} />
+        <OpenPositions profile={profile} m={m} dues={dues} />
 
         <ToolStrip user={profile.user} title="Something came up?" />
       </div>
@@ -163,14 +192,15 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
     // Worked out from take-home until gross pay is entered in Profile.
-    `TAX BRACKET ${formatTaxRate(String(profile.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    // B14 / E9: "30% slab + 4% cess", or "no income tax on your pay", not "26.0%" / "0.0%".
+    `TAX: ${taxRateLabel(String(profile.marginalRate || 0), u.country, { estimated: !(gross > 0), regime: u.country === 'IN' ? (u.tax_regime ?? 'new') : null, stateRate: u.state_marginal_rate }).toUpperCase()}`,
     // The payoff order isn't repeated here: the masthead shows it and switches it.
   ];
   return (
     <section
       aria-label="Plan settings"
       style={{
-        fontSize: 11,
+        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
         letterSpacing: '0.12em',
         color: L_T.muted,
         borderTop: `1px dashed ${L_T.ruleSoft}`,
@@ -191,16 +221,20 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
   );
 }
 
-/** Take-home − costs = left: the three numbers the month's plan comes from. */
-function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+/** Take-home − costs = left: the three numbers the month's plan comes from.
+ *  UX2B-8: `dues` is the plan's month-1 EMIs and minimums (the card
+ *  minimum on the average daily balance, the plan's exchange rate), so
+ *  COSTS and LEFT match "This month" above them. */
+export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: number }) {
+  const m = deriveMetrics(profile);
   const u = profile.user;
   const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
   const today = getCountryToday(u.country);
   const income = Number(u.monthly_income || 0);
   const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
   const current = cashFlowForMonth(profile, m);
-  const debts = Number(current.emiBurden.toFixed(0));
-  const left = Number(current.surplus.toFixed(0));
+  const debts = dues ?? Number(current.emiBurden.toFixed(0));
+  const left = dues != null ? Math.round(income - spend - dues) : Number(current.surplus.toFixed(0));
   const streams = u.income_streams?.length ?? 0;
   // ₹ and $ minimums can't be added without the rate.
   const noFx = m.fxMissing.length > 0;
@@ -253,7 +287,7 @@ function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics })
       >
         {cells.map((c) => (
           <div key={c.label} style={{ background: L_T.paper, padding: '14px 18px' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 6 }}>
               {c.label}
             </div>
             <div
@@ -272,7 +306,7 @@ function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics })
               </span>
               {c.value}
             </div>
-            <div style={{ fontSize: 11, color: L_T.muted, marginTop: 8, lineHeight: 1.5 }}>{c.note}</div>
+            <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 8, lineHeight: 1.5 }}>{c.note}</div>
           </div>
         ))}
       </div>
@@ -320,7 +354,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
         >
           <div
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               letterSpacing: '0.18em',
               color: L_T.muted,
               marginBottom: 16,
@@ -330,7 +364,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 13,
+              fontSize: 'var(--fs-body)',
               color: L_T.muted,
               marginBottom: 22,
               lineHeight: 1.7,
@@ -359,7 +393,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
                   : localTerms(`KEEP CURRENT EMIS RUNNING.`, profile.user.country)}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
+          <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
             THE SINGLE MOST USEFUL THING YOU CAN DO RIGHT NOW.
             <br />
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
@@ -369,7 +403,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
             <dl
               aria-label="This month"
               data-testid="home-short-breakdown"
-              style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '18px 0 0', fontSize: 12 }}
+              style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '18px 0 0', fontSize: 'var(--fs-dense)' }}
             >
               <dt>DUE THIS MONTH</dt>
               <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(shortBreakdown.due)}</dd>
@@ -386,7 +420,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: L_T.muted,
               letterSpacing: '0.14em',
               textAlign: 'center',
@@ -398,7 +432,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           {/* Sprint L4: the distress triage, one tap from the soft view. */}
           <div
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: L_T.muted,
               letterSpacing: '0.14em',
               textAlign: 'center',
@@ -411,7 +445,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               letterSpacing: '0.18em',
               color: L_T.muted,
               marginTop: 20,
@@ -424,7 +458,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
         <div
           style={{
             maxWidth: 480,
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             color: L_T.muted,
             textAlign: 'center',
             lineHeight: 1.7,
@@ -447,7 +481,7 @@ function EmptyState({ paidOff, country }: { paidOff: boolean; country?: string }
       <div style={{ padding: '40px 0' }}>
         <LCli>{paidOff ? 'STATUS · DEBT-FREE' : 'STATUS · NO DEBTS ON FILE'}</LCli>
         <LRule length={200} />
-        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+        <div style={{ marginTop: 18, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
           {paidOff ? (
             <>
               {localTerms('Every loan on file is paid off. Put the old EMIs to work:', country)}{' '}

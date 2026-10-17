@@ -83,17 +83,6 @@ export function applyRules(idx: number[], rules: PayoffRules, rate: (i: number) 
   return [...front, ...byRate(rest)];
 }
 
-/** One line describing the rules, for the switcher and the masthead. */
-export function describeRules(rules: PayoffRules, money: (n: number) => string, loanName: (i: number) => string): string {
-  if (rules.custom_order.length > 0) return `Your order: ${rules.custom_order.map(loanName).join(', ')}; the rest by highest rate.`;
-  const parts: string[] = [];
-  if (rules.pinned.length > 0) parts.push(`${rules.pinned.map(loanName).join(', ')} first`);
-  if (rules.small_first_below != null && Number(rules.small_first_below) > 0) parts.push(`loans under ${money(Number(rules.small_first_below))} cleared first, smallest first`);
-  parts.push(parts.length ? 'then the highest rate' : 'Highest rate first (no rules set)');
-  const s = parts.join('; ');
-  return s.charAt(0).toUpperCase() + s.slice(1) + '.';
-}
-
 // ─── Storage ────────────────────────────────────────────────────────────────
 
 export function readRulesClient(): PayoffRules | null {

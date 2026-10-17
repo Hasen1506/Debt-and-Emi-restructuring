@@ -34,6 +34,12 @@ without a signature check; its claims are still checked (iss, aud, exp,
 email_verified). https://developers.google.com/identity/openid-connect/openid-connect
 (section "Obtain user information from the ID token", checked 12 Oct 2026).
 
+Consent (audit80 D2): the Google button sits under the same notice and
+"I am 18 or older" tick as the code form; /start carries what was agreed
+(nv, tv, age) in the flow cookie and the callback records it in
+consent_events, channel "google". Without them the sign-in still works
+and /auth/me reports consent_required, so the page asks once.
+
 Only the email is used: no name, picture or Google profile is stored. A
 Google sign-in for an email that already has a RightDue account signs in to
 that account (Google has verified the address, as the emailed code would).
@@ -50,7 +56,7 @@ from typing import Annotated, Optional
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -64,6 +70,8 @@ from api.auth.session import (
     session_expiry,
     utc_now,
 )
+from api.auth import consent
+from api.auth.devices import device_label
 from api.db.database import get_db
 from api.db.models import Session, User
 
@@ -123,7 +131,12 @@ async def config() -> dict:
 
 
 @router.get("/start")
-async def start(next: Annotated[Optional[str], Query()] = None) -> Response:
+async def start(
+    next: Annotated[Optional[str], Query()] = None,
+    nv: Annotated[Optional[str], Query(max_length=32)] = None,
+    tv: Annotated[Optional[str], Query(max_length=32)] = None,
+    age: Annotated[Optional[str], Query(max_length=1)] = None,
+) -> Response:
     s = _require()
     state = secrets.token_urlsafe(24)
     verifier = secrets.token_urlsafe(48)
@@ -139,7 +152,8 @@ async def start(next: Annotated[Optional[str], Query()] = None) -> Response:
         "prompt": "select_account",
     }
     resp = RedirectResponse(f"{AUTH_URL}?{urlencode(params)}", status_code=status.HTTP_302_FOUND)
-    flow = _b64(json.dumps({"s": state, "v": verifier, "n": safe_next(next), "t": int(time.time())}).encode())
+    agreed = {"nv": nv, "tv": tv, "age": age == "1"} if nv and tv else None
+    flow = _b64(json.dumps({"s": state, "v": verifier, "n": safe_next(next), "t": int(time.time()), "c": agreed}).encode())
     resp.set_cookie(FLOW_COOKIE, flow, max_age=FLOW_TTL_S, httponly=True, secure=_cookie_secure(),
                     samesite="lax", path=FLOW_PATH)
     resp.headers["Cache-Control"] = "no-store"
@@ -195,6 +209,7 @@ def _fail(message: str) -> Response:
 
 @router.get("/callback")
 async def callback(
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     code: Annotated[Optional[str], Query()] = None,
     state: Annotated[Optional[str], Query()] = None,
@@ -229,9 +244,22 @@ async def callback(
         except IntegrityError:
             res = await db.execute(select(User).where(User.email == email))
             user = res.scalar_one()
-    user.last_login_at = utc_now()
+    now = utc_now()
+    user.last_login_at = now
+    agreed = flow.get("c")
+    if isinstance(agreed, dict):
+        try:
+            payload = consent.ConsentIn(notice_version=str(agreed.get("nv") or ""), terms_version=str(agreed.get("tv") or ""),
+                                        age_confirmed=agreed.get("age") is True)
+            consent.check(payload)
+            await consent.record(db, user, payload, "google")
+        except Exception:
+            # An old page or a missing tick: sign in anyway; /auth/me then
+            # reports consent_required and the app asks before going on.
+            pass
     token = generate_session_token()
-    db.add(Session(token=hash_session_token(token), user_id=user.id, expires_at=session_expiry()))
+    db.add(Session(token=hash_session_token(token), user_id=user.id, expires_at=session_expiry(),
+                   device_label=device_label(request.headers.get("user-agent")), last_seen_at=now))
     await db.commit()
 
     resp = RedirectResponse(f"/login?{urlencode({'google': '1', 'next': safe_next(flow.get('n'))})}",

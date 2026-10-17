@@ -87,11 +87,23 @@ def build() -> dict:
             "gst_applies": dict(GST_APPLIES),
         },
         "us": {
-            status.value: {
-                "slabs": _slabs(usa.BRACKETS_2026[status]),
-                "standard_deduction": _num(usa.STANDARD_DEDUCTION_2026[status]),
-            }
-            for status in FilingStatusUS
+            **{
+                status.value: {
+                    "slabs": _slabs(usa.BRACKETS_2026[status]),
+                    "standard_deduction": _num(usa.STANDARD_DEDUCTION_2026[status]),
+                }
+                for status in FilingStatusUS
+            },
+            # Self-employment tax (round 3, engine/tax/usa.py self_employment_tax).
+            "se": {
+                "net_factor": _num(usa.SE_NET_FACTOR),
+                "ss_rate": _num(usa.SE_SS_RATE),
+                "medicare_rate": _num(usa.SE_MEDICARE_RATE),
+                "ss_wage_base": _num(usa.SE_SS_WAGE_BASE_2026),
+                "min_net": _num(usa.SE_MIN_NET),
+                "addl_medicare_rate": _num(usa.ADDL_MEDICARE_RATE),
+                "addl_medicare_threshold": {k.value: _num(v) for k, v in usa.ADDL_MEDICARE_THRESHOLD.items()},
+            },
         },
     }
 

@@ -6,7 +6,7 @@
  */
 import { addActivityEntry, readActivityClient, type ActivityEntry } from './activity';
 import { alignToLoans, withLoanIds } from './loan-ids';
-import { loadProfileClient, saveProfileClient, SAVE_FAILED_EVENT } from './user-store';
+import { saveProfileClient, SAVE_FAILED_EVENT } from './user-store';
 import { regularPaid } from './payment-state';
 import Decimal from 'decimal.js';
 
@@ -60,9 +60,4 @@ export function saveProfileWithPaidEmis(profile: Parameters<typeof saveProfileCl
     window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;
   }
-}
-
-/** Kept for callers completing an older profile-save flow. */
-export function recordEmisPaidAtEntry(today: string): void {
-  if (!saveProfileWithPaidEmis(loadProfileClient(), today)) throw new Error('The paid EMI could not be saved.');
 }

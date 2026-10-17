@@ -12,7 +12,7 @@
  */
 import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
-import { formatTaxRate } from '@/lib/tax-profile';
+import { taxRateLabel } from '@/lib/tax-profile';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -25,13 +25,17 @@ import { InflationToggle } from '@/components/InflationToggle';
 import { InflationRateControl } from './InflationRateControl';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
+import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
 import { loanToUser } from '@/lib/currency';
 import { DebtBudgetControl } from './DebtBudgetControl';
+import { AssumedReturnControl, GapLimitControl, RateRiseControl, SeasonalIncomeControl } from './PlanInputsControls';
+import { hasSeasonalPattern } from '@/lib/seasonal-income';
+import { assumedReturnFor, floatingLoanIndices, gapLimitFor } from '@/lib/plan-inputs';
 
 // FilingStatusUS: 'single' | 'mfj' | 'hoh' (same as Home's context line).
 const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
-type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx';
+type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx' | 'borrow' | 'return' | 'rise' | 'season';
 
 interface Chip {
   key: ChipKey;
@@ -84,7 +88,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'budget',
       label: 'TO DEBTS',
-      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : 'ALL SPARE CASH',
+      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : allSpare - required < 1 ? 'MINIMUMS ONLY' : 'ALL SPARE CASH',
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (
@@ -146,6 +150,52 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       ),
     },
   ];
+  // Round 2 (founder, items 1–3): assumptions the engine used without saying.
+  const gap = gapLimitFor(configured);
+  chips.push({
+    key: 'borrow',
+    label: 'BORROWING LIMIT',
+    value: `${formatCurrencyWhole(String(gap.value), ccy)}${gap.assumed ? ' (OUR GUESS)' : ''}`,
+    about: gap.assumed
+      ? 'How much the plan may borrow to cover a short month. You haven’t said, so it assumes 3 months of take-home.'
+      : 'How much the plan may borrow to cover a short month: your own limit.',
+    control: <GapLimitControl user={configured} currency={ccy} />,
+  });
+  const ret = assumedReturnFor(configured);
+  chips.push({
+    key: 'return',
+    label: 'YOUR RETURN AFTER TAX',
+    value: `${pct(ret.value, 1)}${ret.assumed ? ' (OUR GUESS)' : ''}`,
+    about: 'Decides when the plan asks whether to prepay a cheap loan, keep the money, or split it.',
+    control: <AssumedReturnControl user={configured} />,
+  });
+  const floating = floatingLoanIndices(configured.loans);
+  if (floating.length > 0) {
+    const own = floating.filter((i) => configured.loans[i]?.on_rate_rise).length;
+    chips.push({
+      key: 'rise',
+      label: 'IF A RATE RISES',
+      value: own === 0 ? (u.country === 'IN' ? 'EXTEND TENURE (DEFAULT)' : 'RAISE PAYMENT (DEFAULT)') : `${own} OF ${floating.length} SET BY YOU`,
+      about: 'What each floating-rate loan does when its rate goes up: a longer tenure, a higher EMI, or both.',
+      control: <RateRiseControl user={configured} floating={floating} />,
+    });
+  }
+  // Round 2 (item 4): income that varies by season, and the opt-in reserve.
+  const season = hasSeasonalPattern(configured.seasonal_income) ? configured.seasonal_income : null;
+  chips.push({
+    key: 'season',
+    label: 'INCOME BY SEASON',
+    value: !season ? 'SAME EVERY MONTH' : season.reserve ? 'VARIES · RESERVE ON' : 'VARIES · NO RESERVE',
+    about: 'Whether your take-home changes through the year (a festive quarter, harvest, exam months), and whether the plan keeps a reserve for the lean months.',
+    control: (
+      <SeasonalIncomeControl
+        user={configured}
+        seasonal={plan.seasonal}
+        currency={configured.country === 'US' ? 'USD' : 'INR'}
+        dateLabel={(m) => (m == null ? 'not within the plan' : monthIndexToCountryLabel(m, configured.country))}
+      />
+    ),
+  });
   if (taxSaving > 0) {
     chips.push({
       key: 'tax',
@@ -174,9 +224,9 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     chips.push({
       key: 'fx',
       label: 'RUPEE',
-      value: plan.fxDrift === 'on' ? 'WEAKENS 2.5% A YEAR' : 'HELD AT TODAY’S RATE',
-      about: 'Your rupee loans counted in dollars: at today’s rate throughout, or with the rupee losing 2.5% a year.',
-      control: <FxDriftToggle active={plan.fxDrift} driftLabel="INR +2.5%/yr (CPI differential)" variant="ledger" />,
+      value: plan.fxDrift === 'on' ? 'WEAKENS 3.5% A YEAR' : 'HELD AT TODAY’S RATE',
+      about: 'Your rupee loans counted in dollars: at today’s rate throughout, or with the rupee losing 3.5% a year (its 20-year average against the dollar).',
+      control: <FxDriftToggle active={plan.fxDrift} driftLabel={INR_SLIDE_LABEL} variant="ledger" />,
     });
   }
 
@@ -186,7 +236,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     u.country === 'IN'
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
-    `TAX BRACKET ${formatTaxRate(String(plan.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    `TAX: ${taxRateLabel(String(plan.marginalRate || 0), u.country, { estimated: !(gross > 0), regime: u.country === 'IN' ? (u.tax_regime ?? 'new') : null, stateRate: u.state_marginal_rate }).toUpperCase()}`,
   ];
   const current = chips.find((c) => c.key === open);
 
@@ -199,7 +249,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
           alignItems: 'baseline',
           flexWrap: 'wrap',
           gap: 8,
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.12em',
           color: L_T.muted,
           marginBottom: 8,
@@ -224,7 +274,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
               onClick={() => setOpen(isOpen ? null : c.key)}
               style={{
                 fontFamily: 'inherit',
-                fontSize: 10,
+                fontSize: 'var(--fs-label)',
                 letterSpacing: '0.1em',
                 padding: '6px 10px',
                 minHeight: 30,
@@ -250,7 +300,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
               padding: '10px 12px',
               borderLeft: `2px solid ${L_T.accent}`,
               background: L_T.paper,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               lineHeight: 1.6,
             }}
           >

@@ -78,6 +78,7 @@ function rolls(loan: LoanPayload): boolean {
   return (
     loan.loan_type !== 'credit_card' &&
     loan.rate_basis !== 'flat' &&
+    loan.repayment !== 'bullet' &&
     (loan.pre_emi_months_remaining ?? 0) <= 0 &&
     (loan.planned_effective_month ?? 0) <= 1 &&
     Number(loan.scheduled_emi) > 0 &&
@@ -113,7 +114,9 @@ export function rollBalancesForward(
       return {
         ...loan,
         outstanding: start.add(emi).div(r.add(1)).toFixed(2),
-        tenure_months_remaining: (loan.tenure_months_remaining || 0) + 1,
+        // UX2-1: an unknown tenure (0) stays unknown; 0 + 1 made it a
+        // 1-month loan and the plan asked for the whole balance at once.
+        tenure_months_remaining: loan.tenure_months_remaining > 0 ? loan.tenure_months_remaining + 1 : 0,
       };
     }
     // A new loan: EMIs from its first EMI month to last month.
@@ -139,6 +142,30 @@ export function rollBalancesForward(
   return { loans: out, rolled };
 }
 
+/**
+ * UX walkthrough fix 4: the loans whose EMI for this month went out before
+ * their balance was entered (this month, "Paid already"). The plan's
+ * opening balance adds that EMI back so its first month can pay it; what
+ * the person owes today does not (engine/owed_today.py takes these
+ * positions as `paid_emi_this_month`).
+ */
+export function paidAtEntryThisMonth(loans: LoanPayload[], currentMonth: string): number[] {
+  return loans.flatMap((loan, i) =>
+    rolls(loan) && loan.balance_after_emi === true && loan.balance_as_of?.slice(0, 7) === currentMonth ? [i] : []);
+}
+
+/** What's owed today on each loan (fix 4): the plan's start-of-month
+ *  balances (`current`, rolled forward) less this month's EMI on each loan
+ *  in `paid` (paid at entry, or marked paid in Activity), as Home shows
+ *  (lib/owed-now) and the engine's owed_today. Tools that show a balance
+ *  (NRI prepay, the lump-sum box) start here. */
+export function owedTodayLoans(current: LoanPayload[], paid: Iterable<number>): LoanPayload[] {
+  const set = new Set(paid);
+  return current.map((l, i) => (set.has(i) && rolls(l)
+    ? { ...l, outstanding: afterOneEmi(l).toFixed(2), tenure_months_remaining: Math.max(0, (l.tenure_months_remaining || 0) - 1) }
+    : l));
+}
+
 /** Date each loan's balance: today for a new loan or a changed balance,
  *  else the date it already had. `prev` is the saved list (matched by id,
  *  else position). Whether the month's EMI had gone out goes with the
@@ -155,8 +182,43 @@ export function stampBalanceDates(next: LoanPayload[], prev: LoanPayload[], toda
     const afterEmi = same ? before.balance_after_emi : loan.balance_after_emi;
     if (afterEmi === undefined) delete out.balance_after_emi;
     else out.balance_after_emi = afterEmi;
+    const until = lockInUntil(loan, before, today);
+    if (until) out.prepay_lock_in_until = until;
+    else delete out.prepay_lock_in_until;
     return out;
   });
+}
+
+/** 'YYYY-MM' plus n months. */
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number);
+  const k = y * 12 + (m - 1) + n;
+  return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
+}
+
+/** Audit 80+ C4: the calendar month a loan's lock-in ends, so it runs down
+ *  instead of restarting every time the plan is loaded. Typed (or changed)
+ *  months count from today; unchanged months keep the month already
+ *  stamped; a profile saved before this stamp counts from the month its
+ *  balance was entered (the API does the same for unstamped payloads). */
+export function lockInUntil(loan: LoanPayload, before: LoanPayload | undefined, today: string): string | undefined {
+  const months = Math.max(0, Math.floor(Number(loan.prepay_lock_in_months || 0)));
+  if (!(months > 0)) return undefined;
+  const prevMonths = Math.max(0, Math.floor(Number(before?.prepay_lock_in_months || 0)));
+  if (before && prevMonths === months) {
+    if (before.prepay_lock_in_until) return before.prepay_lock_in_until;
+    const from = (before.balance_as_of ?? today).slice(0, 7);
+    return addMonths(from, months);
+  }
+  if (loan.prepay_lock_in_until && !before) return loan.prepay_lock_in_until;
+  return addMonths(today.slice(0, 7), months);
+}
+
+/** Months from `currentMonth` during which extra payments are refused. */
+export function lockInMonthsLeft(loan: Pick<LoanPayload, 'prepay_lock_in_months' | 'prepay_lock_in_until'>, currentMonth: string): number {
+  if (loan.prepay_lock_in_until && /^\d{4}-\d{2}$/.test(loan.prepay_lock_in_until))
+    return Math.max(0, monthsBetween(currentMonth, loan.prepay_lock_in_until));
+  return Math.max(0, Number(loan.prepay_lock_in_months || 0));
 }
 
 /** True when this loan's balance, as being edited, needs the "has this
@@ -165,6 +227,17 @@ export function stampBalanceDates(next: LoanPayload[], prev: LoanPayload[], toda
 export function asksEmiPaid(loan: LoanPayload, saved: LoanPayload | undefined): boolean {
   if (loan.loan_type === 'credit_card' || loan.rate_basis === 'flat') return false;
   if ((loan.pre_emi_months_remaining ?? 0) > 0) return false;
+  // UX2-3: paid or not, interest only leaves the balance as it is; a bullet has no EMI.
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return false;
   if (!(Number(loan.outstanding) > 0)) return false;
   return !saved || Number(saved.outstanding) !== Number(loan.outstanding);
+}
+
+/** UX2-17: the plan-month index of a loan's last EMI when `months` EMIs are
+ *  left, for Setup's "About N months left, to <month>". This month's EMI
+ *  already paid, or a first EMI in a later month, moves the end on (it read
+ *  Sept 2031 for a loan ending Oct 2031). `thisMonth` is 'YYYY-MM'. */
+export function lastEmiMonthIndex(loan: Pick<LoanPayload, 'balance_after_emi' | 'first_emi_month'>, months: number, thisMonth: string): number {
+  const first = loan.first_emi_month && loan.first_emi_month > thisMonth ? monthsBetween(thisMonth, loan.first_emi_month) : 0;
+  return months + (first > 0 ? first : loan.balance_after_emi === true ? 1 : 0);
 }

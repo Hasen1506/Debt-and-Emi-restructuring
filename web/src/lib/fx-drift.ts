@@ -18,7 +18,10 @@
 
 export type FxDriftSetting = 'on' | 'off';
 
-export const DEFAULT_FX_DRIFT: FxDriftSetting = 'off';
+// E5 (audit 80): on by default. An NRI's plan used to hold the rupee at
+// today's rate for decades, hiding the one assumption that matters most to
+// them; the toggle still turns it off.
+export const DEFAULT_FX_DRIFT: FxDriftSetting = 'on';
 const COOKIE_NAME = 'rightdue_fx_drift';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -62,7 +65,10 @@ export async function loadFxDriftServer(): Promise<FxDriftSetting> {
  *   put it at 2.7 points next year; 2.5 is kept as the longer-run gap.
  *   Refresh with `INFLATION_FORECAST`.
  */
-export const FX_DRIFT_DEFAULTS_AS_OF = '2026-05';
+// Defaults as of 2026-10-12.
+/** Twin of engine/cross_border.py INR_SLIDE_A_YEAR["USD"], as the engine's sign. */
+export const INR_SLIDE_VS_USD = '-0.035';
+export const INR_SLIDE_LABEL = 'INR −3.5%/yr (20-yr average)';
 
 export function defaultDriftForLoanCurrency(
   loanCurrency: string,
@@ -75,6 +81,12 @@ export function defaultDriftForLoanCurrency(
   //
   // The user-facing label says "USD/INR +2.5%/yr" (more INR per USD =
   // depreciation) but on the wire we store -0.025 on INR.
-  if (residenceCountry === 'US' && loanCurrency === 'INR') return '-0.025';
+  // E5 (audit 80): one number for the rupee's slide everywhere. The NRI
+  // tool (engine/cross_border.py INR_SLIDE_A_YEAR) uses the 20-year ECB
+  // average, 3.5% a year against the dollar (USD 46.45 → 96.73, 1 Sep 2006
+  // → 9 Oct 2026); the plan used a 2.5% inflation gap, so the same loan
+  // cost two different amounts on two screens. Differential test:
+  // web/tests/a80-w10-nri.cjs.
+  if (residenceCountry === 'US' && loanCurrency === 'INR') return INR_SLIDE_VS_USD;
   return '0';
 }

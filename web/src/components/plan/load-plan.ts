@@ -3,7 +3,9 @@
  * the same debt-free date. Runs the engine (plan, pay-minimums comparison,
  * restructure scan, the other two strategies) and shapes PlanData.
  */
-import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
+import { promoForEngine } from '@/lib/promo-rate';
+import { jointForEngine } from '@/lib/joint-share';
+import { api, formatCurrencyWhole, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
 import { efTopUpShare } from '@/lib/assumptions';
@@ -30,6 +32,7 @@ import {
 } from '@/lib/fx-drift';
 import { computeAnnualTax, isAdvanceTaxApplicable } from '@/lib/tax-brackets';
 import { readScheduleServer } from '@/lib/advance-tax-cookie';
+import { salariedAdvanceTaxNote, salariedAdvanceTaxRequest, scheduleFromResponse } from '@/lib/salaried-advance-tax';
 import {
   readLifecycleServer,
   plannedEventsForEngine,
@@ -37,6 +40,7 @@ import {
 import { streamTransitionsAsLifecycleEvents } from '@/lib/income-streams';
 import {
   buildSchedule,
+  rebaseSchedule,
   accruedPenalty,
   type AdvanceTaxSchedule,
 } from '@/lib/advance-tax';
@@ -45,16 +49,18 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
-import { prepareLoanPaymentTiming, rollBalancesForward } from '@/lib/roll-forward';
+import { paidAtEntryThisMonth, prepareLoanPaymentTiming, rollBalancesForward } from '@/lib/roll-forward';
+import { owedTodayOf } from '@/lib/owed-today';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
   loadActivityDeltasServer,
   loadActivityPaceServer,
+  loadPaidNowServer,
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
-import { planGap } from '@/lib/plan-gap';
+import { planEnd, planGap, shownDebtFreeMonth } from '@/lib/plan-gap';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
@@ -188,16 +194,53 @@ export async function loadPlanInputs(
         if (stored && !storedStale && stored.country === adjustedUser.country) {
           // Run the missed-event auto-mint each render so past-due
           // unpaid rows are flagged before the panel renders.
-          advanceTaxSchedule = markMissedInstalments(stored, today);
+          // W2: re-cut the remaining instalments when the year's estimate moved.
+          advanceTaxSchedule = markMissedInstalments(rebaseSchedule(stored, annualTax), today);
         } else {
           advanceTaxSchedule = buildSchedule(
             adjustedUser.country,
             annualTax,
             today,
+            // s.408(2): presumptive income pays once, by 15 March.
+            { presumptive: (adjustedUser.income_streams ?? []).some((st) => st.tax_treatment === 'business_44ada') },
           );
         }
       }
     }
+  }
+
+  // Round 2 (founder, item 5): a SALARIED Indian user whose other income
+  // has no TDS (interest, gains, rent, freelance) gets the panel too, once
+  // the tax it adds after TDS is ₹10,000 or more (engine/tax/advance_tax.py).
+  let advanceTaxNote: string | null = null;
+  if (!advanceTaxSchedule) {
+    const todayIso = localIsoDate(new Date());
+    const req = salariedAdvanceTaxRequest(adjustedUser, todayIso);
+    const res = req ? await api.salariedAdvanceTax(req).catch(() => null) : null;
+    const fresh = res ? scheduleFromResponse(res, todayIso) : null;
+    if (res && fresh) {
+      const stored = await readScheduleServer();
+      const storedOk =
+        stored
+          && stored.country === 'IN'
+          && stored.instalments.length > 0
+          && stored.instalments[stored.instalments.length - 1].dueDate >= todayIso;
+      advanceTaxSchedule = storedOk
+        ? markMissedInstalments(rebaseSchedule(stored, new Decimal(res.liability)), new Date())
+        : fresh;
+      advanceTaxNote = salariedAdvanceTaxNote(res, (v) => formatCurrencyWhole(String(Math.round(Number(v))), 'INR'));
+    }
+  }
+  // Round 3 (ux-walkthrough fix 10): a salaried user who gave the tax on other
+  // income directly (Profile → Income, "tax on non-TDS income") gets the same
+  // schedule, at s.404 [208]'s ₹10,000 (US: over $1,000, Form 1040-ES).
+  const extraTax = Number(adjustedUser.income_type === 'salaried' ? adjustedUser.extra_income_annual_tax || 0 : 0);
+  if (!advanceTaxSchedule && (adjustedUser.country === 'IN' ? extraTax >= 10_000 : extraTax > 1_000)) {
+    const stored = await readScheduleServer();
+    const fresh = buildSchedule(adjustedUser.country, new Decimal(extraTax), new Date());
+    advanceTaxSchedule = stored && stored.country === adjustedUser.country && fresh && stored.instalments.at(-1)?.dueDate === fresh.instalments.at(-1)?.dueDate
+      ? markMissedInstalments(rebaseSchedule(stored, new Decimal(extraTax)), new Date())
+      : fresh;
   }
 
   // Fold the advance-tax penalty into surplus math so the trajectory
@@ -277,7 +320,7 @@ export async function loadPlanInputs(
   // A loan taken this month: the engine starts its EMIs at the first EMI
   // month (lib/roll-forward).
   const planMonth = countryMonthKey(adjustedUser.country);
-  adjustedUser.loans = prepareLoanPaymentTiming(adjustedUser.loans, planMonth);
+  adjustedUser.loans = prepareLoanPaymentTiming(adjustedUser.loans, planMonth).map((l) => jointForEngine(promoForEngine(l, planMonth)));
   adjustedUser.loans = adjustedUser.loans.map((l) => {
     if (l.rate_type !== 'floating') return l;
     const computed = nextResetSimMonth(l.next_reset_date);
@@ -316,6 +359,8 @@ export async function loadPlanInputs(
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
   const debtBudget = await (await import('@/lib/debt-budget')).loadDebtBudgetServer();
+  // Audit 80+ A4: the user's own prepay/keep split for when only cheap debt is left.
+  const lowRateShare = await (await import('@/lib/low-rate-choice')).loadLowRateShareServer();
   const { goalsForSimulateServer } = await import('@/lib/goals');
   const { readContributionTotalsServer } = await import(
     '@/lib/goal-contributions'
@@ -353,16 +398,26 @@ export async function loadPlanInputs(
   // comparison table reflects "what if you flipped only the strategy".
   // The active strategy still pulls scenario+baseline+restructuring; the
   // other two run as bare simulates (we only need their headline metrics).
+  // Paid at entry, or marked paid in Activity this month (as Home reads it).
+  const nowKey = countryMonthKey(profile.user.country);
+  const paidEmis = [...new Set([
+    ...paidAtEntryThisMonth(profile.user.loans, nowKey),
+    ...(await loadPaidNowServer(profile.user.loans, nowKey)),
+  ])].sort((a, b) => a - b);
   const simBaseArgs = {
     user: adjustedUser,
     horizon_months: HORIZON_MONTHS,
     marginal_rate: profile.marginalRate,
     simulation_start_month,
+    // UX walkthrough fix 4: the EMIs already paid this month, so the engine's
+    // owed_today is the balance Home shows (engine/owed_today.py).
+    paid_emi_this_month: paidEmis.length > 0 ? paidEmis : undefined,
     reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
     debt_budget: debtBudget || undefined,
+    low_rate_invest_share: lowRateShare || undefined,
     // Per-goal payload — engine runs serial-fill per month with
     // goal-expiry awareness, threads saved_so_far across iterations,
     // and returns per-goal slices + end-of-trajectory fill rates.
@@ -379,6 +434,7 @@ export async function loadPlanInputs(
     bracketTransitions,
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
+    advanceTaxNote,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -408,6 +464,7 @@ export async function loadPlan(
     bracketTransitions,
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
+    advanceTaxNote,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -449,6 +506,7 @@ export async function loadPlan(
       bracketTransitions,
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
+      advanceTaxNote,
       taxReinvest,
       taxReinvestProjection: [],
       monthlyPayments: [],
@@ -514,21 +572,21 @@ export async function loadPlan(
     ]);
     const strategyCompare = {
       [strategy]: {
-        debtFreeMonth: scenario.debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(scenario),
         totalInterest: scenario.total_interest_paid,
       },
       [otherStrategies[0]]: {
-        debtFreeMonth: altSims[0].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(altSims[0]),
         totalInterest: altSims[0].total_interest_paid,
       },
       [otherStrategies[1]]: {
-        debtFreeMonth: altSims[1].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(altSims[1]),
         totalInterest: altSims[1].total_interest_paid,
       },
     } as PlanData['strategyCompare'];
     const monthsSaved =
-      scenario.debt_free_month && baseline.debt_free_month
-        ? baseline.debt_free_month - scenario.debt_free_month
+      shownDebtFreeMonth(scenario) && baseline.debt_free_month
+        ? baseline.debt_free_month - scenario.debt_free_month!
         : 0;
     const scenarioPayments = extractMonthlyPayments(scenario);
     const baselinePayments = extractMonthlyPayments(baseline);
@@ -574,13 +632,14 @@ export async function loadPlan(
         monthlyInterest: Number(b.monthly_interest),
         scheduledEmi: Number(b.scheduled_emi),
       })),
-      scheduleCut:
-        scenario.debt_free_month == null && (scenario.trajectory_cut_month != null || scenario.never_clears)
-          ? { month: scenario.trajectory_cut_month ?? null, growsWithoutLimit: !!scenario.grows_without_limit }
-          : null,
+      // Integration phase 5 (C11): debtFreeMonth / infeasibleFrom /
+      // scheduleCut from one mapping (lib/plan-gap planEnd): a capped plan
+      // has no debt-free month and stops at its first unfundable month.
+      ...planEnd(scenario),
+      seasonal: scenario.seasonal ?? null,
+      owedToday: owedTodayOf(scenario),
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
-      debtFreeMonth: scenario.debt_free_month,
       totalInterest: scenario.total_interest_paid,
       baselineInterest: baseline.total_interest_paid,
       monthsSaved,
@@ -601,12 +660,15 @@ export async function loadPlan(
       bracketTransitions,
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
+      advanceTaxNote,
       taxReinvest,
       taxReinvestProjection: projectedTaxSavings,
       monthlyPayments: scenarioPayments,
       // What the pay-minimums run pays in month 1: the plan's month-1
       // payment minus this is the extra it puts on each loan.
       firstMonthMinimums: baselinePayments.find((p) => p.month === 1)?.perLoan ?? {},
+      debtStatusMonth1: ((p) => ({ catchUp: p?.catch_up_by_loan_index ?? {}, pot: p?.settlement_pot_by_loan_index ?? {} }))(
+        scenario.trajectory.find((p) => p.month === 1)),
       runArgs: simBaseArgs,
       // Only when the log changed a balance: an extra the plan already
       // pays this month changes nothing until the month is over.
@@ -624,7 +686,7 @@ export async function loadPlan(
             planTotal,
             differs: paceOff,
             projectionUnavailable,
-            debtFreeMonth: paceOff && paceSim && !projectionUnavailable ? paceSim.debt_free_month : null,
+            debtFreeMonth: paceOff && paceSim && !projectionUnavailable ? shownDebtFreeMonth(paceSim) : null,
           }
         : null,
       currenciesInPlay: ccyList,
@@ -740,7 +802,7 @@ export async function loadStrategyOutcomesFromCookies(): Promise<{
     STRATEGIES.map((s, i) => [
       s,
       {
-        debtFreeMonth: sims[i].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(sims[i]),
         totalInterest: sims[i].total_interest_paid,
         short:
           Number(sims[i].shortfall ?? 0) > 0 ||

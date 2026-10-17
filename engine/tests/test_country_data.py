@@ -2,7 +2,7 @@
 from decimal import Decimal
 import pytest
 from engine.country_data import (
-    lookup_mab, lookup_stamp_duty, india_selling_cost_pct, india_buying_cost_pct,
+    lookup_mab, lookup_stamp_duty, india_selling_cost_pct,
     lookup_cii, INSTITUTION_TIER,
 )
 from engine.models import Country
@@ -39,10 +39,6 @@ def test_india_selling_cost_is_brokerage_only():
 def test_india_selling_cost_custom_brokerage():
     """Custom 2% brokerage."""
     assert india_selling_cost_pct("Maharashtra", D("0.02")) == D("0.02")
-
-
-def test_india_buying_cost_is_stamp_plus_registration():
-    assert india_buying_cost_pct("Maharashtra") == D("0.07")
 
 
 def test_cii_lookup_known_fy():

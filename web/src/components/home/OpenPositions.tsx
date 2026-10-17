@@ -7,8 +7,9 @@
  * A row opens to how that cost is worked out. The loan an extra payment
  * goes to first by cost is flagged DEAREST. Replaces the separate Debts page.
  */
+import { Term } from '@/components/Term';
 import { localTerms, paymentWords } from '@/lib/terms';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -25,7 +26,7 @@ import { useOwedNow } from '@/lib/owed-now';
 import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 
-export function OpenPositions({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m: DerivedMetrics; dues?: ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);
   const { user } = profile;
   const country = user.country;
@@ -52,7 +53,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
         <span id="positions-h">Your loans and cards · {m.loans.length}</span>
       </LSectionHeader>
       {/* Where these numbers come from: the user, not the bank. */}
-      <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
         As entered in Profile, not linked to your bank: check them against a
         statement now and then. A loan moves on by its {paymentWords(country).one} once you mark it
         paid; a card shows what you've paid this month off the balance you
@@ -68,6 +69,10 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
           const gaps = loanGaps(loan, gapCtx);
           const isCard = loan.loan_type === 'credit_card';
           const months = Number(loan.tenure_months_remaining || 0);
+          // UX2B-15: a pay-later bill is a payment, not an EMI ("EMI ₹6,500 · 1 MO LEFT" after it was paid).
+          const later = loan.loan_type === 'bnpl';
+          const payTag = later ? 'PAYMENT' : emiTag;
+          const leftTag = (n: number) => (later ? (n > 0 ? `${n} PAYMENT${n === 1 ? '' : 'S'} LEFT` : 'NOTHING MORE DUE') : `${n} MO LEFT`);
           const isDearest = d === dearest;
           const isOpen = open === i;
           const owed = now.rows[d.index]?.owed ?? d.outstanding;
@@ -81,21 +86,25 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               missing('RATE')
             ) : d.effective.sub(d.nominal).abs().lt(0.00005) ? (
               // No fees, GST or tax saving: one rate.
-              <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
+              <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
             ) : (
+              // Audit 80 B13/E2: the statement's rate first, the one all-in
+              // figure second (lib/card-rate), no arrow implying the user's
+              // number was wrong.
               <>
-                {fmtPct(d.nominal)} →{' '}
-                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
-                A YEAR
+                <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
+                {/* UX fix 19: a rate filled by "I don't know" says so until the real one is typed. */}
+                {d.loan.estimated_fields?.includes('rate') ? <span data-testid="rate-estimated" style={{ color: L_T.muted }}>(ESTIMATE · CHECK YOUR STATEMENT) </span> : null}
+                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year" about={name}>ALL-IN</Term>}
               </>
             ),
             gaps.includes('emi') ? (
               missing(emiTag)
             ) : d.required.gt(0) && !(status && status !== 'paid') ? (
-              `${isCard ? 'MINIMUM' : emiTag} ${fc(d.required.toFixed(0))}`
+              `${isCard ? 'MINIMUM' : payTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
-            isCard ? 'REVOLVING' : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
+            isCard ? <Term key="rev" id="revolving" about={name}>REVOLVING</Term> : months > 0 ? leftTag(now.rows[d.index]?.status === 'paid' ? months - 1 : months) : null,
           ].filter(Boolean);
           return (
             <li
@@ -107,8 +116,10 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 rowGap: 6,
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
-                fontSize: 12,
-                ...(isDearest ? lStrip('negative') : null),
+                fontSize: 'var(--fs-dense)',
+                // Audit 80+ B19: the dearest loan is where the extra goes, a plan,
+                // not a problem: one accent, not red.
+                ...(isDearest ? lStrip('accent') : null),
               }}
             >
               <span style={{ color: L_T.muted }}>{String(i + 1).padStart(2, '0')}</span>
@@ -116,12 +127,12 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 <div style={{ fontWeight: 700 }}>
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
-                    <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.negative }}>
-                      · DEAREST
+                    <span style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.accent }}>
+                      · COSTLIEST
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 10, letterSpacing: '0.08em', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 'var(--fs-small)', fontFamily: 'var(--font-mono)', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
                   {parts.map((p, k) => (
                     <span key={k}>
                       {k > 0 && ' · '}
@@ -131,19 +142,19 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--fs-body)' }}>
                   {now.rows[d.index]?.cardBefore ? `≈ ${fc(owed.toFixed(0))}` : fc(owed.toFixed(0))}
                 </div>
                 {now.rows[d.index]?.cardBefore && (
                   // UX50 B-12: the card moves when it's marked paid, as an
                   // estimate until the next statement is entered.
-                  <div data-testid="card-paid-down" style={{ fontSize: 10, color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
+                  <div data-testid="card-paid-down" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
                     WAS {fc(now.rows[d.index]!.cardBefore!.toFixed(0))} · LESS THIS MONTH&apos;S PAYMENT, BEFORE INTEREST ·{' '}
                     <a href="/profile?step=loans" style={{ color: L_T.accent }}>ENTER THE STATEMENT</a>
                   </div>
                 )}
                 {ccy !== userCcy && !noFx && (
-                  <div style={{ fontSize: 10, color: L_T.muted }}>
+                  <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
                     {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
                   </div>
                 )}
@@ -155,12 +166,12 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 <div
                   style={{
                     gridColumn: '2 / -1',
-                    fontSize: 10,
+                    fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                     letterSpacing: '0.08em',
                     color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                   }}
                 >
-                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : emiTag, !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
+                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : payTag, !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
                 </div>
               )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -198,10 +209,10 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             gap: 8,
             padding: '10px 10px 10px 46px',
             borderTop: `2px solid ${L_T.ink}`,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
           }}
         >
-          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 10 }}>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
             TOTAL OWED{m.loans.some((d) => loanCurrency(d.loan, country) !== userCcy) ? ` IN ${userCcy}` : ''}
           </span>
           {noFx ? (
@@ -213,7 +224,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {formatCurrencyWhole(totalNow.toFixed(0), userCcy)}
               <span style={{ color: L_T.muted, fontWeight: 400 }}>
-                {' '}· {localTerms('EMIS', country)} + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
+                {' '}· {localTerms('EMIS', country)} + MINIMUMS {dues ?? formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
               </span>
             </span>
           )}

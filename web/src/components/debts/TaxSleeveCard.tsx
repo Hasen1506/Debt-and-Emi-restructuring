@@ -60,8 +60,8 @@ const TAX_SLEEVE_TIP = (
     </div>
     <div style={{ marginTop: 8 }}>
       Not your situation? Clear that field in{' '}
-      <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
-        Setup → Income
+      <a href="/profile?step=income" style={{ color: 'var(--accent)' }}>
+        Profile → Income
       </a>{' '}
       and the card goes away.
     </div>
@@ -107,7 +107,7 @@ export function TaxSleeveCard({
 
   if (!next) {
     return (
-      <Shell tone="accent" title="Tax sleeve · all clear">
+      <Shell tone="accent" title="Advance tax set-aside · all clear">
         <ThemedHeadline>
           Annual target {formatCurrency(String(annualTarget), currency)} — all 4
           installments paid.
@@ -133,10 +133,10 @@ export function TaxSleeveCard({
 
   const nextIdx = fullSchedule.findIndex((i) => cycleKey(i) === cycleKey(next));
   const title = overdue
-    ? `Tax sleeve · OVERDUE by ${-daysLeft}d`
+    ? `Advance tax set-aside · OVERDUE by ${-daysLeft}d`
     : urgent
-      ? `Tax sleeve · ${daysLeft}d to next installment`
-      : 'Tax sleeve';
+      ? `Advance tax set-aside · ${daysLeft}d to next instalment`
+      : 'Advance tax set-aside';
 
   return (
     <Shell tone={tone} title={title}>
@@ -186,7 +186,7 @@ export function TaxSleeveCard({
               borderRadius: 4,
               padding: '5px 10px',
               cursor: 'pointer',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontWeight: 600,
             }}
           >
@@ -210,7 +210,7 @@ export function TaxSleeveCard({
                 borderRadius: 4,
                 padding: '5px 10px',
                 cursor: 'pointer',
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
               }}
             >
               {slice.paidInstallments.includes(cycleKey(fullSchedule[nextIdx - 1]))
@@ -234,8 +234,8 @@ export function TaxSleeveCard({
             <>
               the tax on your stated <strong>annual business income</strong>.
               Edit in{' '}
-              <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
-                Setup → Income
+              <a href="/profile?step=income" style={{ color: 'var(--accent)' }}>
+                Profile → Income
               </a>
               .
             </>
@@ -243,8 +243,8 @@ export function TaxSleeveCard({
             <>
               the <strong>&quot;{country === 'IN' ? 'tax on non-TDS income' : 'tax on income with no withholding'}&quot;</strong> field you
               entered. Edit or clear it in{' '}
-              <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
-                Setup → Income
+              <a href="/profile?step=income" style={{ color: 'var(--accent)' }}>
+                Profile → Income
               </a>{' '}
               to make this card go away.
             </>

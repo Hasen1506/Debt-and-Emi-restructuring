@@ -74,27 +74,6 @@ export function getCountryMonth(country: Country): number {
   return getCountryToday(country).getMonth() + 1;
 }
 
-/** Display label like "Friday, 15 May 2026 · IST". */
-export function formatCountryDateLong(country: Country): string {
-  const d = getCountryToday(country);
-  const day = d.toLocaleDateString('en-GB', { weekday: 'long' });
-  const date = d.toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
-  const tzLabel = country === 'IN' ? 'IST' : 'ET';
-  return `${day}, ${date} · ${tzLabel}`;
-}
-
-/** Short label like "FRI 15 MAY 2026 IST". */
-export function formatCountryDateShort(country: Country): string {
-  const d = getCountryToday(country);
-  const s = d.toLocaleDateString('en-GB', {
-    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-  });
-  const tzLabel = country === 'IN' ? 'IST' : 'ET';
-  return `${s.toUpperCase()} ${tzLabel}`;
-}
-
 /**
  * First day of the calendar month that sim month `monthIndex` falls in.
  * Month 1 is the current month (the engine's `simulation_start_month`),

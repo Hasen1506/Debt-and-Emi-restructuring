@@ -42,8 +42,8 @@ test('B-10: Setup steps have their own URL and the draft survives a reload', () 
   const qs = src('components/setup/QuickSetup.tsx');
   assert.match(qs, /history\.pushState/);
   assert.match(qs, /addEventListener\('popstate'/);
-  assert.match(qs, /sessionStorage\.setItem\(SETUP_DRAFT_KEY/);
-  assert.match(qs, /sessionStorage\.removeItem\(SETUP_DRAFT_KEY\)/);
+  assert.match(qs, /localStorage\.setItem\(SETUP_DRAFT_KEY/);
+  assert.match(qs, /dropDraft\(\);/);
 });
 
 test('B-35: blank spending is not a silent zero; a typed zero needs a yes', () => {
@@ -111,13 +111,16 @@ test('B-11: Home says what to do this month in one line', () => {
   const ok = homeThisMonthLine(data, 0, money);
   assert.equal(ok.tone, 'ok');
   assert.equal(ok.text, 'This month: pay ₹57,000. Every EMI and card minimum (₹48,750), plus ₹8,250 extra on your credit card.');
-  const short = homeThisMonthLine({ ...data, extraUser: 0, total: 48750 }, 500, money);
+  // UX walkthrough fix 8: the order to protect (secured first), not "pay every EMI".
+  const loans = [{ loan_type: 'home_loan', nominal_rate: '0.09' }, { loan_type: 'auto_loan', nominal_rate: '0.1' }, { loan_type: 'credit_card', nominal_rate: '0.42' }];
+  const short = homeThisMonthLine({ ...data, extraUser: 0, total: 48750 }, 500, money, 'IN', loans);
   assert.equal(short.tone, 'short');
-  assert.match(short.text, /^This month you’re ₹500 short\. Pay every EMI and card minimum first \(Credit card, Home loan and Car loan\)/);
+  assert.match(short.text, /^This month you’re ₹500 short\. Pay Home loan and Car loan first, then call the bank for the credit card minimum before the due date\./);
   assert.equal(homeThisMonthLine(null, 0, money), null);
   assert.equal(lowerName('HDFC Bank credit card'), 'HDFC Bank credit card');
   assert.equal(lowerName('Car loan'), 'car loan');
-  assert.match(src('components/home/LedgerHome.tsx'), /\{thisMonth\}\s*<ContextLine/);
+  // UX walkthrough fix 10: the one line, then the pay list, at the top.
+  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]{0,400}?\{register\}/);
 });
 
 test('B-01: the extra row is tagged in words, stays after paid, and both Home lists share one order', () => {
@@ -151,7 +154,8 @@ test('B-13: Setup, Home and Plan tell one short-month story', () => {
   // Live re-test 7 R7-2: the wording moved into lib/plan-gap's shortGapLine,
   // shared with Plan and Home (tests/r7-fixes.cjs checks the words).
   assert.match(qs, /shortGapLine\(\{/);
-  assert.match(qs, /\['Vs paying only minimums', '—', 'needs a payoff date first'\]/);
+  // Audit 80 B4: the row is the likely-baseline one (lib/savings-baseline).
+  assert.match(qs, /\[LIKELY_LABEL, '—', 'needs a payoff date first'\]/);
   const home = src('components/home/HomeDebtFree.tsx');
   assert.match(home, /shortLine=\{/);
   assert.match(src('components/home/HomeProgress.tsx'), /shortLine \?\? 'Once the plan has a debt-free date/);
@@ -172,6 +176,9 @@ test('B-08, B-16, B-17, B-26, B-33: one order, quieter table, honest share and t
   assert.equal(csv.scheduleCsvFilename('2026-10-13'), 'rightdue-plan-2026-10-13.csv');
   assert.deepEqual(
     csv.scheduleCsvHeader([{ loan_type: 'home_loan' }, { loan_type: 'credit_card', bank: 'HDFC Bank' }, { loan_type: 'home_loan' }], 'IN', 'inr'),
-    ['Month', 'Date', 'Home loan 1 (₹)', 'HDFC Bank credit card (₹)', 'Home loan 2 (₹)', 'Extra (₹)', 'Interest (₹)', 'Principal (₹)', 'Owed after (₹)', 'Event'],
+    // Audit 80+ C19: paid columns, then each loan's opening balance in its own column.
+    ['Month', 'Date', 'Home loan 1 paid (₹)', 'HDFC Bank credit card paid (₹)', 'Home loan 2 paid (₹)',
+     'Home loan 1 owed at start (₹)', 'HDFC Bank credit card owed at start (₹)', 'Home loan 2 owed at start (₹)',
+     'Extra (₹)', 'Interest (₹)', 'Principal (₹)', 'Owed after (₹)', 'Event'],
   );
 });

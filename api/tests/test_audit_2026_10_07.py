@@ -52,6 +52,10 @@ def test_m2_penalty_insurance_and_enums_are_bounded(client, india_user_payload):
 
 def test_quick_recompute_converts_currency_and_checks_index_first(client, india_user_payload):
     user = _with_usd_loan(india_user_payload, {"USD": "83"})
+    # E7 (W10): an unmarked US student loan has extra held off it until the
+    # PSLF/IDR question is answered; Sallie Mae is a private lender, so mark it
+    # private. This test is about currency conversion and the index check.
+    user["loans"][-1]["student_loan_kind"] = "private"
     r = client.post("/api/quick-recompute", json={
         "user": user, "target_loan_index": 2, "extra_payment": "100000",
     })

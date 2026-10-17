@@ -19,6 +19,21 @@ export function setupExtraMove(
   minimums: SimulateResponse,
   user: UserPayload,
 ): { index: number; extra: number } | null {
+  const month = setupPayMonth(plan, minimums, user);
+  if (!month || Number(plan.shortfall ?? 0) > 0.5) return null;
+  let best: { index: number; extra: number; user: number } | null = null;
+  for (const r of month.rows) {
+    if (r.loanIndex === null || !(r.extra >= 1)) continue;
+    // Largest in one currency: ₹4.8 lakh is not more than $6,000.
+    const user = r.amount > 0 ? (r.extra / r.amount) * r.amountUser : r.extra;
+    if (!best || user > best.user) best = { index: r.loanIndex, extra: r.extra, user };
+  }
+  return best ? { index: best.index, extra: best.extra } : null;
+}
+
+/** This month's payments as Home will list them (UX walkthrough fix 8:
+ *  Setup's short-month priority order reads the same rows). */
+export function setupPayMonth(plan: SimulateResponse, minimums: SimulateResponse, user: UserPayload) {
   const sa = plan.surplus_allocation;
   const asPlan = {
     live: true,
@@ -36,14 +51,5 @@ export function setupExtraMove(
     shortfall: Number(plan.shortfall ?? 0),
     debtBudget: 0, // Setup asks for no total for debts: all spare cash
   } as unknown as PlanData;
-  const month = payThisMonth(asPlan);
-  if (!month || asPlan.shortfall > 0.5) return null;
-  let best: { index: number; extra: number; user: number } | null = null;
-  for (const r of month.rows) {
-    if (r.loanIndex === null || !(r.extra >= 1)) continue;
-    // Largest in one currency: ₹4.8 lakh is not more than $6,000.
-    const user = r.amount > 0 ? (r.extra / r.amount) * r.amountUser : r.extra;
-    if (!best || user > best.user) best = { index: r.loanIndex, extra: r.extra, user };
-  }
-  return best ? { index: best.index, extra: best.extra } : null;
+  return payThisMonth(asPlan);
 }

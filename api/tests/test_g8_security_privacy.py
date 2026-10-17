@@ -100,16 +100,23 @@ def test_verifying_creates_the_account_once_and_blanks_the_code(harness):
     assert all(c.code_hash == "" for c in client.query(select(OtpChallenge)))
 
 
-def test_global_daily_cap_pauses_codes_for_every_address(harness, monkeypatch):
+def test_global_daily_cap_pauses_only_new_sign_ups(harness, monkeypatch):
+    # audit80 D13: the cap used to pause codes for EVERY address (a kill
+    # switch). It now pauses only codes to addresses without an account.
     client, codes = harness
+    sign_in(client, codes, "member@example.com")       # an account, before the flood
     monkeypatch.setattr(routes, "OTP_GLOBAL_DAILY_CAP", 2)
-    for i in range(2):
+    monkeypatch.setattr(routes, "OTP_NEW_PER_NETWORK_DAILY", 100)
+    for i in range(1, 2):
         assert client.post("/api/auth/request-otp", json={"email": f"p{i}@example.com"}).status_code == 204
     r = client.post("/api/auth/request-otp", json={"email": "third@example.com"})
     assert r.status_code == 503
-    assert r.json()["detail"]["code"] == "sign_in_paused"
+    assert r.json()["detail"]["code"] == "sign_up_paused"
     assert r.headers["retry-after"] == str(24 * 3600)
-    assert len(codes) == 2  # no third email went out
+    sent = len(codes)
+    # The existing account still gets its code.
+    assert client.post("/api/auth/request-otp", json={"email": "member@example.com"}).status_code == 204
+    assert len(codes) == sent + 1
 
 
 def test_cap_default_is_under_the_email_providers_free_daily_quota():

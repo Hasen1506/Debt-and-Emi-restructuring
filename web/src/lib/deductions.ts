@@ -29,8 +29,10 @@
  */
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
+import { abroadIndiaRate, livesAbroad } from './tax-setup';
 import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
+import { computeAnnualTax } from './tax-brackets';
 import {
   US_STANDARD_DEDUCTION as US_STD_NUM,
   federalTaxUS,
@@ -67,12 +69,13 @@ const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
   single: D(US_STD_NUM.single),
   mfj: D(US_STD_NUM.mfj),
   hoh: D(US_STD_NUM.hoh),
+  mfs: D(US_STD_NUM.mfs),
 };
 
 // The higher 80D cap is for senior citizens (60+). '50_plus' is 50–59
 // (it read "50+" before the 60+ bracket existed), so it gets the standard cap.
 function get80DCap(ageBracket?: AgeBracket): Decimal {
-  return ageBracket === '60_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
+  return ageBracket === '60_plus' || ageBracket === '80_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
 }
 
 export interface DeductionLine {
@@ -228,16 +231,6 @@ export function summariseDeductions(
 }
 
 /**
- * US: does this person itemise? Mirrors `UserIn._itemises` on the API:
- * yes if their itemisable deductions beat the standard deduction. With
- * no deductions entered, mortgage interest is estimated from their US
- * home loans. Always false outside the US.
- */
-export function usItemises(user: UserPayload): boolean {
-  return usMortgageShieldShare(user).gt(0);
-}
-
-/**
  * US: the share (0–1) of mortgage interest that lowers tax. Only itemised
  * deductions above the standard deduction save anything: a $350k mortgage
  * at 6.75% ($23,625 of interest, $16,100 standard) saves tax on $7,525, a
@@ -245,7 +238,8 @@ export function usItemises(user: UserPayload): boolean {
  * passed the standard deduction. Mirrors `UserIn._itemised` on the API.
  */
 export function usMortgageShieldShare(user: UserPayload): Decimal {
-  if (user.country !== 'US') return D(0);
+  // Round 3 (#25): only for someone who said they itemize; else the standard deduction.
+  if (user.country !== 'US' || user.itemises !== true) return D(0);
   const ded = user.deductions;
   const mortgage =
     ded?.mortgage_interest_annual != null && ded.mortgage_interest_annual !== ''
@@ -258,8 +252,8 @@ export function usMortgageShieldShare(user: UserPayload): Decimal {
     user.filing_status,
   );
   const above = itemized.minus(standard);
-  if (above.lte(0) || mortgage.lte(0)) return D(0);
-  return Decimal.min(mortgage, above).div(mortgage);
+  if (mortgage.lte(0)) return D(0);
+  return above.lte(0) ? D(1) : Decimal.min(mortgage, above).div(mortgage);
 }
 
 /**
@@ -316,7 +310,7 @@ export function deriveMarginalRate(args: {
       args.incomeType,
     );
     taxable = Decimal.max(gross.minus(summary.totalAllowed), D(0));
-    return marginalIN(taxable, args.taxRegime ?? 'new');
+    return marginalIN(taxable, args.taxRegime ?? 'new', args.ageBracket);
   }
 
   const { effective } = pickUSDeduction(args.deductions, args.filingStatus);
@@ -341,15 +335,46 @@ export function deriveMarginalRate(args: {
  *      capital-gains splits properly via `activeSlabGrossAnnual`).
  *   2. `annual_income` (the engine field — used when streams are absent).
  */
+/** Annual gross pay whose take-home (after income tax) is the monthly
+ *  take-home on file; bisection, as lib/quick-setup.ts does (C9). */
+export function grossFromTakeHome(user: UserPayload): Decimal {
+  const monthly = D(user.monthly_income || 0).gt(0) ? D(user.monthly_income) : D(user.annual_income || 0).div(12);
+  const net = monthly.mul(12).toNumber();
+  if (!Number.isFinite(net) || net <= 0) return D(0);
+  const left = (gross: number) =>
+    gross - Number(computeAnnualTax(user.country, user.tax_regime, user.income_type, gross, user.filing_status, user.age_bracket).toString());
+  let lo = net;
+  let hi = net * 3;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (left(mid) < net) lo = mid;
+    else hi = mid;
+  }
+  return D(Math.round(hi));
+}
+
 export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): string {
+  // Round 3: an NRI on a rupee plan pays Indian tax only on Indian income (lib/tax-setup).
+  if (livesAbroad(user)) return abroadIndiaRate(user).toFixed(4);
   const slabFromStreams = user.income_streams && user.income_streams.length > 0
     ? activeSlabGrossAnnual(user.income_streams)
     : D(0);
-  // Fall back to annual_income only when streams aren't configured —
-  // capital-gains splits live in streams, not on the scalar field.
+  // Streams first (capital-gains splits live there), then gross pay the
+  // user typed (Form 16 / W-2 / ITR). Audit C9: `annual_income` is take-home
+  // × 12 (QuickSetup), not gross, so reading it as gross lowered the bracket
+  // after any life event (31.2% → 20.8% at ₹80k/mo, old regime). With no
+  // gross on file, solve gross from take-home exactly as QuickSetup's
+  // estimate does (lib/quick-setup.ts marginalRateFromTakeHome).
+  const typedGross = D(
+    (user.income_type === 'business_owner'
+      ? user.annual_business_income || user.annual_gross_salary
+      : user.annual_gross_salary || user.annual_business_income) || 0,
+  );
   const grossAnnual = slabFromStreams.gt(0)
     ? slabFromStreams
-    : D(user.annual_income);
+    : typedGross.gt(0)
+      ? typedGross
+      : grossFromTakeHome(user);
   // No income on the profile: keep the caller's rate rather than a 0% that
   // would read as "no tax" (lib/marginal-rate).
   if (grossAnnual.lte(0)) return fallback;
@@ -371,8 +396,8 @@ export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): st
 // (scripts/export_tax_tables.py). This file used to keep its own copy:
 // India's 2024 slabs (30% from ₹15L) and 2024 US brackets.
 
-function marginalIN(taxable: Decimal, regime: TaxRegimeIN): Decimal {
-  return D(marginalRateIN(taxable.toNumber(), regime).toFixed(4));
+function marginalIN(taxable: Decimal, regime: TaxRegimeIN, age?: AgeBracket): Decimal {
+  return D(marginalRateIN(taxable.toNumber(), regime, age).toFixed(4));
 }
 
 function marginalUS(taxable: Decimal, filing: FilingStatusUS): Decimal {

@@ -266,6 +266,53 @@
         ]
       ],
       "standard_deduction": 24150
+    },
+    "mfs": {
+      "slabs": [
+        [
+          12400,
+          0.1
+        ],
+        [
+          50400,
+          0.12
+        ],
+        [
+          105700,
+          0.22
+        ],
+        [
+          201775,
+          0.24
+        ],
+        [
+          256225,
+          0.32
+        ],
+        [
+          384350,
+          0.35
+        ],
+        [
+          null,
+          0.37
+        ]
+      ],
+      "standard_deduction": 16100
+    },
+    "se": {
+      "net_factor": 0.9235,
+      "ss_rate": 0.124,
+      "medicare_rate": 0.029,
+      "ss_wage_base": 184500,
+      "min_net": 400,
+      "addl_medicare_rate": 0.009,
+      "addl_medicare_threshold": {
+        "single": 200000,
+        "hoh": 200000,
+        "mfj": 250000,
+        "mfs": 125000
+      }
     }
   }
 }

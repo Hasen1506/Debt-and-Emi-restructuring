@@ -107,6 +107,8 @@ export function TenureWhatIf({
   const r = state.result;
   const label = (m: number | null | undefined) =>
     m ? monthIndexToCountryLabel(m, user.country) : 'not within 30 years';
+  const when = (m: number | null | undefined, infeasibleFrom: number | null | undefined) =>
+    infeasibleFrom != null ? `none, not fundable from ${monthIndexToCountryLabel(infeasibleFrom, user.country)}` : label(m);
   const extraInterest = r ? Number(r.scenario_total_interest ?? 0) - Number(r.baseline_total_interest ?? 0) : 0;
   const gapAfter = r ? Number(r.scenario_shortfall ?? 0) : 0;
   // Live re-test NEW-2: a side that never clears has an unbounded interest
@@ -132,7 +134,7 @@ export function TenureWhatIf({
     : null;
 
   return (
-    <section id="tenure-what-if" data-print="hide" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
+    <section id="tenure-what-if" data-print="hide" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
       <div id="tenure-whatif" style={{ fontWeight: 700, letterSpacing: '0.08em' }}>
         WHAT IF THE BANK GAVE YOU A LONGER TENURE?
       </div>
@@ -162,7 +164,7 @@ export function TenureWhatIf({
               className="l-hit"
               style={{
                 fontFamily: 'inherit',
-                fontSize: 11,
+                fontSize: 'var(--fs-small)',
                 padding: '2px 8px',
                 border: `1px solid ${L_T.ink}`,
                 background: months === m ? L_T.ink : 'transparent',
@@ -184,18 +186,19 @@ export function TenureWhatIf({
           {copy?.gap ? (
             copy.gapCloses ? <strong style={{ color: L_T.positive }}>{copy.gap}</strong> : <>{copy.gap}</>
           ) : null}{' '}
-          Debt-free: {label(r.scenario_debt_free_month)} (as things stand: {label(r.baseline_debt_free_month)}).{' '}
+          {/* Integration phase 5 (C11): a capped side has no date, only the month it stops being fundable. */}
+          Debt-free: {when(r.scenario_debt_free_month, r.scenario_infeasible_from_month)} (as things stand: {when(r.baseline_debt_free_month, plan.infeasibleFrom)}).{' '}
           {copy?.interest}
         </div>
       )}
       {/* R8-3: RBI's reset rule applies to a loan from an Indian lender only. */}
       {!inIndia ? (
-        <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
+        <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           Ask your lender; they decide. A longer term is up to the lender&apos;s own policy and charges, so ask what it
           costs and how it shows on your credit report.
         </p>
       ) : (
-      <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
+      <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
         Ask your lender; they decide. When a floating rate resets, RBI&apos;s rules say your lender must let you choose a
         higher {pw.one}, a longer tenure or both (
         <a href={RBI_RESET_CIRCULAR_URL} target="_blank" rel="noreferrer">

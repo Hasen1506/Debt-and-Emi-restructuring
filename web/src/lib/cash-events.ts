@@ -205,19 +205,3 @@ export function ensureStarted(
   writeCashEventsClient(next);
   return next;
 }
-
-/** Append a confirmation, replacing any prior entry for the same month. */
-export function appendConfirmation(
-  slice: CashEventsSlice,
-  c: MonthlyConfirmation,
-): CashEventsSlice {
-  const filtered = slice.confirmations.filter((x) => x.monthKey !== c.monthKey);
-  const next: CashEventsSlice = {
-    ...slice,
-    confirmations: [...filtered, c].sort((a, b) =>
-      a.monthKey.localeCompare(b.monthKey),
-    ),
-  };
-  writeCashEventsClient(next);
-  return next;
-}

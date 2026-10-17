@@ -94,3 +94,12 @@ Code: `engine/tax/india.py` (`SECTION_MAP`, the caps, `compare_regimes`), mirror
 Re-read the Act and the Finance Act each February (Budget) and when the Finance Act is notified (usually late March); update
 `engine/tax/india.py`, run `python scripts/export_tax_tables.py` and `python scripts/export_regime_cases.py`, and update the
 `TAX_LAW_AS_OF` date.
+
+## Audit 80 (W2, 14 Oct 2026)
+
+- **One ₹2L set-off (s.109(1)(b)).** A let-out home's loss gets only what is left of the ₹2L after self-occupied homes (engine `country_cap_home_loan(set_off_used)`, web `computeBreakdown(..., allLoans)`); both now agree with `compare_regimes`.
+- **Forward vs total cost.** Payoff order, windfall and refinance/BT ranking use the forward rate (marginal shield, no sunk fees: `marginal_cost.user_forward_rates`); `formulas.effective_rate` is "what this loan costs in total" (True APR) only.
+- **80C principal (s.123 + Schedule XV).** Old regime, when the user gives their other 80C items: while the year's ₹1.5L room is open, prepaying home-loan principal also saves marginal-rate tax that year; the plan tracks it per tax year (April reset).
+- **Bracket from take-home.** With no gross pay on file, gross is solved from take-home everywhere (QuickSetup, life events, US MAGI), and labelled estimated.
+- **Rate labels.** "30% slab + 4% cess = 31.2%", "No income tax on your pay (new regime)": never a bare "26.0%" or "0.0%".
+- **Advance tax.** s.408(1) 15/45/75/100%; s.408(2) presumptive (s.58(2) Sl. 1/3, old 44AD/44ADA) one instalment by 15 March; s.425 [234C] 1% a month for 3/3/3/1 months on each cumulative shortfall, none for June at 12% or September at 36%; remaining instalments re-cut when the year's estimate moves > 10%. Source: incometax.gov.in e-filing help "Tax payments" FAQ 19; incometaxindia.gov.in/w/advance-tax-5 (read 14 Oct 2026).

@@ -66,6 +66,9 @@ DEFAULT_LIMITS: list[tuple[str, Limit]] = [
     ("/api/outcomes", Limit(per_minute=6, burst=10)),           # plus 10 a day (outcomes_store)
     ("/api/kfs/", Limit(per_minute=10, burst=10)),              # reads up to 4 MB of PDF
     ("/api/credit-report/", Limit(per_minute=10, burst=10)),    # same size of PDF (G6)
+    # A15: funnel counters get their own bucket so a burst of setup-field
+    # events never uses up the plan's own calls (and vice versa).
+    ("/api/funnel", Limit(per_minute=60, burst=40)),
     ("/api/", Limit(per_minute=120, burst=60)),
 ]
 
@@ -172,7 +175,8 @@ class SecurityMiddleware:
                 if (write or private) and b"cache-control" not in names:
                     extra.append((b"cache-control", b"no-store"))
                 if https:
-                    extra.append((b"strict-transport-security", b"max-age=63072000; includeSubDomains"))
+                    # audit80 D23: same value as the pages (web/security-headers.mjs HSTS).
+                    extra.append((b"strict-transport-security", b"max-age=63072000; includeSubDomains; preload"))
                 message = {**message, "headers": h + [x for x in extra if x[0] not in names]}
             await send(message)
 

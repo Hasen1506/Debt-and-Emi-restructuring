@@ -6,21 +6,28 @@
  * and s.12 (erasure); withdrawing consent should be as easy as giving it
  * (DPDP Rules 2025 r.3(c)(i)), so each action is one form on one page.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
 import { useSession } from '@/lib/auth';
 import { clearLocalData, deleteMyAccount, downloadMyData } from '@/lib/account';
 import { notifySessionChanged } from '@/lib/session-events';
-import { PRIVACY_PATH } from '@/lib/privacy-facts';
+import { PRIVACY_PATH, RETENTION } from '@/lib/privacy-facts';
+import { listDevices, signOutDevice, signOutEverywhere, type DeviceSession } from '@/lib/consent';
 
-const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, letterSpacing: '0.08em' };
-const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
+function when(iso: string | null): string {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch { return iso; }
+}
+
+const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
+const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
 const INPUT: React.CSSProperties = {
-  padding: '8px 10px', fontSize: 14, border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: 360,
+  padding: '8px 10px', fontSize: 'var(--fs-body)', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: 360,
 };
 const BUTTON: React.CSSProperties = {
   padding: '8px 12px', background: L_T.ink, color: L_T.bg, border: 'none', fontFamily: 'var(--font-mono)',
-  fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', justifySelf: 'start',
+  fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', justifySelf: 'start',
 };
 const DANGER: React.CSSProperties = { ...BUTTON, background: 'var(--negative, #b42318)' };
 
@@ -36,7 +43,9 @@ async function forgetThisBrowser(): Promise<number> {
 
 export default function AccountDataPage() {
   const session = useSession();
-  const [busy, setBusy] = useState<'export' | 'delete' | 'clear' | null>(null);
+  const [busy, setBusy] = useState<'export' | 'delete' | 'clear' | 'devices' | null>(null);
+  // audit80 D21: every signed-in device, and a way to sign each out.
+  const [devices, setDevices] = useState<DeviceSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [confirmEmail, setConfirmEmail] = useState('');
@@ -60,6 +69,34 @@ export default function AccountDataPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Your account could not be deleted. Nothing was removed.');
     } finally { setBusy(null); }
+  }
+
+  async function loadDevices() {
+    try { setDevices(await listDevices()); } catch { setDevices(null); }
+  }
+  useEffect(() => {
+    if (session.status === 'authed') void loadDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.status]);
+
+  async function onSignOutDevice(d: DeviceSession) {
+    setBusy('devices'); setError(null); setDone(null);
+    try {
+      await signOutDevice(d.id);
+      if (d.this_device) { await forgetThisBrowser(); notifySessionChanged(); setDone('This device is signed out.'); }
+      else { setDone(`${d.device} is signed out.`); await loadDevices(); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'That device could not be signed out.'); }
+    finally { setBusy(null); }
+  }
+
+  async function onSignOutOthers() {
+    setBusy('devices'); setError(null); setDone(null);
+    try {
+      const n = await signOutEverywhere(true);
+      setDone(n === 0 ? 'No other device was signed in.' : `Signed out ${n} other device${n === 1 ? '' : 's'}.`);
+      await loadDevices();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Your devices could not be signed out.'); }
+    finally { setBusy(null); }
   }
 
   async function onClear() {
@@ -98,16 +135,43 @@ export default function AccountDataPage() {
             <h2 style={H2}>DOWNLOAD MY DATA</h2>
             <p style={P}>
               A file (JSON, a plain-text format any computer can open) with your account, your saved plan exactly as
-              stored, and the record of your sign-ins. No codes or session keys are in it.
+              stored, your devices and sign-ins, what you agreed to and when, the record of access to your plan, any
+              payday-email settings, and who else handles your data. No codes or session keys are in it.
             </p>
             <button type="button" style={BUTTON} onClick={onExport} disabled={busy !== null}>
               {busy === 'export' ? 'Preparing…' : 'Download my data'}
             </button>
 
+            <h2 style={H2}>YOUR DEVICES</h2>
+            {devices === null ? (
+              <p style={P}>Loading your signed-in devices…</p>
+            ) : (
+              <ul style={{ paddingLeft: 18, margin: 0 }} data-testid="device-list">
+                {devices.map((d) => (
+                  <li key={d.id} style={{ ...P, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                    <span>
+                      <strong>{d.device}</strong>{d.this_device ? ' (this device)' : ''}: signed in {when(d.started_at)}
+                      {d.last_seen_at ? `, last used ${when(d.last_seen_at)}` : ''}
+                    </span>
+                    <button type="button" onClick={() => onSignOutDevice(d)} disabled={busy !== null}
+                      style={{ ...BUTTON, padding: '4px 8px', fontSize: 'var(--fs-small)' }}>
+                      Sign out
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" style={BUTTON} onClick={onSignOutOthers} disabled={busy !== null}>
+              {busy === 'devices' ? 'Signing out…' : 'Sign out all other devices'}
+            </button>
+
             <h2 style={H2}>DELETE MY ACCOUNT</h2>
             <p style={P}>
               Deletes, at once and for good: your account ({email}), your saved plan, every sign-in session on every device,
-              and the record of sign-in codes sent to you. It can&apos;t be undone. Download your data first if you want a copy.
+              and any payday-email settings. This is also how you withdraw your consent. It can&apos;t be undone. Download
+              your data first if you want a copy. Kept for {RETENTION.deletedAccountRecordsDays} days and then deleted, as
+              the law asks: the record of sign-ins (email and times), of your agreement, and of access to your plan; none
+              of your figures.
             </p>
             <form onSubmit={onDelete} style={{ display: 'grid', gap: 8 }}>
               <label style={{ ...P, display: 'grid', gap: 4 }}>
@@ -137,8 +201,9 @@ export default function AccountDataPage() {
 
         <h2 style={H2}>THIS BROWSER</h2>
         <p style={P}>
-          RightDue keeps your plan in this browser too (cookies and local storage), so it works before you sign in. On a
-          shared or family device, clear it when you are done.
+          While you are signed in, RightDue keeps a working copy of your plan in this browser (cookies and local storage)
+          so pages load fast. It is removed when you sign out or your session ends. On a shared or family device, you can
+          also clear it here.
         </p>
         <button type="button" style={BUTTON} onClick={onClear} disabled={busy !== null}>
           {busy === 'clear' ? 'Clearing…' : 'Clear data in this browser'}

@@ -54,7 +54,7 @@ def _loan(d: dict) -> Loan:
 def build() -> dict:
     student = []
     for kind in (None, "federal", "private"):
-        for track in (None, "pslf", "idr"):
+        for track in (None, "pslf", "idr", "none", "unsure"):
             for ccy in (None, "USD", "INR"):
                 d = {"loan_type": "education_loan", "outstanding": "40000",
                      **({"student_loan_kind": kind} if kind else {}),

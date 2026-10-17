@@ -109,10 +109,21 @@ export function gapRateWords(rate: number): string {
  * so the headline and the table tell one story.
  */
 export function shortHeadline(args: ShortStoryArgs): { value: string; sub: string } {
-  const { shortfall, asIsMonth, closedMonth, label } = args;
+  const { shortfall, asIsMonth, label, money, infeasibleFrom, laterGap } = args;
   const line = shortGapLine(args);
   if (line && shortfall > 0) {
-    return { value: closedMonth ? label(closedMonth) : 'NO DATE YET', sub: line.toUpperCase() };
+    // Audit 80+ A5: short this month, the big figure is the gap, not the
+    // date it would take to close it (that date is demoted to the line).
+    return { value: shortValue(shortfall, money), sub: line.toUpperCase() };
+  }
+  // W1b / audit 80+ C11: a later month is short and can't be borrowed within
+  // the gap credit limit, so the engine's date pays with money that can't be
+  // found. Lead with that month's gap, never with the date.
+  if (infeasibleFrom != null && laterGap && laterGap.amount > 0) {
+    return {
+      value: shortValue(laterGap.amount, money),
+      sub: `FROM ${label(laterGap.month)} · ${notFundable(infeasibleFrom, label)}`.toUpperCase(),
+    };
   }
   // Only a later month is short: the engine's date already borrows for it.
   return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
@@ -124,6 +135,84 @@ export interface ShortStoryArgs {
   closedMonth: number | null | undefined;
   label: (m: number) => string;
   money: (v: number) => string;
+  /** Audit 80+ C11 (W1b): the engine's infeasible_from_month. Set, the
+   *  as-is date is not shown: the plan isn't fundable from that month. */
+  infeasibleFrom?: number | null;
+  /** The first later month that is short, and by how much. */
+  laterGap?: { month: number; amount: number };
+}
+
+/**
+ * Integration phase 5 (C11 capped plans): the debt-free month a page may
+ * show for an engine run. A capped run (infeasible_from_month set) clears
+ * only on paper — from that month it pays with money that can be neither
+ * found nor borrowed — so it has no debt-free month to show anywhere
+ * (headline, chart milestone, schedule row, Home, Setup, payoff orders).
+ */
+export function shownDebtFreeMonth(r: {
+  debt_free_month: number | null;
+  infeasible_from_month?: number | null;
+}): number | null {
+  return r.infeasible_from_month != null ? null : r.debt_free_month;
+}
+
+/** Where a capped plan's schedule and chart stop: the first month it is
+ *  not fundable. Null for a plan that isn't capped. */
+export function cappedCut(infeasibleFrom: number | null | undefined): { month: number; growsWithoutLimit: false; notFundableFrom: number } | null {
+  return infeasibleFrom != null ? { month: Math.max(1, infeasibleFrom), growsWithoutLimit: false, notFundableFrom: Math.max(1, infeasibleFrom) } : null;
+}
+
+/**
+ * Integration phase 5: how a plan run ends, for every page that draws it
+ * (Plan from /simulate in load-plan, the tenure what-if from /compare in
+ * planWithWhatIf). One mapping, so a capped run can't get a date on one
+ * page and not on another: debtFreeMonth (null when capped or never
+ * clears), infeasibleFrom, and where the schedule/chart stop.
+ */
+export function planEnd(r: {
+  debt_free_month: number | null;
+  infeasible_from_month?: number | null;
+  trajectory_cut_month?: number | null;
+  never_clears?: boolean;
+  grows_without_limit?: boolean;
+}): {
+  debtFreeMonth: number | null;
+  infeasibleFrom: number | null;
+  scheduleCut: { month: number | null; growsWithoutLimit: boolean; notFundableFrom?: number | null } | null;
+} {
+  return {
+    debtFreeMonth: shownDebtFreeMonth(r),
+    infeasibleFrom: r.infeasible_from_month ?? null,
+    scheduleCut:
+      cappedCut(r.infeasible_from_month) ??
+      (r.debt_free_month == null && (r.trajectory_cut_month != null || r.never_clears)
+        ? { month: r.trajectory_cut_month ?? null, growsWithoutLimit: !!r.grows_without_limit }
+        : null),
+  };
+}
+
+/** Integration phase 5: Setup's Debt-free row [value, note] for a capped plan
+ *  that isn't short this month (null otherwise): the later gap, not a date. */
+export function cappedRow(
+  r: { infeasible_from_month?: number | null; shortfall?: string; trajectory: { month: number; shortfall?: string }[] },
+  label: (m: number) => string,
+  money: (v: number) => string,
+): [string, string] | null {
+  if (r.infeasible_from_month == null || Number(r.shortfall ?? 0) > 0) return null;
+  const later = r.trajectory.find((p) => p.month > 1 && Number(p.shortfall) > 0);
+  const nf = notFundable(r.infeasible_from_month, label);
+  return later ? [`${money(Math.round(Number(later.shortfall)))}/mo short`, `from ${label(later.month)} · ${nf}`] : ['No date', nf];
+}
+
+/** W1b / C11: the words for a plan the gap credit limit can't carry. */
+export function notFundable(month: number, label: (m: number) => string): string {
+  return `not fundable as it stands from ${label(month)}`;
+}
+
+/** The same words after "as things stand:" (which already says "as it
+ *  stands"), so the line doesn't repeat itself. */
+function notFundableAsIs(month: number, label: (m: number) => string): string {
+  return `not fundable from ${label(month)}`;
 }
 
 /** Live re-test 7 R7-2: the words for "no date as things stand", one
@@ -135,18 +224,26 @@ export const AS_IS_NEVER = 'not in 30 years';
  * (live re-test 7 R7-2: Setup said "not in sight", Plan "NOT IN 30 YEARS"
  * and Home left the as-is date out). Short this month:
  *   "if the ₹X/mo gap closes · as things stand: <date>"
+ * Audit 80+ A5 (Vijay: "makes sense -> do"): the gap-closed date moved
+ * from the headline into this line, "if the ₹X/mo gap closes: <date> · ...".
  * and with no gap-closed date either:
  *   "short ₹X/mo · as things stand: <date>"
  * Sentence case; Plan and Home set it in capitals. Null when not short.
  */
+/** Audit 80+ A5: the headline figure when this month is short ("₹5,500/MO SHORT"). */
+export function shortValue(shortfall: number, money: (v: number) => string): string {
+  return `${money(Math.round(shortfall))}/MO SHORT`;
+}
+
 export function shortGapLine(args: ShortStoryArgs): string | null {
-  const { shortfall, asIsMonth, closedMonth, label, money } = args;
+  const { shortfall, asIsMonth, closedMonth, label, money, infeasibleFrom } = args;
   if (!(shortfall > 0)) return null;
-  const asIs = asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
-  if (closedMonth) return `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`;
+  const asIs = infeasibleFrom != null ? notFundableAsIs(infeasibleFrom, label) : asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
+  // Audit 80+ A5: the gap-closed date lives here now (the headline is the gap).
+  if (closedMonth) return `if the ${money(shortfall)}/mo gap closes: ${label(closedMonth)} · as things stand: ${asIs}`;
   // Live re-test L#16: the gap-closed run has no date either (later
   // months fall short again), so say so instead of half a template.
-  return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth ? '' : ' · no date even if this month’s gap closes'}`;
+  return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth && infeasibleFrom == null ? '' : ' · no date even if this month’s gap closes'}`;
 }
 
 /**
@@ -163,8 +260,13 @@ export function chartEndMonth(args: {
    *  balance only grows, so three years of it show the trend without
    *  squashing everything else flat. */
   growingGapFrom?: number | null;
+  /** Integration phase 5 (C11): a capped plan's first unfundable month.
+   *  Past it the figures are paid with money that can't be found, so the
+   *  axis ends there. */
+  notFundableFrom?: number | null;
 }): number {
-  const { planClears, minClear, lastMonth, growingGapFrom } = args;
+  const { planClears, minClear, lastMonth, growingGapFrom, notFundableFrom } = args;
+  if (notFundableFrom != null) return Math.max(1, Math.min(lastMonth, notFundableFrom));
   if (!planClears && growingGapFrom) return Math.min(lastMonth, Math.max(24, growingGapFrom + 36));
   if (!planClears) return lastMonth;
   // Live re-test L#17: end at the payoff month itself. Padding to the end of
@@ -248,8 +350,11 @@ export function scheduleStop(args: {
   return { lastMonth: null, growsWithoutLimit: false };
 }
 
-/** The line under a schedule that stops (NEW-2). */
-export function scheduleStopLine(growsWithoutLimit: boolean, stopLabel: string): string {
+/** The line under a schedule that stops (NEW-2). Integration phase 5 (C11):
+ *  a capped plan stops at the month it stops being fundable and says so. */
+export function scheduleStopLine(growsWithoutLimit: boolean, stopLabel: string, notFundableFrom?: boolean): string {
+  if (notFundableFrom)
+    return `NOT FUNDABLE FROM ${stopLabel} AS THINGS STAND · THE GAP CAN’T BE BORROWED PAST THE CARD LIMIT, SO THE SCHEDULE STOPS HERE AND THERE IS NO DEBT-FREE DATE. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`;
   return growsWithoutLimit
     ? `GAP BORROWING GROWS WITHOUT LIMIT AT THIS INCOME · THE SCHEDULE STOPS AT ${stopLabel}, BEFORE THE FIGURES STOP MEANING ANYTHING. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`
     : `THE DEBT DOESN’T CLEAR IN 30 YEARS AS THINGS STAND · THE SCHEDULE STOPS AT ${stopLabel}. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`;

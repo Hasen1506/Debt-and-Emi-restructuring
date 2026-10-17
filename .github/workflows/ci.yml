@@ -5,23 +5,107 @@ on:
   push:
     branches: [main]
   pull_request:
+    # "labeled" so adding the cross-browser label starts the Firefox/WebKit
+    # run on demand (E21); any other label is a no-op (see the changes job).
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
+# Audit 80 E21: one run per branch at a time; a new push cancels the old run.
+# A label event gets its own group so it never cancels the code run, and
+# main is never cancelled (every merge keeps its own record).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event.action == 'labeled' && 'label' || 'code' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Every suite is deterministic: Hypothesis runs derandomized (the "ci"
 # profile), differential cases come from fixed seeds, the E2E run uses a
 # frozen clock with stubbed email/OTP and FX and no outside network.
 # Nothing is retried or quarantined: a red test is a bug to fix.
+#
+# CI minutes (E21): docs-only changes skip every heavy job; web-only changes
+# skip the Python jobs; Firefox/WebKit run only on push to main or when a PR
+# carries the "cross-browser" label. Skipped jobs report success, so required
+# checks never hang. docs/CODE-HEALTH.md explains each budget.
 env:
   HYPOTHESIS_PROFILE: ci
   PYTHONHASHSEED: "0"
 
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      python: ${{ steps.diff.outputs.python }}
+      cross_browser: ${{ steps.diff.outputs.cross_browser }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          LABEL: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'cross-browser') }}
+          REF: ${{ github.ref }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -eu
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; echo "$1=$2"; }
+          # Cross-browser: every push to main, or a PR labelled cross-browser.
+          if [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then xb=true
+          elif [ "$HAS_LABEL" = true ]; then xb=true
+          else xb=false; fi
+          # A label event only exists to start the cross-browser run; the code
+          # jobs already ran on the push that preceded it.
+          if [ "$ACTION" = labeled ]; then
+            [ "$LABEL" = cross-browser ] || { echo "label $LABEL: nothing to run"; xb=false; }
+            out cross_browser "$xb"; out code false; out python false
+            exit 0
+          fi
+          if [ "$EVENT" = workflow_dispatch ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
+            out cross_browser "$xb"; out code true; out python true; exit 0
+          fi
+          files=$(git diff --name-only "$BASE" HEAD)
+          echo "$files"
+          # Docs-only: Markdown anywhere, docs/, LICENSE. Anything else is code.
+          # Docs that a test reads count as code (web/tests read DEPLOY.md,
+          # docs/RUNBOOK.md and docs/FOUNDER-RECORDS.md); add a path here when
+          # a test starts reading one.
+          code=$(echo "$files" | grep -vE '(\.md$|^docs/|^LICENSE$)' | grep -c . || true)
+          read_by_tests=$(echo "$files" | grep -cE '^(DEPLOY\.md|docs/RUNBOOK\.md|docs/FOUNDER-RECORDS\.md)$' || true)
+          code=$((code + read_by_tests))
+          # Python jobs: anything outside web/ that is code (engine, api,
+          # requirements, scripts, CI, fixtures the web mirrors read too).
+          py=$(echo "$files" | grep -vE '(\.md$|^docs/|^LICENSE$|^web/)' | grep -c . || true)
+          [ "$code" -gt 0 ] || xb=false   # docs-only push to main: no browsers either
+          out cross_browser "$xb"
+          out code "$([ "$code" -gt 0 ] && echo true || echo false)"
+          out python "$([ "$py" -gt 0 ] && echo true || echo false)"
+
+  health:
+    name: Size budget (lines per file, production total)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # E14/E21: no new source file over 1,500 lines, grandfathered giants may
+      # only shrink, production lines may grow 1% before someone says why.
+      - run: python3 scripts/size_report.py --check
+      - run: python3 scripts/size_report.py
+      # Round 2: every workflow the app relies on has an entry in
+      # docs/FOUNDER-RECORDS.md section (c) "Always running".
+      - run: python3 scripts/check_founder_records.py
+
   python:
     name: Engine + API unit tests
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     services:
@@ -53,6 +137,8 @@ jobs:
 
   property:
     name: Property-based invariants (Hypothesis)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
@@ -66,10 +152,13 @@ jobs:
       - name: Invariants that must never break
         run: >-
           python -m pytest engine/tests/test_property_invariants.py api/tests/test_property_api.py
+          engine/tests/test_property_guards.py api/tests/test_property_schema_roundtrip.py
           -q --durations=20 --hypothesis-show-statistics
 
   differential:
     name: Differential (reference + pre-PR-29 engine)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
@@ -88,7 +177,9 @@ jobs:
           engine/tests/test_differential_pre_pr29.py -q --durations=20
 
   web:
-    name: Web typecheck, lint, build
+    name: Web typecheck, lint, build, budgets
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     defaults:
@@ -107,10 +198,16 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # E16: no new dead export or never-imported file (shrink-only allow-list).
+      - run: node scripts/unused-exports.cjs
       - run: npm run build
+      # E12/E21: first-load JS per route vs web/scripts/route-size-budget.json.
+      - run: node scripts/route-size-budget.mjs
 
   e2e:
     name: Golden E2E (Playwright)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -175,6 +272,11 @@ jobs:
 
   e2e-browsers:
     name: Cross-browser E2E (Firefox, WebKit)
+    # E21: ~2x the chromium job's minutes. Runs on push to main, or on a PR
+    # labelled "cross-browser" (add the label to a PR that touches layout,
+    # forms or date handling). Main still catches everything after merge.
+    needs: changes
+    if: needs.changes.outputs.cross_browser == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:

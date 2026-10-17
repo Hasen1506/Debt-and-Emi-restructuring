@@ -108,7 +108,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
         <span
           style={{
             fontWeight: 600,
-            fontSize: 14,
+            fontSize: 'var(--fs-body)',
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
@@ -117,7 +117,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
           Multiple incomes or a recent transition?
           <span
             style={{
-              fontSize: 11,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: 'var(--muted)',
               letterSpacing: '0.06em',
             }}
@@ -129,7 +129,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                 }`}
           </span>
         </span>
-        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+        <span style={{ color: 'var(--muted)', fontSize: 'var(--fs-dense)' }}>
           {expanded ? '▾' : '▸'}
         </span>
       </button>
@@ -159,7 +159,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
       {expanded && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {streams.length === 0 && (
-            <div className="muted" style={{ fontSize: 12 }}>
+            <div className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
               No streams on file yet. Add one to break out your income by
               source — useful for the tax sleeve and for recording a
               salaried/freelance transition.
@@ -208,6 +208,19 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                     </>
                   }
                 />
+                {s.kind === 'capital_gains' && country === 'IN' && (
+                  <Select
+                    label="Kind of gain"
+                    value={s.cg_kind ?? 'other'}
+                    onChange={(v) => updateStream(i, { cg_kind: v as IncomeStreamPayload['cg_kind'] })}
+                    options={[
+                      { value: 'equity_stcg', label: 'Shares / equity funds, held 1 year or less (20%)' },
+                      { value: 'equity_ltcg', label: 'Shares / equity funds, held over 1 year (12.5% above ₹1.25 lakh)' },
+                      { value: 'other', label: 'Other (taxed at your slab rate here)' },
+                    ]}
+                    info={<>Used for advance tax on income your employer doesn&apos;t deduct tax from.</>}
+                  />
+                )}
                 <Select
                   label="Tax treatment"
                   value={s.tax_treatment ?? defaultTaxTreatment(s.kind)}
@@ -354,7 +367,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
               background: 'transparent',
               color: 'var(--accent)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               cursor: 'pointer',
             }}
           >
@@ -368,7 +381,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                 background: 'var(--card)',
                 border: '1px solid var(--border)',
                 borderRadius: 4,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
               }}
             >
               Active gross today:{' '}
@@ -390,7 +403,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                   </span>
                 </>
               )}
-              <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+              <div className="muted" style={{ marginTop: 4, fontSize: 'var(--fs-small)' }}>
                 This sum overrides the single monthly_income field above
                 at save time. Set end-dates on streams you&apos;ve exited
                 — they stay on file for record-keeping without skewing
@@ -410,7 +423,7 @@ const btnSecondary: React.CSSProperties = {
   background: 'transparent',
   color: 'var(--accent)',
   borderRadius: 4,
-  fontSize: 11,
+  fontSize: 'var(--fs-small)',
   cursor: 'pointer',
 };
 
@@ -420,6 +433,6 @@ const btnDanger: React.CSSProperties = {
   background: 'transparent',
   color: 'var(--negative)',
   borderRadius: 4,
-  fontSize: 11,
+  fontSize: 'var(--fs-small)',
   cursor: 'pointer',
 };

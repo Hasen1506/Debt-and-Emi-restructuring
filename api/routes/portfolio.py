@@ -6,9 +6,10 @@ profile, dispatches to per-asset proceeds math (IN or US tax path), runs the
 pre-filter + Gates 0-3, returns the ranked list plus the "considered but
 skipped" bucket so the UI can show what was rejected and why.
 """
+import os
 from decimal import Decimal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from engine.asset_liquidation import rank_liquidations
 from api.schemas import (
@@ -66,6 +67,13 @@ def _rec_to_out(r) -> LiquidationRecommendationOut:
 def liquidation_rankings(
     req: LiquidationRankingsRequest,
 ) -> LiquidationRankingsResponse:
+    # Audit 80 W10 (founder's cut-list answer 4): ranking the user's own
+    # holdings by "sell this one" is advice under SEBI's Investment Advisers
+    # Regulations; Sell to repay stays a calculator of one sale the user
+    # picks (/api/asset-liquidation). No page calls this route; it is off
+    # unless LIQUIDATION_RANKER=on (frozen, not deleted, per the cut list).
+    if os.environ.get("LIQUIDATION_RANKER", "off").lower() != "on":
+        raise HTTPException(status_code=404, detail="Not available.")
     user = req.user.to_engine()
     # Pydantic deserialises dict keys as strings; the engine wants ints.
     debt_rates = {int(k): v for k, v in req.debt_effective_rates.items()}

@@ -15,6 +15,7 @@ load_dotenv()
 
 from api import observability, outcomes_store, rates_feed  # noqa: E402
 from api.security import SecurityMiddleware  # noqa: E402
+from api.request_log import RequestLogMiddleware  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
     simulation,
@@ -66,6 +67,9 @@ _origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).
 # Size cap, security headers, rate limits. Added before CORS so CORS wraps
 # it and a 413 or 429 still reaches the browser readable.
 app.add_middleware(SecurityMiddleware)
+# audit80 D24: one log line per request with the route template, never the
+# query string (uvicorn's own access log is off, deploy/start.sh).
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -134,19 +138,30 @@ app.include_router(outcomes.router, prefix="/api")
 # G7: loan-cleared letter (no sign-in) and notifications (each route 404s
 # while its flag is off; the signed-in ones need DATABASE_URL).
 app.include_router(closure.router, prefix="/api")
+from api.routes import insights  # noqa: E402  (audit 80+ A1/A2/A4/A5/A6, offer check)
+app.include_router(insights.router, prefix="/api")
+from api.routes import advance_tax as advance_tax_routes  # noqa: E402  (round 2, item 5)
+app.include_router(advance_tax_routes.router, prefix="/api")
 app.include_router(notify_routes.router, prefix="/api")
+# A80 W5: counts-only funnel (404 until FUNNEL_ENABLED) and the advice verifier.
+from api import funnel as funnel_routes  # noqa: E402
+from api.routes import advice_check as advice_check_routes  # noqa: E402
+app.include_router(funnel_routes.router, prefix="/api")
+app.include_router(advice_check_routes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
 # Postgres add-on while we're still in trial mode.
 if db_enabled():
     from api.auth.account import router as account_router
+    from api.auth.consent import router as consent_router
     from api.auth.routes import router as auth_router
     from api.auth.google import router as google_router
     from api.routes import user_state
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(account_router, prefix="/api")
+    app.include_router(consent_router, prefix="/api")  # audit80 D2
     # Sign in with Google: every route 404s unless GOOGLE_SIGNIN=1 and the
     # client id/secret are set (api/auth/google.py, DEPLOY.md).
     app.include_router(google_router, prefix="/api")
@@ -167,4 +182,6 @@ async def health() -> dict[str, str]:
         "db": "enabled" if db_enabled() else "disabled",
         # "sqlite" on Render's free plan loses shared reports on every deploy.
         "outcomes_storage": "database" if kind == "postgresql" else "local file",
+        # audit80 D19: whether error reports reach Sentry (a yes/no, never the DSN).
+        "sentry": "on" if observability.enabled() else "off",
     }

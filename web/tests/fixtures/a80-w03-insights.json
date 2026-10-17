@@ -1,0 +1,412 @@
+{
+ "_note": "Audit 80+ W3: real /api/insights responses for the web render tests (tests/a80-w03-product.cjs). Regenerate from api/tests/test_a80_w03_insights_api.py body(): ok = body(), short = body(85000, 42000).",
+ "plan_ok": {
+  "order": {
+   "runs": [
+    {
+     "strategy": "avalanche",
+     "net_cost": "761195",
+     "interest": "761195",
+     "debt_free_month": 50
+    },
+    {
+     "strategy": "snowball",
+     "net_cost": "761195",
+     "interest": "761195",
+     "debt_free_month": 50
+    }
+   ],
+   "cheapest": "avalanche",
+   "spread": "0",
+   "threshold": "3806",
+   "months_apart": 0,
+   "material": false,
+   "line": "All orders give the same result for your loans."
+  },
+  "disagreements": {
+   "items": [
+    {
+     "kind": "consolidation",
+     "worth": "4134",
+     "basis": "over_plan",
+     "headline": "A plain calculator leaves your card where it is. Moving it to a personal loan at the rates banks charged last quarter (12.1% typical, 24.0% high) saves ₹4,134 to ₹8,316, fee and GST counted.",
+     "detail": "The required payment goes from ₹6,000 to ₹3,991 a month at 12.1%.",
+     "reasons": [],
+     "loan_index": 0
+    }
+   ],
+   "total_over_plan": "4134",
+   "plain_order": [
+    0,
+    1,
+    2
+   ],
+   "rightdue_order": [
+    0,
+    1,
+    2
+   ],
+   "zero_line": null
+  },
+  "gap": null,
+  "consolidation": {
+   "cards": [
+    0
+   ],
+   "card_cost": {
+    "0": "0.6031"
+   },
+   "scenarios": [
+    {
+     "rate": "0.1209",
+     "rate_basis": "typical",
+     "tenure_months": 36,
+     "card_indices": [
+      0
+     ],
+     "card_total": "120000",
+     "principal": "120000",
+     "fee": "0.00",
+     "fee_gst": "0.00",
+     "emi": "3991",
+     "card_minimum_now": "6000",
+     "cash_freed": "2009",
+     "gap_before": "0",
+     "gap_after": "0",
+     "debt_free_before": 50,
+     "debt_free_after": 50,
+     "cost_before": "761195",
+     "cost_after": "752878",
+     "saving": "8316",
+     "payments_share_after": "0.3321",
+     "verdict": "saves",
+     "break_even_fee_pct": "0.038",
+     "cost_window_months": null
+    },
+    {
+     "rate": "0.2400",
+     "rate_basis": "high",
+     "tenure_months": 36,
+     "card_indices": [
+      0
+     ],
+     "card_total": "120000",
+     "principal": "120000",
+     "fee": "0.00",
+     "fee_gst": "0.00",
+     "emi": "4708",
+     "card_minimum_now": "6000",
+     "cash_freed": "1292",
+     "gap_before": "0",
+     "gap_after": "0",
+     "debt_free_before": 50,
+     "debt_free_after": 50,
+     "cost_before": "761195",
+     "cost_after": "757060",
+     "saving": "4134",
+     "payments_share_after": "0.3372",
+     "verdict": "saves",
+     "break_even_fee_pct": "0.018",
+     "cost_window_months": null
+    }
+   ],
+   "published": {
+    "typical": "0.1209",
+    "high": "0.2400",
+    "banks": 6,
+    "period": "Apr-Jun 2026 (Q1 FY 2026-27) to Jul-Sep 2026 (Q2 FY 2026-27)",
+    "as_of": "2026-10-12",
+    "sources": [
+     [
+      "Axis Bank",
+      "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges"
+     ],
+     [
+      "HDFC Bank",
+      "https://www.hdfc.bank.in/personal-loan/interest-rates-and-charges"
+     ],
+     [
+      "ICICI Bank",
+      "https://www.icici.bank.in/personal-banking/loans/personal-loan/personal-loan-interest-rates"
+     ],
+     [
+      "IDFC FIRST Bank",
+      "https://www.idfcfirst.bank.in/investors/regulatory-disclosures/interest-rate-range-contracted-loans-for-the-quarter-q1-fy-26-27"
+     ],
+     [
+      "Kotak Mahindra Bank",
+      "https://www.kotak.bank.in/en/rates/interest-rates.html"
+     ],
+     [
+      "SBI",
+      "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/personal-loans-schemes"
+     ]
+    ]
+   },
+   "neutrality": "We don't arrange loans and no lender pays us."
+  },
+  "low_rate_phase_month": 9,
+  "low_rate_threshold": "0.10"
+ },
+ "plan_short": {
+  "order": {
+   "runs": [
+    {
+     "strategy": "avalanche",
+     "net_cost": "802332696",
+     "interest": "802332696",
+     "debt_free_month": null
+    },
+    {
+     "strategy": "snowball",
+     "net_cost": "802332696",
+     "interest": "802332696",
+     "debt_free_month": null
+    }
+   ],
+   "cheapest": "avalanche",
+   "spread": "0",
+   "threshold": "4011663",
+   "months_apart": 0,
+   "material": false,
+   "line": "All orders give the same result for your loans."
+  },
+  "disagreements": {
+   "items": [
+    {
+     "kind": "consolidation",
+     "worth": "133940",
+     "basis": "over_plan",
+     "headline": "A plain calculator leaves your card where it is. Moving it to a personal loan at the rates banks charged last quarter (12.1% typical, 24.0% high) saves ₹1,33,940 to ₹1,91,107 over the next 36 months, fee and GST counted.",
+     "detail": "The required payment goes from ₹6,000 to ₹3,991 a month at 12.1%.",
+     "reasons": [],
+     "loan_index": 0
+    }
+   ],
+   "total_over_plan": "133940",
+   "plain_order": [
+    0,
+    1,
+    2
+   ],
+   "rightdue_order": [
+    1,
+    2,
+    0
+   ],
+   "zero_line": null
+  },
+  "gap": {
+   "gap": "5500",
+   "ways": [
+    {
+     "kind": "consolidate",
+     "monthly": "1292",
+     "closes": "1292",
+     "closes_all": false,
+     "headline": "Move the card to a personal loan: frees ₹1,292 to ₹2,009 a month",
+     "detail": "At 24.0% over 36 months the EMI is ₹4,708 (₹3,991 at 12.1%), against a card minimum of ₹6,000.",
+     "extra_cost": null,
+     "loan_index": 0
+    },
+    {
+     "kind": "stretch",
+     "monthly": "3581",
+     "closes": "3581",
+     "closes_all": false,
+     "headline": "Ask for 60 more months on the SBI home loan: frees ₹3,581 a month",
+     "detail": "The EMI goes from ₹32,000 to ₹28,419. Outside a rate reset a longer tenure is the lender's decision, so ask; at a reset RBI says they must offer it.",
+     "extra_cost": null,
+     "loan_index": 2
+    },
+    {
+     "kind": "spend",
+     "monthly": "5500",
+     "closes": "5500",
+     "closes_all": true,
+     "headline": "Spend ₹5,500 less, or bring in ₹5,500 more, a month (about 13% of your spending)",
+     "detail": "Even part of it helps: every rupee closed is a rupee not borrowed at card rates.",
+     "extra_cost": null,
+     "loan_index": null
+    }
+   ],
+   "closed_debt_free_month": null
+  },
+  "consolidation": {
+   "cards": [
+    0
+   ],
+   "card_cost": {
+    "0": "0.6031"
+   },
+   "scenarios": [
+    {
+     "rate": "0.1209",
+     "rate_basis": "typical",
+     "tenure_months": 36,
+     "card_indices": [
+      0
+     ],
+     "card_total": "120000",
+     "principal": "120000",
+     "fee": "0.00",
+     "fee_gst": "0.00",
+     "emi": "3991",
+     "card_minimum_now": "6000",
+     "cash_freed": "2009",
+     "gap_before": "5500",
+     "gap_after": "3491",
+     "debt_free_before": null,
+     "debt_free_after": null,
+     "cost_before": "1303531",
+     "cost_after": "1112425",
+     "saving": "191107",
+     "payments_share_after": "0.5470",
+     "verdict": "saves",
+     "break_even_fee_pct": null,
+     "cost_window_months": 36
+    },
+    {
+     "rate": "0.2400",
+     "rate_basis": "high",
+     "tenure_months": 36,
+     "card_indices": [
+      0
+     ],
+     "card_total": "120000",
+     "principal": "120000",
+     "fee": "0.00",
+     "fee_gst": "0.00",
+     "emi": "4708",
+     "card_minimum_now": "6000",
+     "cash_freed": "1292",
+     "gap_before": "5500",
+     "gap_after": "4208",
+     "debt_free_before": null,
+     "debt_free_after": null,
+     "cost_before": "1303531",
+     "cost_after": "1169591",
+     "saving": "133940",
+     "payments_share_after": "0.5554",
+     "verdict": "saves",
+     "break_even_fee_pct": null,
+     "cost_window_months": 36
+    }
+   ],
+   "published": {
+    "typical": "0.1209",
+    "high": "0.2400",
+    "banks": 6,
+    "period": "Apr-Jun 2026 (Q1 FY 2026-27) to Jul-Sep 2026 (Q2 FY 2026-27)",
+    "as_of": "2026-10-12",
+    "sources": [
+     [
+      "Axis Bank",
+      "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges"
+     ],
+     [
+      "HDFC Bank",
+      "https://www.hdfc.bank.in/personal-loan/interest-rates-and-charges"
+     ],
+     [
+      "ICICI Bank",
+      "https://www.icici.bank.in/personal-banking/loans/personal-loan/personal-loan-interest-rates"
+     ],
+     [
+      "IDFC FIRST Bank",
+      "https://www.idfcfirst.bank.in/investors/regulatory-disclosures/interest-rate-range-contracted-loans-for-the-quarter-q1-fy-26-27"
+     ],
+     [
+      "Kotak Mahindra Bank",
+      "https://www.kotak.bank.in/en/rates/interest-rates.html"
+     ],
+     [
+      "SBI",
+      "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/personal-loans-schemes"
+     ]
+    ]
+   },
+   "neutrality": "We don't arrange loans and no lender pays us."
+  },
+  "low_rate_phase_month": null,
+  "low_rate_threshold": "0.10"
+ },
+ "prepay_invest": {
+  "available": true,
+  "phase_month": 9,
+  "phase_loans": [
+   2
+  ],
+  "extra_then": "63000",
+  "loan_costs": {
+   "2": "0.0895"
+  },
+  "threshold": "0.10",
+  "common_month": 207,
+  "assumed_return": "0.07",
+  "options": [
+   {
+    "share_kept": "0",
+    "debt_free_month": 50,
+    "interest_paid": "761195",
+    "kept_by_debt_free": "68805",
+    "money_on_common_date": "24083662"
+   },
+   {
+    "share_kept": "0.25",
+    "debt_free_month": 60,
+    "interest_paid": "894105",
+    "kept_by_debt_free": "1015922",
+    "money_on_common_date": "24011704"
+   },
+   {
+    "share_kept": "0.5",
+    "debt_free_month": 76,
+    "interest_paid": "1118378",
+    "kept_by_debt_free": "2642809",
+    "money_on_common_date": "23896145"
+   },
+   {
+    "share_kept": "0.75",
+    "debt_free_month": 108,
+    "interest_paid": "1581222",
+    "kept_by_debt_free": "6362947",
+    "money_on_common_date": "23678524"
+   },
+   {
+    "share_kept": "1",
+    "debt_free_month": 207,
+    "interest_paid": "3195440",
+    "kept_by_debt_free": "23088288",
+    "money_on_common_date": "23088288"
+   }
+  ],
+  "break_even_return": "0.0895",
+  "statement": "At the 7.0% a year after tax you entered, prepaying ends with ₹9,95,374 more by Dec 2043 than keeping the extra. They're level at 9.0%."
+ },
+ "offer_check": {
+  "apr": "0.0951",
+  "monthly_emi": "2521",
+  "fee_total": "0",
+  "total_cost": "31260",
+  "comparisons": [
+   {
+    "against": "keep_debts",
+    "label": "Keeping those debts on your plan",
+    "cost_difference": "-10654",
+    "detail": "Saves ₹10,654 over your plan against keeping them, fee and GST counted."
+   }
+  ],
+  "debt_free_before": 50,
+  "debt_free_after": 50,
+  "gap_before": "0",
+  "gap_after": "0",
+  "payments_share": "0.3216",
+  "verdict": "checks_out",
+  "headline": "This one checks out: it saves ₹10,654 against keeping those debts.",
+  "notes": [
+   "Floating rate to an individual, not for business: no prepayment or foreclosure charge (RBI, 2 July 2025)."
+  ],
+  "neutrality": "We don't arrange loans and no lender pays us."
+ }
+}

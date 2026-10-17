@@ -74,7 +74,12 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       minClear,
       lastMonth: lastAll,
       growingGapFrom: !clears ? plan.gap?.firstBorrowMonth ?? null : null,
+      notFundableFrom: plan.infeasibleFrom ?? null,
     });
+    // Integration phase 5 (C11): a capped plan has no debt-free milestone
+    // (plan.debtFreeMonth is null, load-plan's shownDebtFreeMonth); the line
+    // stops at the first unfundable month and the note says so.
+    const notFundableFrom = plan.infeasibleFrom ?? null;
     const shown = series.filter((p) => p.month <= end);
     const span = Math.max(1, end - first);
     const tOf = (m: number) => (m - first) / span;
@@ -88,7 +93,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const typeCount = new Map<string, number>();
     for (const l of loans) typeCount.set(l.loan_type, (typeCount.get(l.loan_type) ?? 0) + 1);
     const byMonth = new Map<number, string[]>();
-    if (clears) {
+    if (clears || notFundableFrom != null) {
       for (const c of loanClears(plan)) {
         if (c.month > end) continue;
         const loan = loans[c.index];
@@ -117,7 +122,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
 
     const lastShown = shown[shown.length - 1];
     const minimumsNote =
-      !clears && plan.gap?.firstBorrowMonth
+      notFundableFrom != null
+        ? `NOT FUNDABLE FROM ${shortDate(notFundableFrom)} →`
+        : !clears && plan.gap?.firstBorrowMonth
         ? 'GAP BORROWING KEEPS GROWING →'
         : lastShown && lastShown.minimums > 0.5
           ? minClear
@@ -143,7 +150,11 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const title =
       `Total debt over time. ${strategy} plan: ${start > 0 ? `${formatCurrencyWhole(start, ccy)} now, ` : ''}${formatCurrencyWhole(traj[0].avalanche, ccy)} after this month` +
       (paidOff.length ? `; ${paidOff.join('; ')}` : '') +
-      (clears ? `; debt-free in ${label(clears)}. ` : '; not cleared within the plan. ') +
+      (clears
+        ? `; debt-free in ${label(clears)}. `
+        : notFundableFrom != null
+          ? `; not fundable from ${label(notFundableFrom)} as things stand, so no debt-free date. `
+          : '; not cleared within the plan. ') +
       (minClear
         ? `Paying only the minimums clears it in ${label(minClear)}.`
         : 'Paying only the minimums never clears it.');
@@ -160,7 +171,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   return (
     <section>
       <LSectionHeader>TRAJECTORY · TOTAL DEBT OVER TIME</LSectionHeader>
-      {allOrdersSame && <p style={{ fontSize: 12, color: L_T.muted, margin: '0 0 10px' }}>
+      {allOrdersSame && <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, margin: '0 0 10px' }}>
         With these debts, all three payoff orders give the same date and interest. The graph therefore stays the same when you switch.
       </p>}
       {view ? (
@@ -175,7 +186,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
           />
           <div
             aria-hidden="true"
-            style={{ display: 'flex', gap: '6px 18px', fontSize: 10, color: L_T.muted, marginTop: 8, letterSpacing: '0.1em', flexWrap: 'wrap' }}
+            style={{ display: 'flex', gap: '6px 18px', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, marginTop: 8, letterSpacing: '0.1em', flexWrap: 'wrap' }}
           >
             {linesCoincide(view.points) ? (
               // Live re-test 2 R2-10: one line on screen, so one legend item.
@@ -206,7 +217,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
           </div>
         </>
       ) : (
-        <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
+        <div style={{ padding: 18, fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           NO TRAJECTORY · the plan returned no months to draw.
         </div>
       )}

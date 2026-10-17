@@ -106,7 +106,7 @@ export function AdvanceTaxPanel({
   if (variant === 'ledger') {
     return (
       <section aria-labelledby="advance-tax-h">
-        <LSectionHeader right={<span style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>{country === 'IN' ? 'SEC 208' : 'FORM 1040-ES'}</span>}>
+        <LSectionHeader right={<span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>{country === 'IN' ? 'SEC 208' : 'FORM 1040-ES'}</span>}>
           <span id="advance-tax-h">Advance tax · {schedule.fiscalYearLabel}</span>
         </LSectionHeader>
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
@@ -123,14 +123,14 @@ export function AdvanceTaxPanel({
           ))}
         </ol>
         {totalPenalty > 0 && (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: L_T.negative }}>
+          <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>
             Late-payment interest so far: {formatCurrency(penalty.total, displayCurrency)}{' '}
             <span style={{ color: L_T.muted }}>({penaltyLine})</span>
             {monthlyPenaltyCost > 0 &&
               `. The plan takes ${formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)} a month for it, so the debt-free date moves out.`}
           </p>
         )}
-        <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
+        <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
           {country === 'IN'
             ? 'Paying late costs about 1% a month on what’s short (Sec 234C), and more on anything still unpaid at the year end (Sec 234B).'
             : 'Paying late adds an underpayment penalty, about 8% a year on what’s short (Form 2210).'}
@@ -155,7 +155,7 @@ export function AdvanceTaxPanel({
             display: 'flex',
             flexDirection: 'column',
             gap: 10,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
           }}
         >
           {rows.map((r) => (
@@ -171,7 +171,7 @@ export function AdvanceTaxPanel({
           ))}
         </ul>
         {totalPenalty > 0 && (
-          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+          <div className="muted" style={{ marginTop: 10, fontSize: 'var(--fs-dense)' }}>
             <strong style={{ color: 'var(--negative)' }}>
               Penalty accrued: {formatCurrency(penalty.total, displayCurrency)}
             </strong>{' '}
@@ -184,7 +184,7 @@ export function AdvanceTaxPanel({
           </div>
         )}
         {monthlyPenaltyCost > 0 && (
-          <div style={{ marginTop: 4, color: 'var(--negative)', fontSize: 12 }}>
+          <div style={{ marginTop: 4, color: 'var(--negative)', fontSize: 'var(--fs-dense)' }}>
             → Reducing your monthly surplus by{' '}
             <strong>
               {formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)}
@@ -203,7 +203,7 @@ export function AdvanceTaxPanel({
       eyebrow={`Quarterly advance tax · ${schedule.fiscalYearLabel}`}
       caveat={`${baseCaveat} Switch to the ledger or existing theme to mark instalments paid.`}
     >
-      <div style={{ fontSize: 14, fontFamily: 'var(--font-sans)', lineHeight: 1.7 }}>
+      <div style={{ fontSize: 'var(--fs-body)', fontFamily: 'var(--font-sans)', lineHeight: 1.7 }}>
         {rows.map((r) => (
           <div
             key={r.ordinal}
@@ -231,7 +231,7 @@ export function AdvanceTaxPanel({
           </div>
         ))}
         {totalPenalty > 0 && (
-          <p style={{ marginTop: 12, color: 'var(--negative)', fontSize: 13 }}>
+          <p style={{ marginTop: 12, color: 'var(--negative)', fontSize: 'var(--fs-body)' }}>
             Penalty: {formatCurrency(penalty.total, displayCurrency)} accrued so far.
           </p>
         )}
@@ -274,16 +274,16 @@ function RowLedger({
         gap: '6px 10px',
         padding: '10px 8px',
         borderBottom: `1px dashed ${L_T.ruleSoft}`,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         ...(row.isMissed && !row.isPaid ? lStrip('negative') : null),
       }}
     >
       <span style={{ color: L_T.muted }}>Q{row.ordinal}</span>
       <span>
         <strong>{row.dueLabel.toUpperCase()}</strong>
-        {row.isPaid && <span style={{ color: L_T.positive, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}> · PAID</span>}
+        {row.isPaid && <span style={{ color: L_T.positive, fontWeight: 700, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}> · PAID</span>}
         {row.isMissed && !row.isPaid && (
-          <span style={{ color: L_T.negative, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}>
+          <span style={{ color: L_T.negative, fontWeight: 700, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>
             {' '}· MISSED · {formatCurrency(String(row.shortfall), displayCurrency)} SHORT
           </span>
         )}
@@ -372,7 +372,7 @@ function RowInline({
             style={{
               width: 100,
               padding: '4px 6px',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               border: '1px solid var(--border)',
               borderRadius: 4,
             }}
@@ -385,7 +385,7 @@ function RowInline({
             }
             style={{
               padding: '4px 10px',
-              fontSize: 11,
+              fontSize: 'var(--fs-small)',
               background: 'var(--accent)',
               color: 'var(--canvas)',
               border: 'none',

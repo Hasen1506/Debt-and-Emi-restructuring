@@ -32,11 +32,14 @@ export interface MarginalRateInputs {
   monthlyIncome: string;
   regime?: TaxRegimeIN;
   filing?: FilingStatusUS;
+  /** Round 3: an NRI's rate on Indian income (lib/tax-setup); wins when set. */
+  abroadRate?: number | null;
 }
 
 const same = (a?: string, b?: string) => Math.abs(Number(a || 0) - Number(b || 0)) < 0.5;
 
 export function profileMarginalRate(i: MarginalRateInputs): { rate: number; estimated: boolean } {
+  if (i.abroadRate != null) return { rate: i.abroadRate, estimated: false };
   if (i.bracketRate != null) return { rate: i.bracketRate + i.stateRate, estimated: false };
   const typed = i.manualRate.trim();
   if (typed !== '' && typed !== i.loadedRate.trim() && Number.isFinite(Number(typed))) {

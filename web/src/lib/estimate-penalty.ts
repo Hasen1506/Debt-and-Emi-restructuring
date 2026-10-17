@@ -30,6 +30,10 @@ const IN_DEFAULTS: Record<LoanType, Defaults> = {
   education_loan: { flatFee: '250', penalRateAnnual: '0.02' },
   gold_loan: { flatFee: '0', penalRateAnnual: '0.02' },
   bnpl: { flatFee: '200', penalRateAnnual: '0.36' },
+  loan_against_property: { flatFee: '500', penalRateAnnual: '0.02' },
+  home_topup: { flatFee: '500', penalRateAnnual: '0.02' },
+  two_wheeler_loan: { flatFee: '500', penalRateAnnual: '0.24' },
+  medical_loan: { flatFee: '500', penalRateAnnual: '0.24' },
 };
 
 const US_DEFAULTS: Record<LoanType, Defaults> = {
@@ -40,6 +44,10 @@ const US_DEFAULTS: Record<LoanType, Defaults> = {
   education_loan: { flatFee: '25', penalRateAnnual: '0.06' },
   gold_loan: { flatFee: '0', penalRateAnnual: '0.05' },
   bnpl: { flatFee: '15', penalRateAnnual: '0.30' },
+  loan_against_property: { flatFee: '0', penalRateAnnual: '0.05' },
+  home_topup: { flatFee: '0', penalRateAnnual: '0.05' },
+  two_wheeler_loan: { flatFee: '25', penalRateAnnual: '0.05' },
+  medical_loan: { flatFee: '25', penalRateAnnual: '0.05' },
 };
 
 

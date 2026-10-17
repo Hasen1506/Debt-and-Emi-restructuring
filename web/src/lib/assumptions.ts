@@ -69,16 +69,8 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function prepayHurdle(u: WithAssumptions): number {
-  return num(u.prepay_hurdle) ?? DEFAULT_PREPAY_HURDLE;
-}
-
 export function assetReturn(u: WithAssumptions, type: AssetType | string): number {
   return num(u.asset_returns?.[type]) ?? DEFAULT_ASSET_RETURNS[u.country]?.[type as AssetType] ?? 0.06;
-}
-
-export function liquidationCost(u: WithAssumptions, type: AssetType | string): number | null {
-  return num(u.liquidation_costs?.[type]) ?? DEFAULT_LIQUIDATION_COSTS[u.country]?.[type as AssetType] ?? null;
 }
 
 export function efMonths(u: WithAssumptions): number {

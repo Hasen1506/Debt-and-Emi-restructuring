@@ -12,8 +12,13 @@
  * Not legal advice; no lawyer has reviewed this notice (docs/BOTTLENECKS.md).
  */
 
-export const NOTICE_VERSION = '2026-10-12';
-export const NOTICE_LAST_UPDATED = '13 October 2026';
+/** audit80 D2: the version the sign-in page sends with "Agree and send
+ *  code"; the server stores it in consent_events. Change BOTH this and
+ *  api/privacy_facts.py (a test fails if they differ). A new version makes
+ *  every signed-in user agree again once (GET /api/auth/me consent_required). */
+export const NOTICE_VERSION = '2026-10-14';
+export const TERMS_VERSION = '2026-10-14';
+export const NOTICE_LAST_UPDATED = '14 October 2026';
 
 /** Who decides why and how the data is used (the "Data Fiduciary"). */
 export const DATA_FIDUCIARY = {
@@ -22,17 +27,31 @@ export const DATA_FIDUCIARY = {
   website: 'https://rightdue.app',
 };
 
+/** The three public role addresses (founder decision 15 Oct 2026; each
+ *  forwards to the founder's inbox). No personal address is published.
+ *  support@ also lives in lib/report-problem.ts (SUPPORT_EMAIL); security@
+ *  is in public/.well-known/security.txt and SECURITY.md. A test
+ *  (web/tests/r2-web-records.cjs) keeps all of them in step. */
+export const CONTACT_EMAILS = {
+  support: 'support@rightdue.app',
+  privacy: 'privacy@rightdue.app',
+  security: 'security@rightdue.app',
+} as const;
+
 /** DPDP Rules 2025 r.9 and r.14: a published contact who can answer
- *  questions about processing and handle grievances. Founder decision on a
- *  dedicated alias (answers G8). */
+ *  questions about processing and handle grievances. The privacy@ alias
+ *  (founder decision 15 Oct 2026, replacing the personal address). */
 export const GRIEVANCE_CONTACT = {
   name: 'Vijeya Hasen K H',
   role: 'Founder; handles privacy questions and grievances',
-  email: 'vijeya@rightdue.app',
+  email: CONTACT_EMAILS.privacy,
 };
 
-/** r.14(3): grievances answered within a period not exceeding 90 days. */
-export const GRIEVANCE_REPLY_DAYS_MAX = 90;
+/** r.14(3): grievances answered within a period not exceeding 90 days.
+ *  audit80 D12: one promise on both pages, well inside that limit. */
+export const GRIEVANCE_REPLY_DAYS_MAX = 30;
+/** The legal ceiling the promise sits under (DPDP Rules 2025 r.14(3)). */
+export const GRIEVANCE_REPLY_DAYS_LEGAL_MAX = 90;
 
 /** Where the server copy lives (docs/region-colocation.md). */
 export const STORAGE = {
@@ -46,11 +65,37 @@ export const STORAGE = {
 
 export const RETENTION = {
   signInRecordsDays: 365,
+  /** audit80 D6: sign-in records, consent record and access log of a
+   *  deleted account (founder decision, rank 12). */
+  deletedAccountRecordsDays: 365,
+  accessLogDays: 365,
+  /** Neon Free's point-in-time restore window (docs/RUNBOOK.md §2). */
+  databaseRestoreHours: 6,
+  /** Encrypted nightly backups, longest kept: 14 daily + 8 weekly copies,
+   *  the oldest at most 55 days old (docs/BACKUPS.md §2, db-backup.yml). */
+  backupDays: 56,
   sessionDays: 30,
   signInCodeMinutes: 10,
   rateCounterHours: 24,
   outcomeClientHashDays: 2,
 };
+
+/** audit80 D5: every service that handles personal data for us, with when
+ *  it is in use. The export (api/privacy_facts.py PROCESSORS) lists the
+ *  same names; a test fails if one side names a service the other doesn't.
+ *  `when` is shown in the notice; 'always' entries are in use today. */
+export const PROCESSORS: { who: string; role: string; data: string; when: 'always' | string }[] = [
+  { who: 'Neon', role: 'database host, AWS Asia Pacific (Singapore)', data: 'your account, saved plan, sign-in, consent and access records, email settings (payday list, reminder dates, watched loans), counts-only funnel totals', when: 'always' },
+  { who: 'Render', role: 'app server, Oregon (USA)', data: 'requests while they are processed, including a credit report or KFS PDF you upload (read once, not stored)', when: 'always' },
+  { who: 'Cloudflare', role: "network in front of rightdue.app (it operates Render's edge)", data: 'requests in transit', when: 'always' },
+  { who: 'Resend', role: 'email delivery (USA)', data: 'your email address and sign-in codes', when: 'always' },
+  { who: 'Google Fonts', role: 'page font, loaded by your browser', data: 'your IP address when the font loads', when: 'always' },
+  { who: 'Yahoo Finance', role: 'share prices for the portfolio tool', data: 'ticker symbols only, never who asked', when: 'always' },
+  { who: 'Resend (emails you switch on)', role: 'email delivery (USA)', data: 'the payday email, deadline reminders or rate-move email you switch on: lender names, payment amounts, dates, and for a rate-move email the loan balance, rate, EMI and months left', when: 'only if you switch those emails on' },
+  { who: 'Sentry', role: 'error reports (USA)', data: 'error details with digits masked; none of your figures, email or address', when: 'only when we switch it on' },
+  { who: 'Cloudflare Turnstile', role: 'check on the sign-in page that you are a person', data: 'your IP address and browser signals, during the check', when: 'only when we switch it on' },
+  { who: 'Google sign-in', role: 'optional sign-in', data: 'your email address, as Google verified it', when: 'only if you choose Continue with Google' },
+];
 
 export const PRIVACY_PATH = '/privacy';
 export const TERMS_PATH = '/terms';

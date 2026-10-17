@@ -21,21 +21,12 @@ import {
   profileChunkName,
 } from './profile-cookie';
 import { sessionToken } from './storage-migration';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 const MARGINAL_COOKIE = 'rightdue_marginal';
 const SCORE_COOKIE = 'rightdue_score';
+// No longer written (its reader went long ago); still cleared on sign-out.
 const FX_COOKIE = 'rightdue_fx';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;  // 1 year
-// FX rates from the spot endpoint are refreshed daily — anything older is
-// re-fetched on next read. 24h is a sensible balance: the engine treats FX
-// as a slow-moving variable, and refetching every page load was the bug
-// this cache fixes.
-export const FX_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-
-export interface FxCacheEntry {
-  rates: Record<string, string>;  // loan_ccy → user_ccy_per_loan_ccy
-  ts: number;                     // ms since epoch when last refreshed
-}
 
 export interface StoredProfile {
   user: UserPayload;
@@ -52,10 +43,14 @@ function readClientCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// D16: a year for guests, the sign-in's 30 days for accounts (readable-cookie-age.ts).
 function writeClientCookie(name: string, value: string) {
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
 }
+
+/** UX2 #23: when this browser last saved the profile (any tab); lib/tab-guard. */
+export const PROFILE_SAVED_KEY = 'rightdue_profile_saved_at';
 
 /** The raw profile cookies, to tell when the saved profile has changed. */
 export function profileCookieKey(): string {
@@ -83,7 +78,7 @@ export function writeProfileCookieClient(json: string): boolean {
     document.cookie =
       v == null
         ? `${profileChunkName(i)}=; path=/; max-age=0`
-        : `${profileChunkName(i)}=${v}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+        : `${profileChunkName(i)}=${v}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   };
   // The parts are URL-safe as they are; no further encoding.
   parts.forEach((v, i) => put(i, v));
@@ -206,7 +201,13 @@ export function saveProfileClient(profile: {
           })(),
     isLive: true,
   }, additionalSlices);
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rightdue:profile-changed'));
+  if (typeof window !== 'undefined') {
+    // UX2 #23: other open tabs see the stamp change and say they may be out of date.
+    // The time plus a per-save tag: two saves in the same millisecond (or under a stopped
+    // clock) would write the same value, which fires no storage event in the other tab.
+    try { window.localStorage.setItem(PROFILE_SAVED_KEY, `${new Date().toISOString()}#${Math.random().toString(36).slice(2, 8)}`); } catch { /* private mode */ }
+    window.dispatchEvent(new Event('rightdue:profile-changed'));
+  }
   return true;
 }
 
@@ -231,33 +232,9 @@ export function clearProfileClient() {
   }
 }
 
-// ─── FX rate cache ──────────────────────────────────────────────────────────
-
-export function loadFxCacheClient(): FxCacheEntry | null {
-  const raw = readClientCookie(FX_COOKIE);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as FxCacheEntry;
-    if (typeof parsed.ts !== 'number' || !parsed.rates) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 /** A signed-in account owns the cache again (see `profileCleared`). */
 export function resumeProfileClient() {
   profileCleared = false;
-}
-
-export function saveFxCacheClient(rates: Record<string, string>) {
-  if (profileCleared) return;
-  const entry: FxCacheEntry = { rates, ts: Date.now() };
-  writeClientCookie(FX_COOKIE, JSON.stringify(entry));
-}
-
-export function isFxCacheFresh(entry: FxCacheEntry | null): entry is FxCacheEntry {
-  return entry != null && Date.now() - entry.ts < FX_CACHE_TTL_MS;
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────
@@ -396,24 +373,4 @@ export function serializeProfileForServer(profile: StoredProfile): Record<string
       creditScore: profile.creditScore,
     },
   };
-}
-
-/**
- * Read the FX-rate cache cookie server-side. Returns the entry only when it
- * exists and is younger than the TTL — callers don't need to repeat the
- * staleness check. Returns null on a missing or expired cache so the caller
- * can decide whether to refetch.
- */
-export async function loadFxCacheServer(): Promise<FxCacheEntry | null> {
-  const { cookies } = await import('next/headers');
-  const raw = (await cookies()).get(FX_COOKIE)?.value;
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as FxCacheEntry;
-    if (typeof parsed.ts !== 'number' || !parsed.rates) return null;
-    if (Date.now() - parsed.ts >= FX_CACHE_TTL_MS) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
 }

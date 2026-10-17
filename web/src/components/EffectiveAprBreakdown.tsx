@@ -54,7 +54,7 @@ export function EffectiveAprBreakdown({
       <div
         className="muted"
         style={{
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           padding: variant === 'card' ? '10px 12px' : '6px 0',
           border: variant === 'card' ? '1px dashed var(--border)' : 'none',
           borderRadius: variant === 'card' ? 6 : 0,
@@ -102,7 +102,7 @@ export function EffectiveAprBreakdown({
     >
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           color: 'var(--muted)',
@@ -116,7 +116,7 @@ export function EffectiveAprBreakdown({
           display: 'grid',
           gridTemplateColumns: '1fr auto',
           gap: '6px 12px',
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           fontFamily: 'var(--font-sans)',
         }}
       >
@@ -126,7 +126,7 @@ export function EffectiveAprBreakdown({
           <div key={line.key} style={{ display: 'contents' }}>
             <span style={{ color: 'var(--ink)' }} data-testid={`cost-line-${line.key}`}>
               {line.label}
-              <span className="muted" style={{ display: 'block', fontSize: 11, lineHeight: 1.5, marginTop: 2 }}>
+              <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-small)', lineHeight: 1.5, marginTop: 2 }}>
                 {line.how}
                 {line.source && (
                   <>
@@ -153,7 +153,7 @@ export function EffectiveAprBreakdown({
           <>
             <span data-testid="cost-line-fee">
               {feeLine.label}
-              <span className="muted" style={{ display: 'block', fontSize: 11, lineHeight: 1.5, marginTop: 2 }}>{feeLine.how}</span>
+              <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-small)', lineHeight: 1.5, marginTop: 2 }}>{feeLine.how}</span>
             </span>
             <span className="num" style={{ ...num, color: 'var(--positive)' }}>− {fmt(mc.fee)}</span>
             <span style={{ fontWeight: 700 }}>Each extra payment here saves</span>
@@ -161,7 +161,7 @@ export function EffectiveAprBreakdown({
           </>
         )}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+      <div style={{ fontSize: 'var(--fs-dense)', color: 'var(--muted)', lineHeight: 1.5 }}>
         This is the rate the app ranks your loans by and uses to weigh paying
         early against investing.
         {mc.locked && ` Locked against prepayment for ${mc.lockInMonths} more month${mc.lockInMonths === 1 ? '' : 's'}, so it is paid after your open loans.`}
@@ -177,7 +177,7 @@ export function EffectiveAprBreakdown({
       />
       <div
         style={{
-          fontSize: 10,
+          fontSize: 'var(--fs-small)',
           color: 'var(--muted)',
           letterSpacing: '0.04em',
           marginTop: 2,

@@ -78,14 +78,29 @@ export function securityHeaders(env = process.env) {
   ];
 }
 
-/** next.config.mjs headers(): pages and static files, not the /api/* paths
- *  (FastAPI sets its own stricter policy on those, api/security.py). */
+/** The policy for every /api/* reply: data, never a page, never framed.
+ *  Same values FastAPI sends (api/security.py API_CSP); identical duplicate
+ *  headers on proxied FastAPI replies are harmless. */
+export const API_CSP = "default-src 'none'; frame-ancestors 'none'";
+
+export function apiHeaders() {
+  return [
+    { key: 'Strict-Transport-Security', value: HSTS },
+    { key: 'X-Content-Type-Options', value: 'nosniff' },
+    { key: 'Content-Security-Policy', value: API_CSP },
+    { key: 'X-Frame-Options', value: 'DENY' },
+    { key: 'Referrer-Policy', value: 'no-referrer' },
+  ];
+}
+
+/** next.config.mjs headers(): pages and static files get the page policy;
+ *  /api/* gets the API policy. audit80 D23: Next's own /api routes
+ *  (/api/healthz, /api/session/*, /api/holdings/quote) never reach FastAPI,
+ *  so before this they carried HSTS only. */
 export function headerRules(env = process.env) {
   if (env.NODE_ENV !== 'production') return [];
   return [
     { source: '/((?!api/).*)', headers: securityHeaders(env) },
-    // Next's own /api routes (session, quote, healthz) and the FastAPI
-    // replies proxied through it: HSTS only; the API sets its own CSP.
-    { source: '/api/:path*', headers: [{ key: 'Strict-Transport-Security', value: HSTS }] },
+    { source: '/api/:path*', headers: apiHeaders() },
   ];
 }

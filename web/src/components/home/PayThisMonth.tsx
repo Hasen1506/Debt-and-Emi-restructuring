@@ -21,7 +21,7 @@ import {
   type ActivityKind,
 } from '@/lib/activity';
 import { commitActivity } from '@/lib/commit-activity';
-import { paymentState } from '@/lib/payment-state';
+import { isMoneyPaid, paymentState } from '@/lib/payment-state';
 import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/user-store';
 import { alignToLoans } from '@/lib/loan-ids';
 import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
@@ -34,11 +34,13 @@ import { UpiPay } from './UpiPay';
 import { LoanCleared } from './LoanCleared';
 import { PaydayEmail } from './PaydayEmail';
 import { EmailAnswers } from './EmailAnswers';
-import { LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
+import { LBracket, LSectionHeader, L_T, Reserve, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
 // Fund and goal ticks, per month: they aren't loan payments, so they
 // aren't Activity entries.
 import { SET_ASIDE_EVENT, SET_ASIDE_KEY } from '@/lib/this-month-progress';
+import { POT_WHY } from '@/lib/loan-status';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 
 
 // EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
@@ -118,7 +120,7 @@ export function PayThisMonth({
     if (row.loanIndex === null) {
       return ticked.includes(row.key) ? { tag: 'PAID', amount: row.amount, date: today, undoable: true } : null;
     }
-    const mine = entries.filter((e) => e.loanIndex === row.loanIndex && e.date.slice(0, 7) === month);
+    const mine = entries.filter((e) => e.loanIndex === row.loanIndex && e.date.slice(0, 7) === month && isMoneyPaid(e));
     const state = paymentState(mine, row.minimum, row.amount);
     if (state === 'due') return null;
     const amount = mine.reduce((s, e) => s + Number(e.amount || 0), 0);
@@ -207,7 +209,7 @@ export function PayThisMonth({
     try {
       let next = entries;
       for (const row of data.rows) {
-        if (row.loanIndex === null || statusOf(row)) continue;
+        if (row.loanIndex === null || row.held || statusOf(row)) continue;
         next = addActivityEntry(
           next,
           {
@@ -315,7 +317,9 @@ export function PayThisMonth({
     const st = statuses[i];
     return st ? s + (r.amount > 0 ? (st.amount / r.amount) * r.amountUser : 0) : s;
   }, 0);
-  const toGo = statuses.filter((s) => !s || s.tag !== 'PAID').length;
+  // Round 3 (#13): a loan behind or with collectors isn't ticked here.
+  const toGo = statuses.filter((s, i) => !data.rows[i].held && (!s || s.tag !== 'PAID')).length;
+  const tickTotal = data.total - data.rows.reduce((s, r) => s + (r.held ? r.amountUser : 0), 0);
   const firstExtra = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
   // UX50 B-01: one order and one number per loan on Home: this list
   // follows "Your loans and cards" (the order the loans were entered), and
@@ -344,18 +348,21 @@ export function PayThisMonth({
     <section aria-labelledby="home-pay">
       <LSectionHeader
         right={
-          <span style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
-            {ready ? `${fmt(paidUser)} OF ${fmt(data.total)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : ' '}
+          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
+            {/* E10: held at its widest so the header doesn't wrap once Activity is read. */}
+            <Reserve ghosts={[`${fmt(data.total)} OF ${fmt(data.total)} PAID · ALL DONE`]}>
+              {ready ? `${fmt(paidUser)} OF ${fmt(tickTotal)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : '\u00a0'}
+            </Reserve>
           </span>
         }
       >
         <span id="home-pay">Pay this month · {monthLabel}</span>
       </LSectionHeader>
-      <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
         What the plan pays this month. Mark each one once it has gone out; it&apos;s recorded in Activity.
       </p>
       {(data.extraUser > 0 || data.budget > 0) && (
-        <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6 }}>
+        <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
           {data.budget > 0
             ? `Your own total for debts: ${fmt(data.budget)} a month.`
             : `${fmt(data.extraUser)} of this is extra: all of your spare cash this month. Prefer to keep some?`}{' '}
@@ -363,13 +370,13 @@ export function PayThisMonth({
         </p>
       )}
       {alert && (
-        <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, ...lStrip('negative') }}>
+        <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, ...lStrip('negative') }}>
           {alert}{' '}
           {/* UX50 B-14: what to say to the bank, one tap away. */}
           <LBracket href="/cant-pay">WHAT TO SAY TO THE BANK →</LBracket>
         </p>
       )}
-      <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: L_T.positive, minHeight: said ? 18 : 0 }}>
+      <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.positive, minHeight: said ? 18 : 0 }}>
         {said}
       </p>
       {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
@@ -396,7 +403,7 @@ export function PayThisMonth({
                 rowGap: 6,
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
                 ...(isExtra ? lStrip(done ? 'positive' : 'accent') : null),
               }}
               data-extra={extraTag ? (done ? 'paid' : 'here') : undefined}
@@ -406,12 +413,12 @@ export function PayThisMonth({
                 {no ? String(no).padStart(2, '0') : '··'}
               </span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--fs-body)' }}>
                   {row.name}
                   {extraTag && (
                     <span
                       data-testid="extra-tag"
-                      style={{ marginLeft: 8, fontSize: 11, letterSpacing: '0.1em', color: done ? L_T.positive : L_T.accent }}
+                      style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: done ? L_T.positive : L_T.accent }}
                     >
                       · {extraTag}
                     </span>
@@ -420,7 +427,7 @@ export function PayThisMonth({
                     <span
                       style={{
                         marginLeft: 8,
-                        fontSize: 11,
+                        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                         letterSpacing: '0.1em',
                         color: st.tag === 'PAID' || st.tag === 'EMI PAID' ? L_T.positive : L_T.negative,
                       }}
@@ -431,22 +438,40 @@ export function PayThisMonth({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 'var(--fs-dense)', letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
                   {kindLine(row, fmt, owedNowFor(row), country)}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
+                {row.catchUp ? (
+                  <div data-testid="pay-catch-up" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative, marginTop: 4, lineHeight: 1.5 }}>
+                    {fmt(row.catchUp, row.currency)} to catch up on {row.name}{row.estimated ? ' (estimate: one EMI)' : ''}: the plan pays what’s overdue first, then the normal plan resumes. Can’t pay it?{' '}
+                    <LBracket href="/cant-pay">SEE THE STEPS →</LBracket>
+                  </div>
+                ) : null}
+                {row.kind === 'pot' && (
+                  <div data-testid="pay-pot-why" style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>
+                    {POT_WHY} <DraftLegalMarker id="settlement-pot" />
+                  </div>
+                )}
                 {reason && reason.key === row.key && !st && (
-                  <div style={{ fontSize: 12, color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
+                  <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
                 )}
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 <div style={{ fontWeight: 700, fontSize: 18, textDecoration: done ? 'line-through' : 'none', color: done ? L_T.muted : L_T.ink }}>
                   {fmt(row.amount, row.currency)}
                 </div>
-                {foreign && <div style={{ fontSize: 11, color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
+                {foreign && <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
               </div>
-              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                {!ready ? null : st && st.tag !== 'EMI PAID' ? (
+              {/* The buttons arrive once the browser has read Activity; their row is
+                  held so the page under the list does not jump (E10). */}
+              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', minHeight: 36 }}>
+                {!ready ? null : row.held && !st ? (
+                  <span data-testid="pay-held" style={{ color: L_T.negative, lineHeight: 1.5 }}>
+                    With collectors: don’t pay until the debt is confirmed in writing.{' '}
+                    <LBracket href="/cant-pay">SEE THE STEPS →</LBracket>
+                  </span>
+                ) : st && st.tag !== 'EMI PAID' ? (
                   st.undoable ? (
                     <LBracket onClick={() => attempt(() => undo(row))} label={`Undo: ${row.name} not paid`}>
                       UNDO
@@ -485,7 +510,11 @@ export function PayThisMonth({
                         OTHER AMOUNT
                       </button>
                     )}
-                    {row.loanIndex !== null && (
+                    {row.loanIndex !== null &&
+                      // E5 (audit 80): a rupee row for someone living abroad pays by
+                      // UPI only from an NRE/NRO-linked UPI ID; show it once they've
+                      // saved one, not as the default way to pay.
+                      !(country === 'US' && row.currency === 'INR' && !(vpas[row.loanIndex] || loans[row.loanIndex]?.upi_vpa)) && (
                       <UpiPay
                         loan={loans[row.loanIndex] && (vpas[row.loanIndex] ? { ...loans[row.loanIndex], upi_vpa: vpas[row.loanIndex] } : loans[row.loanIndex])}
                         name={row.name}
@@ -537,7 +566,7 @@ export function PayThisMonth({
                     )}
                     <LBracket onClick={() => setOpen(null)}>CANCEL</LBracket>
                   </span>
-                  <div style={{ flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
+                  <div style={{ flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.muted }}>
                     Another date, a late fee from your statement, or the card&apos;s new balance:{' '}
                     <a href="/activity#activity-ledger" style={{ color: L_T.accent }}>
                       log it in Activity
@@ -557,15 +586,20 @@ export function PayThisMonth({
             padding: '12px 10px 12px 46px',
             borderTop: `2px solid ${L_T.ink}`,
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
           }}
         >
-          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 11, fontWeight: 400 }}>TOTAL THIS MONTH</span>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 400 }}>TOTAL THIS MONTH</span>
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18 }}>{fmt(data.total)}</span>
         </li>
       </ol>
+      {data.fromSalary.length > 0 && (
+        <p data-testid="pay-from-salary" style={{ margin: '10px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+          Taken from your salary before it reaches the bank, so not listed: {data.fromSalary.join(', ')}.
+        </p>
+      )}
       {data.leftOver > 0 && (
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+        <p style={{ margin: '10px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
           {data.budget > 0
             ? `${fmt(data.leftOver)} stays with you this month, outside your total for debts.`
             : `${fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`}
@@ -597,7 +631,7 @@ export function PayNotice({ title, children }: { title: string; children: ReactN
   return (
     <section aria-label={title}>
       <LSectionHeader>{title}</LSectionHeader>
-      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.7, color: L_T.ink }}>{children}</p>
+      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.7, color: L_T.ink }}>{children}</p>
     </section>
   );
 }
@@ -614,7 +648,7 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
     case 'extra':
       return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : emiTag} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
         ((t) => (t ? ` · ${t}` : ''))(owedAfterLabel(row, now, (v) => fmt(v, row.currency)))
-      }`;
+      }${row.fromSalary ? ` · ${emiTag} COMES OUT OF YOUR SALARY` : ''}`;
     case 'clears':
       return row.payoff
         ? `PAYS IT OFF · ${payoffBreakdown(row.payoff.owed, row.payoff.interest, row.payoff.gst, (n) => fmt(n, row.currency)).toUpperCase()}`
@@ -623,6 +657,10 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
       return 'SET ASIDE · UNTIL THE FUND REACHES ITS TARGET';
     case 'goals':
       return 'SET ASIDE · FOR YOUR GOALS';
+    case 'tax':
+      return `SET ASIDE · TAX ON INCOME WITH NO ${country === 'US' ? 'WITHHOLDING' : 'TDS'}`;
+    case 'pot':
+      return 'SET ASIDE · FOR A SETTLEMENT, NOT PAID TO THE COLLECTOR';
   }
 }
 

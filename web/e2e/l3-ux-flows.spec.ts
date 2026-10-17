@@ -88,7 +88,7 @@ test('#6: no Google button unless the server turns it on', async ({ page }) => {
   await page.goto('/login');
   await expect(page.getByRole('button', { name: /send code/i })).toBeVisible();
   await expect(page.getByTestId('google-signin')).toHaveCount(0);
-  const res = await page.request.get('http://127.0.0.1:8100/api/auth/google/config');
+  const res = await page.request.get(`http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}/api/auth/google/config`);
   expect(await res.json()).toEqual({ enabled: false });
-  expect((await page.request.get('http://127.0.0.1:8100/api/auth/google/start', { maxRedirects: 0 })).status()).toBe(404);
+  expect((await page.request.get(`http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}/api/auth/google/start`, { maxRedirects: 0 })).status()).toBe(404);
 });

@@ -16,6 +16,8 @@ export interface PlanContextInput {
   loans: { type: string; outstanding: number; ratePct: number | null; emi: number | null; currency: string }[];
   strategy: string;
   fmt: (v: number, ccy?: string) => string;
+  /** A8: where to paste the assistant's answer back (Home's advice check). */
+  checkUrl?: string;
 }
 
 export function planContext(i: PlanContextInput): string {
@@ -39,6 +41,9 @@ export function planContext(i: PlanContextInput): string {
       return `${k + 1}. ${what}: ${i.fmt(r.amount, r.currency)} (${r.kind})`;
     }),
     `Total: ${i.fmt(i.pay.total)}`,
+    ...(i.checkUrl
+      ? ['', `When you answer, I'll paste your reply into RightDue to check its numbers against my loans and RBI rules: ${i.checkUrl}`]
+      : []),
   ];
   return lines.join('\n');
 }

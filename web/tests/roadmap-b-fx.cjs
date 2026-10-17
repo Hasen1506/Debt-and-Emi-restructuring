@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -74,7 +75,7 @@ test('wired: app open refreshes, Home shows the dated rate with a Refresh button
   assert.doesNotMatch(src('lib/currency.ts'), /export async function ensureFxRates/);
   const { FxRateLine } = require(path.join(root, 'components/fx/FxRateLine.tsx'));
   const html = renderToStaticMarkup(React.createElement(FxRateLine, { user: user({ fx_meta: { INR: { as_of: '2026-10-06', fetched_at: new Date(NOW - H).toISOString(), source: 'frankfurter' } } }), nowMs: NOW }));
-  assert.match(html, /1 INR = 0\.01040 USD · as of 6 Oct 2026 · ECB via Frankfurter/);
+  assert.match(html, /1 USD = ₹96\.15 · as of 6 Oct 2026 · ECB via Frankfurter/);
   assert.match(html, /REFRESH RATE/);
   assert.match(renderToStaticMarkup(React.createElement(FxRateLine, { user: user(), nowMs: NOW })), /may be out of date/);
 });
@@ -82,7 +83,7 @@ test('wired: app open refreshes, Home shows the dated rate with a Refresh button
 test('Profile save dates its rates, so a typed rate is not overwritten by the next app-open refresh', () => {
   // Before: Profile saved the new rate under the old fx_meta (or none), so a
   // rate typed in Profile looked >24 h old and FxAutoRefresh replaced it.
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /import \{ dateProfileRates \} from '@\/lib\/fx-refresh'/);
   assert.match(profile, /const userWithFx = dateProfileRates\(/);
   const { dateProfileRates, fxDueForRefresh } = lib('fx-refresh.ts');

@@ -1,6 +1,7 @@
 """FastAPI dependencies for resolving the current user from a session cookie."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
@@ -30,10 +31,28 @@ async def _load_user_from_cookie(
     sess = res.scalar_one_or_none()
     if sess is None or sess.revoked_at is not None:
         return None
-    if sess.expires_at <= utc_now():
+    now = utc_now()
+    if sess.expires_at <= now:
         return None
+    # audit80 D21: "last used" on the device list, written at most hourly.
+    if sess.last_seen_at is None or now - _naive_like(sess.last_seen_at, now) > LAST_SEEN_EVERY:
+        try:
+            sess.last_seen_at = now
+            await db.commit()
+        except Exception:  # never fail a request over a timestamp
+            await db.rollback()
     res = await db.execute(select(User).where(User.id == sess.user_id))
     return res.scalar_one_or_none()
+
+
+LAST_SEEN_EVERY = timedelta(hours=1)
+
+
+def _naive_like(value, ref):
+    """SQLite hands back naive datetimes; compare like with like."""
+    if (value.tzinfo is None) != (ref.tzinfo is None):
+        return value.replace(tzinfo=ref.tzinfo)
+    return value
 
 
 async def current_user_optional(

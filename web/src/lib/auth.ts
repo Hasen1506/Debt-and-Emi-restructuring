@@ -42,6 +42,7 @@ export function useSession(): SessionState & { refresh: () => Promise<void>; log
     await api.logout();
     clearAccountCache();
     clearPendingSync();
+    (await import('./setup-draft')).dropDraft(); // UX2-6: a half-typed Setup leaves with the account
     setState({ status: 'anon', user: null });
     notifySessionChanged();
   }

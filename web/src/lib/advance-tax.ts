@@ -74,11 +74,19 @@ export function buildSchedule(
   country: Country,
   annualLiability: Decimal,
   today: Date,
+  opts: { presumptive?: boolean } = {},
 ): AdvanceTaxSchedule | null {
   if (annualLiability.lte(0)) return null;
 
+  // W2 (audit 80): presumptive business / profession income (1961 s.44AD /
+  // 44ADA = Income-tax Act 2025 s.58(2) Sl. 1 and 3) pays the whole advance
+  // tax in ONE instalment by 15 March, s.408(2); nothing is due in June,
+  // September or December. https://www.incometax.gov.in/iec/foportal/help/all-topics/e-filing-services/tax-payments
+  // (FAQ 19, read 14 Oct 2026); incometaxindia.gov.in/w/advance-tax-5.
   const allInstalments =
-    country === 'IN' ? indiaSchedule(today) : usSchedule(today);
+    country === 'IN'
+      ? (opts.presumptive ? indiaSchedule(today).filter((i) => i.cumulativePct === 100).map((i) => ({ ...i, ordinal: 1 })) : indiaSchedule(today))
+      : usSchedule(today);
 
   // Filter to upcoming (today or later). Past ones are out of scope
   // for the generator; existing cookie state owns their status.
@@ -196,6 +204,32 @@ export function detectMissedInstalments(
  * missed due date). 234B is added separately as a small additional
  * accrual when the FY has ended (India only).
  */
+/**
+ * Income changed mid-year (salary shift, a slow quarter, a windfall): the
+ * remaining instalments are re-cut from the new liability so that the
+ * cumulative targets still hold, keeping what was paid. The law asks for
+ * advance tax on the CURRENT estimate of the year's income at each date
+ * (s.405 / old s.207-209), so a stale estimate either over-collects or
+ * runs up s.425 [234C] interest. Rebased when the estimate moves > 10%.
+ */
+export function rebaseSchedule(schedule: AdvanceTaxSchedule, newLiability: Decimal, tolerance = 0.1): AdvanceTaxSchedule {
+  const old = new Decimal(schedule.annualLiability);
+  if (newLiability.lte(0) || (old.gt(0) && newLiability.sub(old).abs().div(old).lte(tolerance))) return schedule;
+  let paidSoFar = new Decimal(0);
+  const instalments = schedule.instalments.map((i) => {
+    if (i.status === 'paid') {
+      paidSoFar = paidSoFar.add(dec(i.paidAmount ?? i.amountDue));
+      return i;
+    }
+    if (i.status === 'missed') return i;
+    const target = newLiability.mul(i.cumulativePct).div(100);
+    const due = Decimal.max(0, target.sub(paidSoFar));
+    paidSoFar = paidSoFar.add(due);
+    return { ...i, amountDue: due.toFixed(0) };
+  });
+  return { ...schedule, annualLiability: newLiability.toFixed(0), instalments };
+}
+
 export function accruedPenalty(
   schedule: AdvanceTaxSchedule,
   today: Date,
@@ -204,7 +238,28 @@ export function accruedPenalty(
   let total234C = new Decimal(0);
   const todayDate = today.getTime();
 
-  for (const inst of schedule.instalments) {
+  if (schedule.country === 'IN') {
+    // W2: s.425 [1961: s.234C] is simple interest at 1% a month for a FIXED
+    // period on each shortfall against the cumulative target: 3 months for
+    // the 15 Jun / 15 Sep / 15 Dec dates, 1 month for 15 Mar; nothing for
+    // June if 12% was paid, nor for September if 36% was paid. It used to
+    // grow with "months late", which overstated a shortfall caught up in
+    // the next quarter. Year-end shortfall interest (s.424 [234B]) below.
+    const liability = new Decimal(schedule.annualLiability);
+    let paidCum = new Decimal(0);
+    for (const inst of schedule.instalments) {
+      paidCum = paidCum.add(dec(inst.paidAmount));
+      const dueDate = new Date(inst.dueDate + 'T00:00:00').getTime();
+      if (dueDate >= todayDate) continue;
+      const pct = inst.cumulativePct;
+      if (pct === 15 && paidCum.gte(liability.mul(0.12))) continue;
+      if (pct === 45 && paidCum.gte(liability.mul(0.36))) continue;
+      const shortfall = Decimal.max(0, liability.mul(pct).div(100).sub(paidCum));
+      total234C = total234C.add(shortfall.mul(rate234C).mul(pct === 100 ? 1 : 3));
+    }
+  }
+
+  for (const inst of schedule.country === 'IN' ? [] : schedule.instalments) {
     const due = new Decimal(inst.amountDue);
     const paid = dec(inst.paidAmount);
     if (paid.gte(due)) continue;

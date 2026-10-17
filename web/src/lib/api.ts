@@ -10,6 +10,7 @@ import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
 import { apiBase } from './api-base';
+import { parseAuthUser, parseCompareResponse, parseSimulateResponse } from './boundary';
 
 // The browser calls the API on its own origin (Next.js proxies /api/* to
 // FastAPI in the same container); the web server calls it directly at
@@ -42,14 +43,14 @@ export type LoanType =
   | 'personal_loan'
   | 'credit_card'
   | 'education_loan'
-  | 'gold_loan'
-  | 'bnpl';
+  | 'gold_loan' | 'bnpl'
+  | 'loan_against_property' | 'home_topup' | 'two_wheeler_loan' | 'medical_loan';
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
 /** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
 export type LenderType = 'bank' | 'small_finance_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
 export type TaxRegimeIN = 'new' | 'old';
-export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
+export type FilingStatusUS = 'single' | 'mfj' | 'hoh' | 'mfs';   // C17: married filing separately
 
 export interface LoanPayload {
   /** Stable id, set when the loan is first saved (lib/loan-ids). Activity
@@ -197,11 +198,26 @@ export interface LoanPayload {
    *  semantics. All optional; defaults model the "no penalties / no
    *  restrictions / immediate-EMI" case.
    *  • prepayment_penalty_pct  — '0.02' = 2% of the prepay amount fee
-   *  • prepay_lock_in_months   — months from disbursal before prepay allowed
+   *  • prepay_lock_in_months   — months of lock-in as typed (counted from
+   *    `prepay_lock_in_until`'s stamp; see lib/roll-forward stampBalanceDates)
    *  • part_payment_freq_months — minimum gap between extra payments
    *  • pre_emi_months_remaining — interest-only window before EMI starts */
   prepayment_penalty_pct?: string;
   prepay_lock_in_months?: number;
+  /** Audit 80+ C4: 'YYYY-MM', the first month extra payments are allowed.
+   *  Stamped when the lock-in is typed, so it runs down as months pass
+   *  (the API derives the months left from it). */
+  prepay_lock_in_until?: string;
+  /** Audit 80+ C1: what a rate rise does ('extend' holds the EMI and
+   *  lengthens the tenure, the Indian default; 'raise_emi'; 'mix') and the
+   *  most months the loan may have left after an extension. */
+  on_rate_rise?: 'extend' | 'raise_emi' | 'mix';
+  max_tenure_months?: number;
+  /** Audit 80+ C2: 'emi' | 'interest_only' | 'bullet' (a gold loan with no EMI is a bullet). */
+  repayment?: 'emi' | 'interest_only' | 'bullet';
+  promo_until?: string; rate_after_promo?: string; promo_months?: number; joint_split?: boolean; // UX2B-5/9: lib/promo-rate, lib/joint-share
+  /** Audit 80+ C15: a flat-rate loan's original tenure, for its true rate. */
+  original_tenure_months?: number;
   part_payment_freq_months?: number;
   pre_emi_months_remaining?: number;
   /** How the lender quoted the rate. "reducing" (bank loans, default)
@@ -213,8 +229,10 @@ export interface LoanPayload {
    *  blank is treated as federal, so it is never refinanced privately. */
   student_loan_kind?: 'federal' | 'private';
   /** US federal student loans: 'pslf' | 'idr' holds extra payments off the
-   *  loan (they'd only shrink what's forgiven). */
-  forgiveness_track?: 'pslf' | 'idr';
+   *  loan (they'd only shrink what's forgiven). E7 (audit 80): 'none' = the
+   *  user said it isn't heading for forgiveness (extra allowed); 'unsure' or
+   *  no answer holds extra until they say. */
+  forgiveness_track?: 'pslf' | 'idr' | 'none' | 'unsure';
   /** US mortgages (grill #34): monthly PMI / FHA MIP paid with the payment. */
   pmi_monthly?: string;
   /** The home's original value: the lower of price and appraisal at purchase. */
@@ -270,7 +288,7 @@ export interface CashAccountPayload {
 /** Coarse age band — used for downstream nudges (retirement check at 50+,
  *  emergency-fund-first at <25). Never use exact age; the band is enough. */
 /** '50_plus' is 50–59 (it was "50+" before 60+ had its own bracket). */
-export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus';
+export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus' | '80_plus';
 
 export interface UserPayload {
   country: Country;
@@ -330,12 +348,12 @@ export interface UserPayload {
    *  banking relationships over new account opens. */
   other_banks?: string[];
   tax_regime?: TaxRegimeIN;
-  /** US filing status — drives which slab table applies. Defaults to
-   *  'single' if omitted. */
+  /** US filing status (slab table); Setup asks it (round 3), Single only for old profiles. */
   filing_status?: FilingStatusUS;
-  /** Optional US state marginal rate as decimal — e.g. '0.0682' for
-   *  California top bracket. Added to federal marginal_rate when present
-   *  so combined effective-rate math reflects state burden. */
+  /** Round 3: US, the user itemizes (only then does mortgage interest lower tax). India: pension. */
+  itemises?: boolean;
+  income_kind?: 'pension';
+  /** US state marginal rate, decimal ('0.0682'), added to the federal rate. */
   state_marginal_rate?: string;
   efund_balance?: string;
   efund_target?: string;
@@ -356,10 +374,10 @@ export interface UserPayload {
    *  engine uses annual_hike_rate uniformly. */
   hike_schedule?: [number, number, string][];
   inflation_rate?: string;
-  /** NRI on a US work visa (tax-resident in US, may hold INR debts). When
-   *  true, the UI threads dual-currency context through debt views and the
-   *  NRI-prepay tool autofills FX/currency fields from the profile. */
+  /** NRI on a US work visa (tax-resident in US, may hold INR debts); dual-currency views. */
   is_nri_us?: boolean;
+  /** Round 3: an NRI on a rupee plan living in a Gulf state or elsewhere (lib/tax-setup). */
+  nri_residence?: 'AE' | 'SA' | 'QA' | 'OM' | 'KW' | 'BH' | 'OTHER';
   /** FX rate per loan currency, expressed as "units of residence currency
    *  per 1 unit of loan currency" — same direction as /api/fx-rate. Used
    *  by the engine to convert non-residence-currency EMIs into residence
@@ -400,6 +418,23 @@ export interface UserPayload {
    *
    *  Empty / omitted → legacy single-source behaviour. Engine drops the
    *  field — it consumes the derived monthly_income + marginal_rate. */
+  /** Audit C11 / round 2 (item 2): most the user could borrow to cover short
+   *  months (spare card limit), their currency. Blank = 3 months of
+   *  take-home (labelled on Plan as an assumption). */
+  gap_credit_limit?: string;
+  /** Round 2 (item 1): YYYY-MM or YYYY-MM-DD; with it, a tenure-first rate
+   *  rise never runs a loan past `retirement_age` (blank = 60 salaried / 70). */
+  date_of_birth?: string;
+  retirement_age?: number;
+  /** Round 2 (item 3): the user's own assumed yearly return after tax on
+   *  money kept back (blank = 6.5% IN / 4% US, labelled). */
+  assumed_post_tax_return?: string;
+  /** Round 2 (item 4): one-time cost of sending money home, share of the
+   *  amount (blank = the published corridor average). */
+  remittance_cost?: string;
+  /** Round 2 (item 4): take-home for each calendar month, January first,
+   *  when income varies by season; `reserve` opts into the seasonal reserve. */
+  seasonal_income?: SeasonalIncomePayload;
   income_streams?: IncomeStreamPayload[];
   /** Old-regime / itemized deductions. Captured at onboarding step 2
    *  conditionally — IN only renders these when tax_regime === 'old';
@@ -419,6 +454,8 @@ export type IncomeStreamKind =
   | 'freelance'
   | 'rental'
   | 'capital_gains'
+  /** Round 2: bank / FD interest (often no TDS, or 10% only). */
+  | 'interest'
   | 'other';
 
 /**
@@ -449,12 +486,8 @@ export type IncomeStreamTaxTreatment =
   | 'rental'
   | 'capital_gains';
 
-/**
- * One income stream. Multiple streams capture concurrent sources
- * (salary + side consulting) or transitions over time (salaried from
- * Jan-Jun, freelance from Jul onwards — end the salaried entry and
- * start the freelance one).
- */
+/** One income stream: concurrent sources (salary + consulting) or transitions
+ *  over time (salaried Jan-Jun, then freelance: end one entry, start the next). */
 export interface IncomeStreamPayload {
   /** Client-generated stable id, used for React keys and ledger linking. */
   id: string;
@@ -479,6 +512,9 @@ export interface IncomeStreamPayload {
    *  `defaultTaxTreatment(kind)`. See [[IncomeStreamTaxTreatment]] for the
    *  routing rules. */
   tax_treatment?: IncomeStreamTaxTreatment;
+  /** Round 2 (advance tax): capital_gains streams only. Blank = taxed at
+   *  the slab rate (an assumption the panel labels). */
+  cg_kind?: 'equity_stcg' | 'equity_ltcg' | 'other';
 }
 
 /**
@@ -668,34 +704,67 @@ export interface SimulateResponse {
   total_gap_interest?: string;
   /** Live test #16: this plan with this month's gap closed. */
   gap_closed?: { cut: string; debt_free_month: number | null; total_interest_paid: string } | null;
+  /** Audit 80+ C11: the first month a short month can't be borrowed within the gap
+   *  credit limit: debt_free_month is not a date to show. `unfunded_shortfall`: total not found. */
+  infeasible_from_month?: number | null;
+  unfunded_shortfall?: string;
+  /** UX fix 4: what you owe today (engine/owed_today) vs the plan's opening balance. */
+  owed_today?: string | null;
+  owed_start_of_month?: string | null;
+  owed_today_interest_in_paid?: string | null;
+  /** Round 2 (item 4): set when the profile has a seasonal pattern. */
+  seasonal?: SeasonalOutRaw | null;
+}
+
+export interface SeasonalIncomePayload {
+  /** 12 take-home amounts, January to December. */
+  pattern: string[];
+  reserve?: boolean;
+}
+
+export interface SeasonalRunRaw {
+  debt_free_month: number | null;
+  total_interest_paid: string;
+  total_gap_interest: string;
+  infeasible_from_month?: number | null;
+}
+
+export interface SeasonalOutRaw {
+  applied: boolean;
+  reserve_on: boolean;
+  skipped_reason?: string | null;
+  lean_months?: number[];
+  with_reserve?: SeasonalRunRaw | null;
+  without_reserve?: SeasonalRunRaw | null;
+  reserve_interest_difference?: string | null;
+  peak_reserve?: string | null;
 }
 
 export interface CompareResponse {
-  /** Live re-test NEW-2: either side never clears, so interest_saved
-   *  compares unbounded totals and must not be shown. */
-  baseline_never_clears?: boolean;
-  scenario_never_clears?: boolean;
+  /** Live re-test NEW-2: a side never clears; interest_saved is unbounded, never shown. */
+  baseline_never_clears?: boolean; scenario_never_clears?: boolean;
   /** Live test L#26 (include_trajectory): the what-if's own trajectory. */
   scenario_trajectory?: TrajectoryPointRaw[] | null;
   scenario_trajectory_cut_month?: number | null;
   scenario_grows_without_limit?: boolean;
+  scenario_infeasible_from_month?: number | null; // C11: first unfundable month; the date is then on paper only
   baseline_debt_free_month: number | null;
   scenario_debt_free_month: number | null;
   months_pulled_forward: string;
   interest_saved: string;
   extra_invested: string;
   /** Total interest on each side (plan, and plan with the change). */
-  baseline_total_interest?: string | null;
-  scenario_total_interest?: string | null;
+  baseline_total_interest?: string | null; scenario_total_interest?: string | null;
   /** This month's cash gap on each side ('0' when covered). */
-  baseline_shortfall?: string | null;
-  scenario_shortfall?: string | null;
+  baseline_shortfall?: string | null; scenario_shortfall?: string | null;
   /** Tenure what-if (live test #26): the loan's EMI and months, before and after. */
-  tenure_old_emi?: string | null;
-  tenure_new_emi?: string | null;
-  tenure_old_months?: number | null;
-  tenure_new_months?: number | null;
+  tenure_old_emi?: string | null; tenure_new_emi?: string | null;
+  tenure_old_months?: number | null; tenure_new_months?: number | null;
+  /** UX2 #20 lump sum: the loan under each answer to "lower EMI or finish sooner?"; the one the plan ran. */
+  prepay_options?: { mode: PrepayMode; old_emi: string; new_emi: string; old_months: number; new_months: number; interest_saved: string }[] | null;
+  prepay_mode_used?: PrepayMode | null;
 }
+export type PrepayMode = 'reduce_tenure' | 'reduce_emi';
 
 export interface NewDebtResponse {
   list_price: string;
@@ -813,21 +882,19 @@ export interface AssetLiquidationResponse {
   ltcg_tax: string;
   net_benefit: string;
   asset_real_return_net: string;
-  gate_1_net_benefit: boolean;
-  gate_2_high_rate: boolean;
-  gate_3_spread: boolean;
-  gate_0_wealth_edge: boolean | null;
   surplus: string | null;
   wealth_hold: string | null;
   wealth_sell: string | null;
   wealth_edge: string | null;
-  /** The edge selling must reach to pass (10% of the asset). */
-  wealth_edge_needed?: string | null;
   /** 'amortising': the loan is paid on schedule on both paths;
    *  'debt_compounds': no payment given, the debt grows unpaid. */
   wealth_basis?: 'amortising' | 'debt_compounds' | null;
   horizon_years: string | null;
-  recommend_liquidation: boolean;
+  /** Audit 80 W10: figures only, no sell/keep verdict. */
+  debt_cleared?: string;
+  yearly_interest_on_cleared_debt?: string;
+  /** Pre-23-Jul-2024 property, resident seller: both tax computations. */
+  tax_options?: { label: string; tax: string }[];
   rationale: string;
   /** How the tax was worked out (US: the rules, any §121 exclusion, what to
    *  check). Empty for India, whose rules the form itself describes. */
@@ -1006,6 +1073,11 @@ export interface CrossBorderResponse {
   rationale: string;
   loan_emi_user_currency: string;
   loan_emi_user_currency_y5: string;
+  /** E5 (audit 80): the transfer cost used and what a prepayment returns. */
+  remittance_cost_used?: string;
+  prepay_return_after_remittance?: string;
+  comparison_line?: string;
+  comparison_caveats?: string[];
 }
 
 // ─── Loan Check ─────────────────────────────────────────────────────────────
@@ -1045,6 +1117,73 @@ export interface LoanCheckRequest {
   lender_type?: LoanLenderType;
   spread_changed?: SpreadChanged;
   spread_change?: string;           // signed fraction, with spread_changed 'yes'
+  // Hike cycle (audit 80+ A11): what the lender did after the last rise,
+  // whether it offered the EMI / tenure choice, the borrower's own rate
+  // history (for rises vs cuts), and an MCLR loan's switch quote.
+  bank_action?: LoanBankAction;
+  choice_offered?: 'yes' | 'no' | 'unsure';
+  rate_history?: { month: string; rate: string }[];
+  switch_rate?: string;
+  switch_cost?: string;
+}
+
+export type LoanBankAction = 'unknown' | 'none_yet' | 'emi_raised' | 'tenure_extended' | 'both';
+
+/** One loan before and after a rate move (engine/rate_reset.py). Money in whole rupees. */
+export interface RateMoveImpact {
+  rate_before: string;
+  rate_after: string;
+  outstanding: string;
+  emi_before: string;
+  months_before: number;
+  interest_before: string;
+  emi_after: string;
+  emi_change: string;
+  interest_emi_option: string;
+  months_after: number | null;
+  months_change: number | null;
+  interest_tenure_option: string | null;
+  tenure_option_possible: boolean;
+  prepay_to_keep_both: string;
+  tenure_premium: string | null;
+}
+
+export interface LoanCheckRateRise {
+  decided: string;
+  repo_from: string;
+  repo_to: string;
+  status: 'applied' | 'pending' | 'if_passed_on';
+  reach_by: string | null;
+  impact: RateMoveImpact;
+}
+
+export interface LoanCheckPassThrough {
+  moves: { decided: string; repo_from: string; repo_to: string; reached: string | null; lag_months: number | null; late_months: number }[];
+  avg_rise_lag: string | null;
+  avg_cut_lag: string | null;
+  late_cuts: number;
+  late_cut_interest: string;
+  asymmetric: boolean;
+  notes: string[];
+}
+
+export interface RbiDecisionRequest {
+  outstanding: string;
+  current_rate: string;             // fraction
+  tenure_months_remaining: number;
+  emi?: string;
+  reached: 'yes' | 'no' | 'unsure';
+}
+
+export interface RbiDecisionResponse {
+  decision: { decided: string; repo_from: string; repo_to: string; move: string; source_url: string; reach_by: string };
+  applied_to: 'rate_after' | 'rate_before';
+  impact: RateMoveImpact;
+  next_meeting: string | null;
+  scenarios: { move: string; impact: RateMoveImpact | null }[];
+  rates_as_of: string;
+  rates_source: string;
+  notes: string[];
 }
 
 export interface LoanCheckCitation {
@@ -1071,7 +1210,9 @@ export interface LoanCheckResetWatch {
 }
 
 export interface LoanCheckFinding {
-  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding';
+  kind:
+    | 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding'
+    | 'rate_rise' | 'choice_not_offered' | 'asymmetric_pass_through';
   headline: string;
   detail: string;
   claimable: boolean;
@@ -1108,6 +1249,12 @@ export interface LoanCheckResponse {
   rule_applies: boolean;
   new_borrower_note: string;
   reset_watch: LoanCheckResetWatch | null;
+  rate_rise?: LoanCheckRateRise | null;
+  switch?: {
+    current_rate: string; switch_rate: string; switch_cost: string; interest_saved_12m: string;
+    interest_saved_rest: string; net_saving_rest: string; months_saved: number; payback_months: number | null;
+  } | null;
+  pass_through?: LoanCheckPassThrough | null;
 }
 
 export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
@@ -1124,7 +1271,7 @@ export interface ComplaintRequest extends LoanCheckRequest {
 }
 
 export interface ComplaintLetter {
-  kind: 'grievance' | 'io_followup';
+  kind: 'grievance' | 'io_followup' | 'reset_choice';
   subject: string;
   claim_amount: string;
   citations: LoanCheckCitation[];
@@ -1353,13 +1500,13 @@ function serverHeaders(): Record<string, string> {
   return token ? { 'X-Internal-Token': token } : {};
 }
 
-async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+export async function postWithFieldErrors<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
-    credentials: requestCredentials(path),
+    credentials: requestCredentials(path), ...(signal ? { signal } : {}),
   });
   if (res.status === 422) {
     const data = await res.json().catch(() => null);
@@ -1503,11 +1650,14 @@ export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
   /** `opts.signal` cancels the request (NEW-19: a newer choice replaced it). */
-  simulate: (req: SimulateArgs, opts?: RequestOptions) => post<SimulateResponse>('/api/simulate', req, opts?.signal),
+  /** Round 2 (item 5): advance tax on a salaried user's non-TDS income. */
+  salariedAdvanceTax: (req: import('./salaried-advance-tax').SalariedAdvanceTaxRequest) =>
+    post<import('./salaried-advance-tax').SalariedAdvanceTaxResponse>('/api/tax/advance-tax/salaried', req),
+
+  simulate: (req: SimulateArgs, opts?: RequestOptions) => post<unknown>('/api/simulate', req, opts?.signal).then((v) => parseSimulateResponse('/api/simulate', v)),
 
   /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */
-  sensitivityRange: (req: SimulateArgs) =>
-    post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
+  sensitivityRange: (req: SimulateArgs) => post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
 
   /** Roadmap PR F: the interest cost of funding each goal before high-interest debt. */
   goalsTradeoff: (req: SimulateArgs & { goal_ids?: string[] }) =>
@@ -1520,7 +1670,7 @@ export const api = {
     /** Same planned rate resets as the plan, so "saved vs minimums"
      *  compares like with like. */
     lifecycle_events?: LifecycleEventInput[];
-  }, opts?: RequestOptions) => post<SimulateResponse>('/api/baseline', req, opts?.signal),
+  }, opts?: RequestOptions) => post<unknown>('/api/baseline', req, opts?.signal).then((v) => parseSimulateResponse('/api/baseline', v)),
 
   /** Both runs take the plan's own settings (PlanRunArgs), so the
    *  what-if's "before" is the plan /plan shows. */
@@ -1539,6 +1689,7 @@ export const api = {
     alt_strategy?: Strategy;
     lump_sum_amount?: string;
     lump_sum_target_loan_index?: number;
+    lump_sum_mode?: PrepayMode; // UX2 #20: the user's answer, sent once given
     /** Live test #26: re-amortise this loan over this many more months. */
     tenure_extension_loan_index?: number;
     tenure_extension_months?: number;
@@ -1546,7 +1697,7 @@ export const api = {
     include_trajectory?: boolean;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
-  }, opts?: RequestOptions) => post<CompareResponse>('/api/sensitivity/compare', req, opts?.signal),
+  }, opts?: RequestOptions) => post<unknown>('/api/sensitivity/compare', req, opts?.signal).then((v) => parseCompareResponse(v)),
 
   newDebt: (req: {
     list_price: string;
@@ -1609,6 +1760,17 @@ export const api = {
   complaintIn: (req: ComplaintRequest) =>
     postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
 
+  /** A11: letter for "EMI raised (or tenure extended) without offering the choice". */
+  resetChoiceLetter: (req: LoanCheckRequest & { preference: 'emi' | 'tenure' | 'undecided' }) =>
+    postWithFieldErrors<{ letter: ComplaintLetter; draft_notice: string; placeholders: ComplaintResponse['placeholders'] }>(
+      '/api/complaints/in/reset-choice', req,
+    ),
+
+  /** A19: the public "RBI decision: what happens to your EMI" page. */
+  rbiDecision: (req: RbiDecisionRequest) => postWithFieldErrors<RbiDecisionResponse>('/api/rbi-decision', req),
+  rbiDecisionLatest: () =>
+    get<Pick<RbiDecisionResponse, 'decision' | 'next_meeting' | 'rates_as_of' | 'rates_source'>>('/api/rbi-decision/latest'),
+
   compareOffers: (req: OfferCompareRequest) =>
     postWithFieldErrors<OfferCompareResponse>('/api/offers/compare', req),
 
@@ -1652,6 +1814,10 @@ export const api = {
     manual_fx_rate?: string;
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
+    /** E5: share of the amount sent; omitted = the World Bank corridor average. */
+    remittance_cost_pct?: string;
+    funds_in_india?: boolean;
+    use_published_savings_rate?: boolean;
   }) => postWithFieldErrors<CrossBorderResponse>('/api/cross-border-decision', req),
 
   restructuring: (req: {
@@ -1725,8 +1891,10 @@ export const api = {
    *  when the check is on (NEXT_PUBLIC_TURNSTILE_SITE_KEY, grill #59). */
   requestOtp: (email: string, turnstileToken?: string) =>
     post<void>('/api/auth/request-otp', turnstileToken ? { email, turnstile_token: turnstileToken } : { email }),
-  verifyOtp: (email: string, code: string) =>
-    post<AuthUser>('/api/auth/verify-otp', { email, code }),
+  /** audit80 D2/D7: `consent` is what the sign-in page showed and the user
+   *  agreed to (notice + terms versions, the 18+ tick); the API records it. */
+  verifyOtp: (email: string, code: string, consent?: SignInConsent) =>
+    post<unknown>('/api/auth/verify-otp', consent ? { email, code, ...consent } : { email, code }).then((v) => parseAuthUser(v)),
   logout: () => post<void>('/api/auth/logout', {}),
   // UX50 E-22: the session proxy answers 200 null when there is no session
   // cookie; that is "signed out", the same as a 401. Concurrent callers
@@ -1822,6 +1990,14 @@ export interface AuthUser {
   id: string;
   email: string;
   display_name?: string | null;
+  /** audit80 D2: true until this account agrees to the current notice/terms. */
+  consent_required?: boolean;
+}
+
+export interface SignInConsent {
+  notice_version: string;
+  terms_version: string;
+  age_confirmed: boolean;
 }
 
 export interface LifecycleEventInput {
@@ -1947,9 +2123,10 @@ export interface SimulateArgs {
   matched_contribution?: string;
   marginal_rate?: string;
   simple_mode?: boolean;
-  /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
-   *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
+  /** Calendar month (1-12) of sim month 1 (anchors hikes); 1 server-side. */
   simulation_start_month?: number;
+  /** UX fix 4: loans whose EMI this month is already paid (owed_today). */
+  paid_emi_this_month?: number[];
   /** Auto-reinvest events — month-indexed lump-sum injections in user
    *  residence currency, routed to the highest-effective-APR active loan
    *  at the matching month. Frontend pre-computes from projected annual
@@ -1972,6 +2149,9 @@ export interface SimulateArgs {
   /** The user's monthly total for debts (EMIs + minimums + extra), in
    *  their currency. Omitted: all spare cash goes to debts. */
   debt_budget?: string;
+  /** Audit 80+ A4: the share of the extra the user chose to keep once only
+   *  loans under 10% a year are left (lib/low-rate-choice). Omitted: prepay all. */
+  low_rate_invest_share?: string;
   /** True when an active preempting goal exists (e.g. wedding, medical).
    *  The engine routes 100% surplus to the goal_slice in the allocation
    *  response when set. Default false preserves legacy behaviour. */
@@ -1996,6 +2176,10 @@ export interface SimulateArgs {
     funding_amount?: string | null;
     funding_pct?: string | null;
     after_loan_index?: number | null;
+    /** Audit 80+ programmable diversion (engine/goals.py). */
+    funding_end_month_index?: number | null;
+    funding_cap?: string | null;
+    pause_below?: string | null;
   }[];
 }
 
@@ -2034,12 +2218,5 @@ export function formatPct(value: string | number | Decimal, digits = 2): string 
   return `${new Decimal(value).mul(100).toFixed(digits)}%`;
 }
 
-export function monthIndexToLabel(
-  monthIndex: number | null,
-  start: Date = new Date(),
-): string {
-  if (monthIndex === null) return '—';
-  // Month 1 is the current month, so month N is N − 1 months away.
-  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex - 1, 1);
-  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-}
+/** Audit 80+ W3: the field-error POST for lib/insights (kept out of `api` to keep this file's diff small). */
+export { postWithFieldErrors as postEngineWithFieldErrors };

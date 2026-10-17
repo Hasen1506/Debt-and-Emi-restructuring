@@ -49,13 +49,6 @@ def test_surcharge_ltcg_capped():
     assert india.surcharge_rate(D("15000000"), is_ltcg=True) == D("0.15")
 
 
-def test_87a_cliff_detection():
-    """The ₹12L threshold creates a marginal cliff in new regime."""
-    assert india.is_at_87a_cliff(D("1200001"), TaxRegimeIN.NEW)
-    assert not india.is_at_87a_cliff(D("1199999"), TaxRegimeIN.NEW)
-    assert not india.is_at_87a_cliff(D("1300000"), TaxRegimeIN.NEW)
-
-
 def test_4L_new_regime_zero_tax_pre_rebate():
     """Below first slab boundary: zero tax."""
     assert india.income_tax(D("400000"), TaxRegimeIN.NEW) == D("0")

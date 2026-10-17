@@ -28,6 +28,7 @@
 import Decimal from 'decimal.js';
 import type { LoanPayload } from './api';
 import TAX from './tax-tables.json';
+import { fullCap24, HOUSE_USE_KINDS, principal80c, taxType } from '@/lib/loan-types';
 
 const D = (v: Decimal.Value | null | undefined) => new Decimal(v == null || v === '' ? 0 : v);
 const DED = TAX.in.deductions;
@@ -83,7 +84,7 @@ export function resolveLoanTaxTiming(loan: LoanPayload, currentMonth: string): L
     const left = sec80eMonthsLeft(loan.edu_interest_start, currentMonth);
     if (left != null) out = { ...out, tax_deduction_months_left: left };
   }
-  if (loan.loan_type === 'home_loan' && loan.pre_construction_interest_total) {
+  if (taxType(loan) === 'home_loan' && loan.pre_construction_interest_total) {
     out = { ...out, pre_construction_interest_annual: preConstructionInstalment(loan, currentMonth).toString() };
   }
   return out;
@@ -119,7 +120,7 @@ export function sec80cRoom(other80c: Decimal.Value, homePrincipal: Decimal.Value
 export function loanTaxLine(loan: LoanPayload, regime: 'old' | 'new', currentMonth: string): string | null {
   const share = taxShare(loan);
   const yours = share.lt(1) ? ` on your ${share.mul(100).toDecimalPlaces(0).toString()}% share` : '';
-  if (loan.loan_type === 'home_loan') {
+  if (taxType(loan) === 'home_loan') {
     if (loan.property_use === 'let_out') {
       const rent = loan.annual_rent ? '' : ' Add the rent to count it exactly; without it only the ₹2L set-off is counted (simplified).';
       return regime === 'old'
@@ -127,8 +128,12 @@ export function loanTaxLine(loan: LoanPayload, regime: 'old' | 'new', currentMon
         : `Let out: interest${yours} comes off the rent (after 30%) in the new regime too, but a loss can't lower your salary or other income (s.202(2)(b)(ii)).${loan.annual_rent ? '' : ' Add the rent to count it.'}`;
     }
     if (regime === 'new') return `Self-occupied: no deduction in the new regime (s.202(2)(a)(v); 1961 s.115BAC). In the old regime: interest up to ₹2L and principal inside the ₹1.5L 80C limit.`;
-    const cap = loan.sec24_full_cap === false ? '₹30,000 (house finished more than 5 years after borrowing)' : '₹2L a year across your self-occupied homes';
-    return `Interest${yours} up to ${cap} (${sectionLabel('24(b)')}); principal inside the ₹1.5L limit (${sectionLabel('80C')}).`;
+    const cap = !fullCap24(loan) ? (loan.house_use === 'repair' ? '₹30,000 (repair or renovation)' : '₹30,000 (house finished more than 5 years after borrowing)') : '₹2L a year across your self-occupied homes';
+    const p80c = principal80c(loan) ? `principal inside the ₹1.5L limit (${sectionLabel('80C')})` : `the principal doesn’t count in ${sectionLabel('80C')}`;
+    return `Interest${yours} up to ${cap} (${sectionLabel('24(b)')}); ${p80c}.`;
+  }
+  if (HOUSE_USE_KINDS.includes(loan.loan_type)) {
+    return `No tax break unless the money bought, built or repaired a house. If it did, say so under the loan and the interest counts like a home loan’s (${sectionLabel('24(b)')}).`;
   }
   if (loan.loan_type === 'education_loan') {
     if (regime === 'new') return `No deduction in the new regime. In the old regime the interest is deductible with no cap for 8 tax years (${sectionLabel('80E')}).`;

@@ -5,7 +5,7 @@
  *  payments are logged this month, it says what's paid and what's left
  *  (lib/this-month-progress), read the same way as the list below. */
 import { useEffect, useState } from 'react';
-import { LBracket, L_T, lStrip } from '@/components/ledger/primitives';
+import { LBracket, L_T, Reserve, lStrip } from '@/components/ledger/primitives';
 import type { ThisMonthLine } from '@/lib/home-this-month';
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -54,16 +54,44 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
       window.removeEventListener(SET_ASIDE_EVENT, read);
     };
   }, [line, progress]);
+  // E10: the progress line is read from Activity after the page paints; the
+  // strip holds room for its longest form (both sums at the month's total)
+  // so the pay list under it doesn't jump down.
+  const m = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(progress?.country ?? 'IN'));
+  const ghosts = progress && line.tone !== 'short'
+    ? [progressLine({ allPaid: false, touched: 1, paidUser: progress.total }, progress.total * 2, m, line.text), progressLine({ allPaid: true, touched: 1, paidUser: progress.total }, progress.total, m, line.text)].map((g) => `${g} [ ${line.link} ]`)
+    : [];
   return (
     <section
       aria-label="This month"
       data-testid="home-this-month"
+      className="rd-this-month"
       style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(line.tone === 'short' ? 'negative' : 'accent') }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
-      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-        {text} <LBracket href="#home-pay">{line.link}</LBracket>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
+      <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
+        <Reserve block ghosts={ghosts}>
+          {text} <LBracket href="#home-pay">{line.link}</LBracket>
+        </Reserve>
       </p>
+    </section>
+  );
+}
+
+/** Audit 80+ E10: what holds the strip's place while the plan streams in,
+ *  the same box and height (styles/globals.css .rd-this-month), so Cash
+ *  flow and Where you stand don't jump down when it arrives (Home CLS was
+ *  0.178 on slow 4G). */
+export function HomeThisMonthPlaceholder() {
+  return (
+    <section
+      aria-busy="true"
+      aria-label="This month"
+      className="rd-this-month"
+      style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip('accent') }}
+    >
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
+      <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.5, color: L_T.muted }}>Working out this month&apos;s payments…</p>
     </section>
   );
 }

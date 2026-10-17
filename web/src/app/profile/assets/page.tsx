@@ -170,7 +170,7 @@ export default function OnboardingAssetsPage() {
         </p>
         {saveError && <p role="alert" style={{ color: 'var(--negative)' }}>{saveError}</p>}
         {!isLive && (
-          <p className="muted" style={{ fontSize: 12, marginTop: 8, color: 'var(--warn, #b45309)' }}>
+          <p className="muted" style={{ fontSize: 'var(--fs-dense)', marginTop: 8, color: 'var(--warn, #b45309)' }}>
             Finish setup first. Saving here takes you there; come back after.
           </p>
         )}
@@ -219,7 +219,7 @@ export default function OnboardingAssetsPage() {
               />
               <label style={{
                 alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 12, color: 'var(--muted-ink, #666)',
+                fontSize: 'var(--fs-dense)', color: 'var(--muted-ink, #666)',
               }}>
                 <input
                   type="checkbox"
@@ -305,7 +305,7 @@ export default function OnboardingAssetsPage() {
               {isSGB && (
                 <label style={{
                   alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6,
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                 }}>
                   <input
                     type="checkbox"
@@ -330,7 +330,7 @@ export default function OnboardingAssetsPage() {
               {isRE && country === 'US' && (
                 <label style={{
                   alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6,
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                 }}>
                   <input
                     type="checkbox"
@@ -344,7 +344,7 @@ export default function OnboardingAssetsPage() {
               {a.asset_type === 'debt_mf' && country === 'US' && (
                 <label style={{
                   alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6,
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                 }}>
                   <input
                     type="checkbox"
@@ -362,7 +362,7 @@ export default function OnboardingAssetsPage() {
                     position: 'absolute', top: 6, right: 6,
                     background: 'transparent', border: 0,
                     color: 'var(--muted-ink, #666)', cursor: 'pointer',
-                    fontSize: 12,
+                    fontSize: 'var(--fs-dense)',
                   }}
                   aria-label="Remove asset"
                   className="l-hit"
@@ -381,7 +381,7 @@ export default function OnboardingAssetsPage() {
               padding: '6px 10px', borderRadius: 6,
               border: '1px dashed var(--border)',
               background: 'transparent', color: 'var(--ink)',
-              cursor: 'pointer', fontSize: 13,
+              cursor: 'pointer', fontSize: 'var(--fs-body)',
             }}
           >
             + ADD ANOTHER ASSET

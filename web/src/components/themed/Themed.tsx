@@ -96,7 +96,7 @@ export function ThemedHeadline({
   return (
     <div
       style={{
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         fontWeight: t.fontWeight,
         lineHeight: 1.55,
         marginTop: 4,
@@ -128,99 +128,5 @@ export function ThemedDetail({
     >
       {children}
     </div>
-  );
-}
-
-export function ThemedKpiGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 12,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-export function ThemedKpi({
-  label,
-  value,
-  detail,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  valueColor?: string;
-}) {
-  const t = TOKENS;
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 10,
-          color: t.label.color,
-          letterSpacing: t.label.letterSpacing,
-          textTransform: t.label.textTransform,
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: t.value.fontSize,
-          fontWeight: t.value.fontWeight,
-          color: valueColor ?? 'var(--ink)',
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: t.detail.fontSize,
-          color: t.detail.color,
-          marginTop: 4,
-        }}
-      >
-        {detail}
-      </div>
-    </div>
-  );
-}
-
-export function ThemedButton({
-  children,
-  onClick,
-  type = 'button',
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  type?: 'button' | 'submit';
-}) {
-  const t = TOKENS.button;
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      style={{
-        background: t.background,
-        color: t.color,
-        border: t.border,
-        borderRadius: t.radius,
-        fontSize: t.fontSize,
-        letterSpacing: t.letterSpacing,
-        textTransform: t.textTransform,
-        padding: '5px 11px',
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-      }}
-    >
-      {children}
-    </button>
   );
 }

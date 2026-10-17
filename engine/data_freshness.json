@@ -17,8 +17,13 @@
       "as_of": "2026-10-12",
       "cadence_days": 365,
       "how": "by_hand",
-      "used_in": ["web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.IN"],
-      "code_ref": {"ts": "web/src/lib/inflation-modeling.ts", "pattern": "IN: \\{ rate: '([0-9.]+)'"}
+      "used_in": [
+        "web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.IN"
+      ],
+      "code_ref": {
+        "ts": "web/src/lib/inflation-modeling.ts",
+        "pattern": "IN: \\{ rate: '([0-9.]+)'"
+      }
     },
     {
       "id": "inflation_long_run_us",
@@ -29,8 +34,13 @@
       "as_of": "2026-10-12",
       "cadence_days": 365,
       "how": "by_hand",
-      "used_in": ["web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.US"],
-      "code_ref": {"ts": "web/src/lib/inflation-modeling.ts", "pattern": "US: \\{ rate: '([0-9.]+)'"}
+      "used_in": [
+        "web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.US"
+      ],
+      "code_ref": {
+        "ts": "web/src/lib/inflation-modeling.ts",
+        "pattern": "US: \\{ rate: '([0-9.]+)'"
+      }
     },
     {
       "id": "remittance_cost_us_in",
@@ -41,8 +51,13 @@
       "as_of": "2026-10-12",
       "cadence_days": 180,
       "how": "by_hand",
-      "used_in": ["web/src/lib/payoff-range.ts REMITTANCE_REFERENCE (hint copy for G10's NRI field)"],
-      "code_ref": {"ts": "web/src/lib/payoff-range.ts", "pattern": "REMITTANCE_REFERENCE = \\{[^}]*rate: '([0-9.]+)'"}
+      "used_in": [
+        "web/src/lib/payoff-range.ts REMITTANCE_REFERENCE (hint copy for G10's NRI field)"
+      ],
+      "code_ref": {
+        "ts": "web/src/lib/payoff-range.ts",
+        "pattern": "REMITTANCE_REFERENCE = \\{[^}]*rate: '([0-9.]+)'"
+      }
     },
     {
       "id": "gap_card_apr_in",
@@ -53,8 +68,13 @@
       "as_of": "2026-10-12",
       "cadence_days": 180,
       "how": "by_hand",
-      "used_in": ["engine/gap_debt.py GAP_CARD_APR_IN (branch hark/sprint-L2)"],
-      "code_ref": {"py": "engine.gap_debt:GAP_CARD_APR_IN", "skip_if_missing": true}
+      "used_in": [
+        "engine/gap_debt.py GAP_CARD_APR_IN (branch hark/sprint-L2)"
+      ],
+      "code_ref": {
+        "py": "engine.gap_debt:GAP_CARD_APR_IN",
+        "skip_if_missing": true
+      }
     },
     {
       "id": "gap_card_apr_us",
@@ -65,8 +85,13 @@
       "as_of": "2026-10-12",
       "cadence_days": 100,
       "how": "by_hand",
-      "used_in": ["engine/gap_debt.py GAP_CARD_APR_US (branch hark/sprint-L2)"],
-      "code_ref": {"py": "engine.gap_debt:GAP_CARD_APR_US", "skip_if_missing": true}
+      "used_in": [
+        "engine/gap_debt.py GAP_CARD_APR_US (branch hark/sprint-L2)"
+      ],
+      "code_ref": {
+        "py": "engine.gap_debt:GAP_CARD_APR_US",
+        "skip_if_missing": true
+      }
     },
     {
       "id": "policy_rates",
@@ -76,7 +101,10 @@
       "as_of_py": "engine.policy_rates:LAST_VERIFIED",
       "cadence_days": 70,
       "how": "auto",
-      "used_in": ["engine/policy_rates.py", "Loan Check"]
+      "used_in": [
+        "engine/policy_rates.py",
+        "Loan Check"
+      ]
     },
     {
       "id": "rate_cards",
@@ -87,7 +115,10 @@
       "as_of_key": "as_of",
       "cadence_days": 45,
       "how": "by_hand",
-      "used_in": ["engine/rate_cards.py", "web/src/lib/rate-cards.ts"]
+      "used_in": [
+        "engine/rate_cards.py",
+        "web/src/lib/rate-cards.ts"
+      ]
     },
     {
       "id": "rate_disclosures",
@@ -98,7 +129,10 @@
       "as_of_key": "as_of",
       "cadence_days": 35,
       "how": "auto",
-      "used_in": ["engine/rate_disclosures.py", "Loan Check"]
+      "used_in": [
+        "engine/rate_disclosures.py",
+        "Loan Check"
+      ]
     },
     {
       "id": "central_bank_calendar",
@@ -109,7 +143,10 @@
       "as_of_key": "last_updated",
       "cadence_days": 365,
       "how": "by_hand",
-      "used_in": ["api/routes/rates.py", "reset-date alerts"]
+      "used_in": [
+        "api/routes/rates.py",
+        "reset-date alerts"
+      ]
     },
     {
       "id": "tax_tables_fy",
@@ -119,7 +156,55 @@
       "as_of": "2026-04-01",
       "cadence_days": 365,
       "how": "by_hand",
-      "used_in": ["engine/tax/india.py", "engine/tax/usa.py", "web/src/lib/tax-tables.json"]
+      "used_in": [
+        "engine/tax/india.py",
+        "engine/tax/usa.py",
+        "web/src/lib/tax-tables.json"
+      ]
+    },
+    {
+      "id": "rbi_card_min_due_rule",
+      "what": "RBI rule behind every card minimum: no negative amortisation, unpaid taxes/charges not capitalised (C22)",
+      "value": "Commercial Banks – Credit Cards and Debit Cards Directions 2025 (id=13155); NBFC (id=12956)",
+      "source": "RBI consolidated Master Directions of 28 Nov 2025 (replaced the 2022 Master Direction id=12300); text checked on id=12956",
+      "url": "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13155",
+      "as_of": "2026-10-14",
+      "cadence_days": 180,
+      "how": "by_hand",
+      "used_in": [
+        "engine/minimum_payments.py RBI_MIN_DUE_RULE",
+        "engine/marginal_cost.py marginal_cost GST note"
+      ]
+    },
+    {
+      "id": "card_mad_formulas_big4",
+      "what": "SBI Card, Axis, HDFC, ICICI minimum-amount-due formulas (C14)",
+      "value": "SBI/Axis: charges in full + 2% of balance; HDFC/ICICI: charges + max(5% of (FC+balance), FC + 5% of balance)",
+      "source": "Issuer MITCs (URLs in engine/minimum_payments.py FORMULA_SOURCE)",
+      "url": "https://www.sbicard.com/en/most-important-terms-and-conditions.page",
+      "as_of": "2026-10-14",
+      "cadence_days": 180,
+      "how": "by_hand",
+      "used_in": [
+        "engine/minimum_payments.py INDIA_MIN_PAYMENT_FORMULAS",
+        "web/src/lib/min-payment.ts"
+      ]
+    },
+    {
+      "id": "us_auto_interest_deduction",
+      "what": "OBBBA car-loan interest deduction: $10,000 cap, $200 per $1,000 MAGI over $100k/$200k, tax years 2025-2028 (C16)",
+      "value": "10000",
+      "source": "IRC §163(h)(4) (P.L. 119-21 §70203); IRS FS-2025-03",
+      "url": "https://www.law.cornell.edu/uscode/text/26/163",
+      "as_of": "2026-10-14",
+      "cadence_days": 365,
+      "how": "by_hand",
+      "used_in": [
+        "engine/tax/usa.py AUTO_INTEREST_CAP"
+      ],
+      "code_ref": {
+        "py": "engine.tax.usa:AUTO_INTEREST_CAP"
+      }
     }
   ]
 }

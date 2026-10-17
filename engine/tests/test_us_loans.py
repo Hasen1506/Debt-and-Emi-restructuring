@@ -70,7 +70,9 @@ def test_pslf_loan_gets_no_extra_payment_and_the_extra_goes_elsewhere():
 
 
 def test_federal_loan_without_a_forgiveness_track_is_prepaid_normally():
-    user = _us_user([_edu(student_loan_kind="federal"), _auto()])
+    # E7 (audit 80): "not on PSLF/IDR" is an answer the user gives ("none");
+    # with no answer the extra is held (test_a80_w10_us_student.py).
+    user = _us_user([_edu(student_loan_kind="federal", forgiveness_track="none"), _auto()])
     res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=60, marginal_rate=D("0.22"))
     assert _extra_by_loan(res, 0, D("460")) > 0
 
@@ -128,7 +130,7 @@ def test_student_loan_explainer_states_the_2026_rules():
     assert "taxable" in lines and "1 January 2026" in lines
     lines = " ".join(us_loans.student_loan_explainer(_edu(student_loan_kind="federal", forgiveness_track="pslf")))
     assert "120 qualifying payments" in lines and "isn't taxed" in lines
-    lines = " ".join(us_loans.student_loan_explainer(_edu(student_loan_kind="federal")))
+    lines = " ".join(us_loans.student_loan_explainer(_edu(student_loan_kind="federal", forgiveness_track="none")))
     assert "RAP" in lines and "1 July 2026" in lines
 
 

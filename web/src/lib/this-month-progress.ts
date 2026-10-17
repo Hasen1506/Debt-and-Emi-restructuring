@@ -8,7 +8,7 @@
  * strip can say what's paid and what's still to go.
  */
 import type { ActivityEntry } from './activity';
-import { paymentState } from './payment-state';
+import { isMoneyPaid, paymentState } from './payment-state';
 import type { PayRow } from './pay-this-month';
 
 /** Fund and goal ticks, per month (they aren't Activity entries). */
@@ -43,7 +43,7 @@ export function thisMonthProgress(
       }
       continue;
     }
-    const mine = entries.filter((e) => e.loanIndex === r.loanIndex && e.date.slice(0, 7) === month);
+    const mine = entries.filter((e) => e.loanIndex === r.loanIndex && e.date.slice(0, 7) === month && isMoneyPaid(e));
     const state = paymentState(mine, r.minimum, r.amount);
     if (state === 'due') continue;
     touched += 1;

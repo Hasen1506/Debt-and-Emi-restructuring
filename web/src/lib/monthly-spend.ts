@@ -88,13 +88,6 @@ export function addMonthlySpend(
   return [entry, ...entries];
 }
 
-export function removeMonthlySpend(
-  entries: MonthlySpendEntry[],
-  id: string,
-): MonthlySpendEntry[] {
-  return entries.filter((e) => e.id !== id);
-}
-
 /** Most-recent entry per month — picks by `loggedAt` descending so a
  *  later correction wins over the first guess. */
 export function latestByMonth(
@@ -113,14 +106,4 @@ export function latestByMonth(
     if (Number.isFinite(v) && v >= 0) out[month] = v;
   }
   return out;
-}
-
-/** Latest logged total for the given month. Returns null when no entry
- *  exists, so callers can render "log this month →" instead of zero. */
-export function spentForMonth(
-  entries: MonthlySpendEntry[],
-  monthIso: string,
-): number | null {
-  const map = latestByMonth(entries);
-  return monthIso in map ? map[monthIso] : null;
 }

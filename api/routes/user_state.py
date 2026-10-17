@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import access_log
 from api.auth.dependencies import current_user
 from api.db.database import get_db
 from api.db.models import User, UserState
@@ -161,9 +162,19 @@ async def get_state(
     _check_account(user, x_account_id)
     res = await db.execute(select(UserState).where(UserState.user_id == user.id))
     row = res.scalar_one_or_none()
+    # audit80 D8: who read the saved plan, and when (no figures).
+    await access_log.record(db, user.id, "read", "/api/user/state", "ok" if row is not None else "empty")
     if row is None:
         return UserStateOut(data=None, updated_at=None, version=0)
     return _out(row)
+
+
+async def _refused(db: AsyncSession, user: User, exc: HTTPException) -> HTTPException:
+    """Log a refused write (conflict, too big) before raising it."""
+    user_id = user.id  # read before the rollback expires the instance
+    await db.rollback()
+    await access_log.record(db, user_id, "write", "/api/user/state", f"refused_{exc.status_code}")
+    return exc
 
 
 async def _locked_row(db: AsyncSession, user: User) -> UserState | None:
@@ -193,14 +204,18 @@ async def patch_state(
     else:
         stale = _stale_slices(row, payload, whole=False)
         if stale:
-            raise _conflict(row, stale)
+            raise await _refused(db, user, _conflict(row, stale))
         merged = migrate_state_shape({**(row.data or {}), **incoming})
-        _check_total_size(merged)
+        try:
+            _check_total_size(merged)
+        except HTTPException as exc:
+            raise await _refused(db, user, exc) from None
         version = (row.version or 0) + 1
         row.data = merged
         row.version = version
         row.slice_versions = {**(row.slice_versions or {}), **{k: version for k in incoming}}
         row.slice_writers = _writers(row.slice_writers or {}, incoming, payload)
+    await access_log.record(db, user.id, "write", "/api/user/state", "ok", commit=False)
     await db.commit()
     await db.refresh(row)
     return _out(row)
@@ -225,12 +240,13 @@ async def put_state(
     else:
         stale = _stale_slices(row, payload, whole=True)
         if stale:
-            raise _conflict(row, stale)
+            raise await _refused(db, user, _conflict(row, stale))
         version = (row.version or 0) + 1
         row.data = data
         row.version = version
         row.slice_versions = {k: version for k in incoming}
         row.slice_writers = _writers({}, incoming, payload)
+    await access_log.record(db, user.id, "write", "/api/user/state", "ok", commit=False)
     await db.commit()
     await db.refresh(row)
     return _out(row)

@@ -56,7 +56,7 @@ test('E-06/E-07: every page has a footer with the disclaimer, privacy, terms and
   assert.match(footer, /@media print\{\.rd-site-footer\{display:none/);
   const { reportProblemHref } = require(path.join(root, 'lib/report-problem.ts'));
   const href = reportProblemHref('/tools/loan-check?amount=500000&rate=9.5', 'abcdef1234567');
-  assert.ok(href.startsWith('mailto:vijeya@rightdue.app?subject='));
+  assert.ok(href.startsWith('mailto:support@rightdue.app?subject='));
   const decoded = decodeURIComponent(href);
   assert.match(decoded, /RightDue problem on \/tools\/loan-check/);
   assert.match(decoded, /version: abcdef1/);
@@ -104,5 +104,6 @@ test('E-10/E-11/E-12: notice, landing and terms are accurate', () => {
   assert.match(terms, /courts at Chennai, Tamil Nadu have jurisdiction/);
   assert.match(terms, /We reply to complaints within 30 days/);
   assert.match(terms, /total liability/);
-  assert.match(src('components/setup/QuickSetup.tsx'), /aren&apos;t stored there unless you sign in and save/);
+  // Audit 80 B8: Setup renders the one in-app privacy wording.
+  assert.match(src('components/setup/QuickSetup.tsx'), /\{PRIVACY_PROMISE\} You can change them any time in Profile\./);
 });

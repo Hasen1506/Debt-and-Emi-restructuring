@@ -86,14 +86,17 @@ def test_rate_drift_stops_three_points_from_the_start():
     assert r.total_interest_paid < D("6000000")
 
 
-def test_rate_rise_raises_the_emi_instead_of_growing_the_balance():
+@pytest.mark.parametrize("mode,by", [("raise_emi", 245), (None, 372)])
+def test_rate_rise_raises_the_emi_instead_of_growing_the_balance(mode, by):
     """RBI's 2023 reset rules forbid negative amortisation: a rise must
-    raise the EMI (or tenure), never let the balance climb."""
-    u = _user(Country.IN, [_floating_home(drift="0.03")], income="200000", expenses="170000")
-    r = simulate_plan(u, horizon_months=360, gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
+    raise the EMI (or tenure), never let the balance climb. Audit 80+ C1:
+    an Indian loan now defaults to a longer tenure (None = "extend"), capped
+    at 30 years from today for a home loan; "raise_emi" keeps the end date."""
+    u = _user(Country.IN, [_floating_home(drift="0.03", on_rate_rise=mode)], income="200000", expenses="170000")
+    r = simulate_plan(u, horizon_months=400, gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
-    assert r.debt_free_month is not None and r.debt_free_month <= 245
+    assert r.debt_free_month is not None and r.debt_free_month <= by
 
 
 def test_rate_cut_keeps_the_emi_and_finishes_sooner():
@@ -103,17 +106,21 @@ def test_rate_cut_keeps_the_emi_and_finishes_sooner():
     assert all(p[0] <= D("26035.01") for p in (row.payments_by_loan_index for row in r.months) if 0 in p)
 
 
-def test_lifecycle_rate_rise_also_reprices_the_emi():
-    loan = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "floating", 240, D("26035"))
+@pytest.mark.parametrize("mode,by", [("raise_emi", 241), (None, 12 + 360)])
+def test_lifecycle_rate_rise_also_reprices_the_emi(mode, by):
+    # At 20% the old EMI no longer covers the interest, so even tenure-first
+    # (the Indian default, Audit C1) must raise it: just enough to finish by
+    # the 30-year ceiling.
+    loan = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "floating", 240, D("26035"), on_rate_rise=mode)
     u = _user(Country.IN, [loan], income="200000", expenses="170000")
     ev = LifecycleEvent(
         kind=LifecycleEventKind.FLOATING_RATE_RESET, effective_month=13,
         loan_index=0, new_rate=D("0.20"),
     )
-    r = simulate_plan(u, horizon_months=360, lifecycle_events=[ev], gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
+    r = simulate_plan(u, horizon_months=400, lifecycle_events=[ev], gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
-    assert r.debt_free_month is not None and r.debt_free_month <= 241
+    assert r.debt_free_month is not None and r.debt_free_month <= by
 
 
 def test_drift_cap_constant():
@@ -127,10 +134,14 @@ def test_interest_plus_percent_card_minimum_includes_the_interest():
     card = Loan(LoanType.CREDIT_CARD, "Bank of America", D("5000"), D("0.24"), "fixed", 0, D("0"))
     u = _user(Country.US, [card])
     b = baseline_minimums_only(u, horizon_months=1)
-    assert b.months[0].payments_by_loan_index[0] == D("150")
-    # The $150 paid on the due date stops interest on that part for the last
-    # third of the cycle (average daily balance, sprint G1): $99 interest.
-    assert _balance(b.months[0]) == D("4949")
+    # Audit 80+ C13: the minimum carries the interest actually charged. Paid
+    # on the due date, the payment stops interest on its part for the last
+    # third of the cycle (average daily balance, sprint G1), so the charge is
+    # 2% x (5,000 - P/3) and P = 50 + that: P = 150 / (1 + 0.02/3) = $149.01,
+    # interest $99.01 (it was a full month's $100 + $50 = $150).
+    pay = b.months[0].payments_by_loan_index[0]
+    assert abs(pay - D("150") / (1 + D("0.02") / 3)) < D("0.01")
+    assert abs(_balance(b.months[0]) - D("4950")) < D("0.01")
     assert compute_minimum_payment(card, Country.US, interest_accrued=D("100")) == D("150")
 
 
@@ -329,4 +340,9 @@ def test_rate_shock_raises_the_emi():
     r = with_rate_shock(u, D("0.04"), horizon_months=480, plan={"gap_as_debt": False})  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
+    # Audit C1: tenure-first (the Indian default) holds the EMI and ends
+    # later, never past the 30-year ceiling; "raise_emi" keeps the end date.
+    assert r.debt_free_month is not None and 241 < r.debt_free_month <= 1 + 360
+    home.on_rate_rise = "raise_emi"
+    r = with_rate_shock(u, D("0.04"), horizon_months=480, plan={"gap_as_debt": False})
     assert r.debt_free_month is not None and r.debt_free_month <= 241

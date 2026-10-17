@@ -8,16 +8,17 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 
 from engine.asset_liquidation import (
-    GATE_0_WEALTH_EDGE_RATIO, india_ltcg_tax, true_net_benefit, gate_check,
+    sale_cost_breakdown,
+    india_ltcg_tax, true_net_benefit, gate_check,
     compute_liquidation_proceeds,
 )
 from engine.country_data import india_selling_cost_pct
+from engine.debt_status import is_held
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, money, prepay_block,
 )
-from engine.formulas import effective_rate
-from engine.marginal_cost import user_marginal_costs
+from engine.marginal_cost import user_forward_rates, user_marginal_costs
 from engine.models import Country, FilingStatusUS, TaxRegimeIN
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.simulation import simulate_plan
@@ -31,8 +32,18 @@ from api.schemas import (
     AssetLiquidationRequest, AssetLiquidationResponse,
 )
 
+from engine.plan_end import shown_debt_free_month
+from engine.decisions import short_plan_hold
+
 D = Decimal
 router = APIRouter(tags=["decisions"])
+
+
+def _month_one_gap(user) -> Decimal:
+    """Costs plus this month's minimum payments, less take-home (0 if covered)."""
+    from engine.surplus import compute_total_minimums
+    spend = user.fixed_expenses + (user.variable_expenses or D("0"))
+    return max(D("0"), spend + compute_total_minimums(user, user.loans) - user.monthly_income)
 
 
 def _bad(e: DecisionInputError) -> HTTPException:
@@ -44,10 +55,18 @@ def _bad(e: DecisionInputError) -> HTTPException:
 def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
-    rates = {
-        id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
-        for l in user.loans
-    }
+    # UX walkthrough fix 3: a short or capped plan keeps the cash for its gap
+    # first. The client sends the plan's own gap; without it, this month's.
+    gap = req.monthly_gap if req.monthly_gap is not None else _month_one_gap(user)
+    hold = short_plan_hold(req.amount, gap, user.country, req.short_from_label)
+    if hold is not None:
+        return WindfallResponse(
+            loan_label="Keep it for the monthly gap", loan_index=None, amount=req.amount, rationale=hold.rationale,
+            interest_avoided=D("0"), invest_instead=False, investment_name=None, leftover=req.amount,
+        )
+    # C8: forward decision, so the forward rate (marginal shield, no sunk
+    # processing fee / insurance), not formulas.effective_rate (total cost).
+    rates = user_forward_rates(user.loans, user, marg)
     # Cash recommendations and fees are in residence currency. Normalize the
     # ranking balances/payment maths before comparing a cash amount with a
     # foreign loan; return the original loan's index for Activity.
@@ -69,6 +88,8 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
             copy.min_payment_override = to_user_currency(loan.min_payment_override, loan, user)
         copy.expected_monthly_spend = to_user_currency(loan.expected_monthly_spend, loan, user)
         copy.currency = own
+        if is_held(loan):   # with a collection agency: no automatic lump sum (founder, 17 Oct 2026)
+            copy.outstanding = D("0")
         normalized.append(copy)
         normalized_rates[id(copy)] = rates[id(loan)]
         if id(loan) in mcs:
@@ -176,7 +197,7 @@ def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
     )
     diff = quick_recompute(
         old.total_interest_paid, new.total_interest_paid,
-        old.debt_free_month, new.debt_free_month,
+        shown_debt_free_month(old), shown_debt_free_month(new),
     )
     return QuickRecomputeResponse(
         old_debt_free_month=diff.old_debt_free_month,
@@ -255,6 +276,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
             taxable_income=req.taxable_income,
             marginal_rate=marginal,
             state=asset.state,
+            resident=req.seller_resident,
         )
         if sold.is_blocked:
             raise HTTPException(status_code=400, detail=sold.block_reason or sold.explanation)
@@ -275,6 +297,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
                 current_fy=req.current_fy,
                 brokerage_rate=req.brokerage_rate,
                 marginal_rate=req.marginal_rate,
+                resident=req.seller_resident,
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -308,58 +331,52 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         debt_monthly_payment=req.debt_monthly_payment,
     )
 
-    # Plain words, in the seller's currency: the page lists each test
-    # beside this line, so it names only what decided the answer.
-    failed = []
-    hold = req.expected_hold_years_post_sale.normalize()
-    years = f"{hold:f} year{'' if hold == 1 else 's'}"
+    # Audit 80 W10 (founder's cut-list answer 4): a calculator, not advice.
+    # The summary states the figures on the user's own assumptions and
+    # never says "sell" or "keep" (SEBI Investment Advisers Regulations).
     m = lambda v: money(v, req.country)
-    edge_needed = req.sale_price * GATE_0_WEALTH_EDGE_RATIO
-    if gates.get("gate_0_wealth_edge") is False:
-        edge = gates["wealth_edge"]
-        # A positive edge can still fail: it has to clear 10% of the asset.
-        # Calling that "worse off" contradicted the +edge shown beside it.
-        if edge >= 0:
-            failed.append(
-                f"selling leaves you only {m(edge)} better off over {years}, "
-                f"short of the {m(edge_needed)} (10% of its value) a sale should gain"
+    cleared = min(max(net_proceeds, D("0")), req.debt_balance)
+    yearly = (cleared * req.debt_effective_rate).quantize(D("0.01"))
+    parts = [
+        f"Selling at {m(req.sale_price)} leaves {m(net_proceeds)} after "
+        f"{m(ltcg_tax)} tax and selling costs",
+        f"that clears {m(cleared)} of the {m(req.debt_balance)} debt, which costs about "
+        f"{m(yearly)} a year in interest",
+    ]
+    if gates.get("wealth_edge") is not None:
+        hold = req.expected_hold_years_post_sale.normalize()
+        parts.append(
+            f"on your assumptions, after {hold:f} year{'' if hold == 1 else 's'}: "
+            f"{m(gates['wealth_hold'])} if kept, {m(gates['wealth_sell'])} if sold"
+        )
+    rationale = "; ".join(parts) + ". RightDue doesn't advise whether to sell."
+    tax_options = []
+    if req.country == Country.IN and asset.asset_type == "real_estate":
+        try:
+            bd = sale_cost_breakdown(
+                asset, sale_price=req.sale_price, today=date.today(),
+                taxable_income=req.taxable_income, marginal_rate=req.marginal_rate,
+                resident=req.seller_resident, purchase_fy=req.purchase_fy,
+                current_fy=req.current_fy, brokerage_rate=req.brokerage_rate,
             )
-        else:
-            failed.append(f"selling leaves you {m(-edge)} worse off over {years}")
-    if not gates["gate_1_net_benefit"]: failed.append("the gain is under 10% of its value")
-    if not gates["gate_2_high_rate"]:   failed.append(f"the loan costs under {req.high_rate_threshold * 100:.0f}% a year")
-    if not gates["gate_3_spread"]:      failed.append("the asset earns about as much as the loan costs")
-
-    if gates["recommend_liquidation"]:
-        if gates.get("gate_0_wealth_edge") is True:
-            rationale = (
-                f"Selling clears the loan, and the {m(gates['surplus'])} left over "
-                f"earns more over {years} than the asset would."
-            )
-        else:
-            rationale = "Selling clears a dear loan, and the asset earns less than it costs."
-    else:
-        # The verdict above it already says "Keep it": this says why.
-        why = "; ".join(failed)
-        rationale = why[:1].upper() + why[1:] + "."
+            tax_options = [{"label": o.label, "tax": o.tax} for o in bd.tax_options]
+        except (KeyError, ValueError):
+            tax_options = []
 
     return AssetLiquidationResponse(
         net_proceeds=net_proceeds,
         ltcg_tax=ltcg_tax,
         net_benefit=benefit,
         asset_real_return_net=gates["asset_real_return_net"],
-        gate_1_net_benefit=gates["gate_1_net_benefit"],
-        gate_2_high_rate=gates["gate_2_high_rate"],
-        gate_3_spread=gates["gate_3_spread"],
-        gate_0_wealth_edge=gates.get("gate_0_wealth_edge"),
         surplus=gates.get("surplus"),
         wealth_hold=gates.get("wealth_hold"),
         wealth_sell=gates.get("wealth_sell"),
         wealth_edge=gates.get("wealth_edge"),
-        wealth_edge_needed=edge_needed if gates.get("gate_0_wealth_edge") is not None else None,
         wealth_basis=gates.get("wealth_basis"),
         horizon_years=req.expected_hold_years_post_sale if gates.get("gate_0_wealth_edge") is not None else None,
-        recommend_liquidation=gates["recommend_liquidation"],
         rationale=rationale,
+        debt_cleared=cleared,
+        yearly_interest_on_cleared_debt=yearly,
+        tax_options=tax_options,
         tax_notes=tax_notes,
     )

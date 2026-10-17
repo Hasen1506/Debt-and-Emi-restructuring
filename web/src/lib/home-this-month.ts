@@ -5,6 +5,9 @@
  */
 import { localTerms } from './terms';
 import type { PayThisMonth } from './pay-this-month';
+import type { LoanPayload } from './api';
+import { shortPriority } from './short-priority';
+import { lowerName } from './loan-types';
 
 export interface ThisMonthLine {
   tone: 'ok' | 'short';
@@ -14,18 +17,16 @@ export interface ThisMonthLine {
   link: string;
 }
 
-/** "Credit card" → "credit card"; "HDFC Bank credit card" stays. */
-export function lowerName(name: string): string {
-  return /^[A-Z][a-z]/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
-}
+export { lowerName } from './loan-types';
 
 export function homeThisMonthLine(
   data: PayThisMonth | null,
   shortfall: number,
   money: (v: number) => string,
   country?: string,
+  loans: LoanPayload[] = [],
 ): ThisMonthLine | null {
-  const line = homeThisMonthLineIn(data, shortfall, money);
+  const line = homeThisMonthLineIn(data, shortfall, money, loans, country);
   // R8-2: a US borrower reads "monthly payment", not "EMI".
   return line ? { ...line, text: localTerms(line.text, country) } : null;
 }
@@ -34,16 +35,25 @@ function homeThisMonthLineIn(
   data: PayThisMonth | null,
   shortfall: number,
   money: (v: number) => string,
+  loans: LoanPayload[],
+  country?: string,
 ): ThisMonthLine | null {
   if (!data || data.rows.length === 0) return null;
   const loanRows = data.rows.filter((r) => r.loanIndex !== null);
   if (shortfall > 0.5) {
-    const protect = loanRows.filter((r) => r.minimum > 0).map((r) => r.name);
-    const names = protect.length <= 2 ? protect.join(' and ') : `${protect.slice(0, -1).join(', ')} and ${protect.at(-1)}`;
+    // UX walkthrough fix 8: which payment to protect first (lib/short-priority),
+    // not "pay every EMI and card minimum", which a short month can't do.
+    const order = shortPriority(data, loans, shortfall);
+    const first = order.filter((l) => l.short <= 0).map((l) => l.name);
+    const left = order.filter((l) => l.short > 0).map((l) => lowerName(l.name));
+    const list = (xs: string[]) => (xs.length <= 2 ? xs.join(' and ') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+    const who = country === 'US' ? 'lender' : 'bank';
     return {
       tone: 'short',
-      text: `This month you’re ${money(shortfall)} short. Pay every EMI and card minimum first${names ? ` (${names})` : ''}: a missed one is reported to the credit bureaus. Then find the gap from spending, or call the bank before the due date.`,
-      link: 'WHAT TO DO ↓',
+      text: order.length
+        ? `This month you’re ${money(shortfall)} short. Pay ${list(first.length ? first : [order[0].name])} first${left.length ? `, then call the ${who} for the ${list(left)} before the due date` : ''}. A missed payment is reported to the credit bureaus.`
+        : `This month you’re ${money(shortfall)} short. Call the ${who} before the due date: a missed payment is reported to the credit bureaus.`,
+      link: 'WHAT TO PAY FIRST ↓',
     };
   }
   const extra = Math.round(data.extraUser);

@@ -18,6 +18,7 @@ from engine.models import (
 from engine.formulas import flat_to_reducing
 from engine.layer0 import EmployerMatch
 from engine.ordering import Strategy
+from api.prepay_schema import PrepayOption
 
 D = Decimal
 
@@ -26,15 +27,9 @@ class _Base(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Input bounds
-#
-# Anything outside these is a typing slip or an attack, and they keep the
-# engines' month-by-month loops short. Before them, numbers like 1E+999999
-# crashed ten endpoints and 500 loans in one request were accepted
-# (api/tests/test_api_fuzz.py). Request bodies subclass _In; responses
-# don't, so a large projected figure can never fail on the way out.
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Input bounds: anything outside is a typing slip or an attack, and they keep the engines' loops
+# short (1E+999999 crashed ten endpoints; 500 loans were accepted: api/tests/test_api_fuzz.py).
+# Request bodies subclass _In; responses don't, so a large projected figure never fails on the way out.
 
 MAX_AMOUNT = D("1e12")          # ₹1 lakh crore / $1 trillion
 MAX_INT = 100_000
@@ -90,20 +85,85 @@ def _rate(v: Decimal) -> Decimal:
     return v
 
 
+def _loan_rate(v: Decimal) -> Decimal:
+    """A loan's yearly rate (Audit C12): instant-loan apps and short BNPL
+    plans price above 100% a year (often 1% a day, ~365%), so they're
+    accepted up to 1,000% a year (10), the same ceiling as EffectiveRate.
+    The web asks "that's 120% a year, right?" before sending one."""
+    if v < 0:
+        raise ValueError("a rate can't be negative")
+    if v > MAX_LOAN_RATE:
+        raise ValueError(
+            f"rates are fractions of 1: send {v / 100:f} for {v:f}%. "
+            f"Rates above 1,000% a year are not accepted"
+        )
+    return v
+
+
+MAX_LOAN_RATE = D("10")
+
+
+def _year_month(v: Any) -> Any:
+    """'YYYY-MM' (a longer ISO date is cut to its month); blank = None."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, date):
+        return v.strftime("%Y-%m")
+    if not isinstance(v, str):
+        raise ValueError("must be a month as YYYY-MM")
+    t = v.strip()[:7]
+    try:
+        y, m = int(t[:4]), int(t[5:7])
+    except ValueError:
+        raise ValueError("must be a month as YYYY-MM") from None
+    if len(t) != 7 or t[4] != "-" or not (1 <= m <= 12) or not (1900 <= y <= 2200):
+        raise ValueError("must be a month as YYYY-MM")
+    return t
+
+
+def _months_between(a: str, b: str) -> int:
+    """Whole months from 'YYYY-MM' a to b (negative when b is earlier)."""
+    return (int(b[:4]) - int(a[:4])) * 12 + int(b[5:7]) - int(a[5:7])
+
+
+def _add_months(a: str, n: int) -> str:
+    k = int(a[:4]) * 12 + int(a[5:7]) - 1 + n
+    return f"{k // 12:04d}-{k % 12 + 1:02d}"
+
+
+def current_month() -> str:
+    """This calendar month, 'YYYY-MM', in India time (the app's default
+    zone). Tests freeze it by patching this function."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m")
+
+
 Amount = Annotated[Decimal, AfterValidator(_amount)]
 Rate = Annotated[Decimal, AfterValidator(_rate)]
+LoanRate = Annotated[Decimal, AfterValidator(_loan_rate)]
 SignedRate = Annotated[Decimal, Field(ge=-1, le=1)]
 Months = Annotated[int, Field(ge=0, le=MAX_MONTHS)]
 Horizon = Annotated[int, Field(ge=1, le=MAX_MONTHS)]
 LoanIndex = Annotated[int, Field(ge=0, lt=MAX_LOANS)]
 # An effective APR (fees included) can pass 100% on a short BNPL plan.
 EffectiveRate = Annotated[Decimal, Field(ge=0, le=10)]
-# Live re-test 8 R8-6: a person's own assumptions, bounded so an absurd
-# typed value (a 99,999,999,999,999% pay rise) never reaches the engine.
-# Fractions of 1, like every rate here. The web form uses the same bounds
-# (web/src/lib/r8-inputs.ts ASSUMPTION_BOUNDS).
+# Live re-test 8 R8-6: a person's own assumptions, bounded (fractions of 1) so an absurd typed
+# value never reaches the engine; the web form uses the same bounds (r8-inputs ASSUMPTION_BOUNDS).
 TaxRate = Annotated[Decimal, Field(ge=0, le=D("0.6"))]
 FeeRate = Annotated[Decimal, Field(ge=0, le=D("0.1"))]
+
+
+def age_in_months(dob: Optional[str], month: Optional[str] = None) -> Optional[int]:
+    """Age in whole calendar months at plan month 1 (this month, `month` =
+    "YYYY-MM", default current_month()), from a YYYY-MM or YYYY-MM-DD date
+    of birth; the day is ignored (the plan runs by month). None when not
+    given or in the future."""
+    if not dob:
+        return None
+    ty, tm = (int(x) for x in (month or current_month()).split("-")[:2])
+    y, m = (int(x) for x in dob.split("-")[:2])
+    months = (ty - y) * 12 + (tm - m)
+    return months if months >= 0 else None
 
 
 class _In(_Base):
@@ -146,7 +206,7 @@ class LoanIn(_In):
     loan_type: LoanType
     bank: str = Field(..., max_length=120)
     outstanding: Amount
-    nominal_rate: Rate
+    nominal_rate: LoanRate
     rate_type: str = "floating"
     tenure_months_remaining: Months
     scheduled_emi: Amount
@@ -158,10 +218,7 @@ class LoanIn(_In):
     min_payment_override: Optional[Amount] = None
     currency: Optional[str] = None
     expected_monthly_spend: Amount = D("0")
-    # Optional statement / due day-of-month for credit cards (1-28).
-    # UI-only — the engine's monthly-accrual model doesn't consume them.
-    # Documented here so the schema surfaces the fields instead of
-    # silently dropping them.
+    # Card statement / due day (1-28): UI-only, the engine ignores them.
     statement_day: Optional[int] = Field(None, ge=1, le=28)
     due_day: Optional[int] = Field(None, ge=1, le=28)
     # Floating-rate scheduling — only meaningful when rate_type == "floating".
@@ -195,6 +252,10 @@ class LoanIn(_In):
     pre_construction_interest_annual: Amount = D("0")
     annual_rent: Optional[Amount] = None
     sec24_full_cap: bool = True
+    # C10 / C16 / C17 (audit 80): engine/models.py:Loan.
+    principal_80c_eligible: bool = True
+    mortgage_before_2017_12_16: bool = False
+    us_auto_interest_qualified: bool = False
     # US-only (engine/us_loans.py, grill #33/#34). Student loans: "federal" |
     # "private" (blank = treated as federal); forgiveness track "pslf" |
     # "idr" holds extra payments off the loan. Mortgages: monthly PMI / FHA
@@ -205,6 +266,104 @@ class LoanIn(_In):
     original_home_value: Optional[Amount] = None
     mortgage_insurance_kind: Optional[str] = None
     pmi_months_remaining: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+    # ── The contract over time (Audit 80+ Section C; engine/contract.py) ──
+    # C1: what a rate rise does ("extend" | "raise_emi" | "mix"; blank = the
+    # market default: extend in India, raise_emi in the US) and the most
+    # months the loan may have left after an extension (lender's maximum
+    # tenure or the borrower's age limit, from today).
+    on_rate_rise: Optional[str] = None
+    max_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
+    # C2: "emi" | "interest_only" | "bullet" (blank: gold with no EMI = bullet, else EMI).
+    repayment: Optional[str] = None
+    promo_months: Months = 0                        # UX2B-5: plan months at the promo rate,
+    rate_after_promo: Optional[Rate] = None         # then this rate
+    # C4: the calendar month extra payments are first allowed ('YYYY-MM'); the lock-in
+    # runs down from it. Without it a typed `prepay_lock_in_months` counts from
+    # `loan_start_month`, else `balance_as_of` (the web stamps it), else today.
+    prepay_lock_in_until: Optional[str] = None
+    loan_start_month: Optional[str] = None
+    balance_as_of: Optional[str] = None
+    # C15: a flat-rate loan's original tenure. Its true reducing rate is
+    # solved from the original terms, not the months left.
+    original_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
+    # Round 3: what a LAP / top-up paid for (engine tax_type); "settled" leaves the plan;
+    # behind / collections: engine/debt_status.py (overdue_amount blank = one EMI, estimated).
+    house_use: Optional[Literal["buy_build", "repair", "other"]] = None
+    debt_status: Literal["normal", "behind", "collections", "settled"] = "normal"
+    overdue_amount: Optional[Amount] = None
+    salary_deducted: bool = False
+
+    @field_validator("prepay_lock_in_until", "loan_start_month", "balance_as_of", mode="before")
+    @classmethod
+    def _months(cls, v: Any) -> Any:
+        return _year_month(v)
+
+    @field_validator("on_rate_rise", "repayment", mode="before")
+    @classmethod
+    def _contract_enums(cls, v: Any, info) -> Any:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be text")
+        t = v.strip().lower().replace("-", "_")
+        allowed = {"on_rate_rise": ("extend", "raise_emi", "mix"),
+                   "repayment": ("emi", "interest_only", "bullet")}[info.field_name]
+        if t not in allowed:
+            raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
+        return t
+
+    def lock_in_months_left(self, today: str | None = None) -> int:
+        """Months from this month during which extra payments are refused
+        (Audit C4). Sim month m is calendar month today + (m - 1), so a
+        lock-in ending before `until` covers the first (until - today)
+        months."""
+        today = today or current_month()
+        until = self.prepay_lock_in_until
+        if until is None and self.prepay_lock_in_months > 0:
+            start = self.loan_start_month or self.balance_as_of
+            if start is None:
+                return self.prepay_lock_in_months      # legacy: from today
+            until = _add_months(start, self.prepay_lock_in_months)
+        if until is None:
+            return 0
+        return max(0, min(MAX_MONTHS, _months_between(today, until)))
+
+    def reducing_rate(self) -> tuple[Decimal, Optional[str]]:
+        """The reducing-balance rate the engine runs on, and a warning when
+        a flat rate had to be converted on a guess (Audit C15).
+
+        A flat rate is converted over the loan's original tenure when it is
+        given (the true rate doesn't change as the loan ages). Otherwise it
+        is solved from the balance, EMI and months left when those agree
+        with a flat quote (a reducing rate between the flat rate and three
+        times it). Only failing both is the months left used, with a
+        warning to add the original tenure."""
+        if self.rate_basis != "flat" or self.nominal_rate <= 0:
+            return self.nominal_rate, None
+        if self.original_tenure_months:
+            return flat_to_reducing(self.nominal_rate, self.original_tenure_months), None
+        from engine.contract import implied_reducing_rate
+        if self.outstanding > 0 and self.scheduled_emi > 0 and self.tenure_months_remaining > 0:
+            r = implied_reducing_rate(self.outstanding, self.scheduled_emi, self.tenure_months_remaining)
+            if r is not None and self.nominal_rate <= r <= self.nominal_rate * 3:
+                return r, None
+        if self.tenure_months_remaining > 0:
+            return flat_to_reducing(self.nominal_rate, self.tenure_months_remaining), (
+                "This flat rate was converted over the months left, which reads lower than the loan's "
+                "true rate as it ages. Add the loan's original tenure for the exact rate.")
+        return self.nominal_rate, None
+
+    def contract_warnings(self) -> list[str]:
+        """Plain warnings about this loan's terms (Audit C3, C15)."""
+        from engine.contract import contract_mismatch
+        out = []
+        _, flat_note = self.reducing_rate()
+        if flat_note:
+            out.append(flat_note)
+        mismatch = contract_mismatch(self.to_engine())
+        if mismatch:
+            out.append(mismatch)
+        return out
 
     @field_validator("student_loan_kind", "forgiveness_track", "mortgage_insurance_kind", mode="before")
     @classmethod
@@ -216,12 +375,14 @@ class LoanIn(_In):
         t = v.strip().lower().replace("-", "_")
         allowed = {
             "student_loan_kind": ("federal", "private"),
-            "forgiveness_track": ("pslf", "idr", "none"),
+            # E7: "none" (not on PSLF/IDR) and "unsure" are answers too;
+            # no value at all means never asked (extra held until answered).
+            "forgiveness_track": ("pslf", "idr", "none", "unsure"),
             "mortgage_insurance_kind": ("pmi", "fha_mip"),
         }[info.field_name]
         if t not in allowed:
             raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
-        return None if t == "none" else t
+        return t
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod
@@ -265,17 +426,12 @@ class LoanIn(_In):
         # reducing-balance equivalent so the engine math (which assumes
         # reducing) stays consistent. No-op for the default "reducing"
         # case which covers all bank quotes.
-        effective_rate = self.nominal_rate
-        if self.rate_basis == "flat" and self.tenure_months_remaining > 0:
-            effective_rate = flat_to_reducing(
-                self.nominal_rate, self.tenure_months_remaining,
-            )
+        effective_rate, _ = self.reducing_rate()
         return Loan(
             loan_type=self.loan_type, bank=self.bank,
-            outstanding=self.outstanding, nominal_rate=effective_rate,
-            rate_type=self.rate_type,
-            tenure_months_remaining=self.tenure_months_remaining,
-            scheduled_emi=self.scheduled_emi,
+            nominal_rate=effective_rate, rate_type=self.rate_type,
+            **({"outstanding": D("0"), "scheduled_emi": D("0"), "tenure_months_remaining": 0} if self.debt_status == "settled" else
+               {"outstanding": self.outstanding, "scheduled_emi": self.scheduled_emi, "tenure_months_remaining": self.tenure_months_remaining}),
             processing_fee_amortised=self.processing_fee_amortised,
             insurance_premium_pct=self.insurance_premium_pct,
             property_use=self.property_use,
@@ -286,7 +442,7 @@ class LoanIn(_In):
             next_reset_month=self.next_reset_month,
             rate_drift_annualized=self.rate_drift_annualized,
             prepayment_penalty_pct=self.prepayment_penalty_pct,
-            prepay_lock_in_months=self.prepay_lock_in_months,
+            prepay_lock_in_months=self.lock_in_months_left(),
             min_prepay_amount=self.min_prepay_amount,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
@@ -297,12 +453,21 @@ class LoanIn(_In):
             pre_construction_interest_annual=self.pre_construction_interest_annual,
             annual_rent=self.annual_rent,
             sec24_full_cap=self.sec24_full_cap,
+            principal_80c_eligible=self.principal_80c_eligible,
+            mortgage_before_2017_12_16=self.mortgage_before_2017_12_16,
+            us_auto_interest_qualified=self.us_auto_interest_qualified,
             student_loan_kind=self.student_loan_kind,
             forgiveness_track=self.forgiveness_track,
             pmi_monthly=self.pmi_monthly,
             original_home_value=self.original_home_value,
             mortgage_insurance_kind=self.mortgage_insurance_kind,
             pmi_months_remaining=self.pmi_months_remaining,
+            on_rate_rise=self.on_rate_rise,
+            max_tenure_months=self.max_tenure_months,
+            repayment=self.repayment,
+            promo_months=self.promo_months, rate_after_promo=self.rate_after_promo,
+            house_use=self.house_use, overdue_amount=self.overdue_amount,
+            debt_status=self.debt_status if self.debt_status != "settled" else "normal",
         )
 
 
@@ -400,12 +565,16 @@ class IncomeStreamIn(_In):
     uses them to derive monthly_income and dynamic tax-sleeve targets.
     """
     id: str
-    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|other)$")
+    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|interest|other)$")
     label: str
     gross_annual: Decimal
     start_date: str
     end_date: Optional[str] = None
     tds_pct: Optional[Decimal] = None
+    # Round 2: "business_44ada" | "business_normal" | ... (UI-only) and the
+    # kind of capital gain for the salaried advance-tax panel.
+    tax_treatment: Optional[str] = None
+    cg_kind: Optional[str] = Field(None, pattern=r"^(equity_stcg|equity_ltcg|other)$")
 
 
 class DeductionsIn(_In):
@@ -475,6 +644,25 @@ class PayoffRulesIn(_In):
         )
 
 
+class SeasonalIncomeIn(_In):
+    """Round 2 (item 4): take-home for each calendar month, January first,
+    for income that varies by season (a shop's festive quarter, a farmer's
+    harvest, a tutor's exam months). With it the plan runs month by month
+    on this pattern (each year's hike scales it) instead of one flat
+    figure. `reserve` (opt-in, default off): in good months hold back what
+    the next lean stretch needs instead of prepaying, so a lean month isn't
+    borrowed on a card (engine/simulation.py income_lookahead)."""
+    pattern: list[Amount] = Field(..., min_length=12, max_length=12)
+    reserve: bool = False
+
+    @field_validator("pattern")
+    @classmethod
+    def _some_income(cls, v):
+        if sum(v, D("0")) <= 0:
+            raise ValueError("a seasonal pattern needs some income in the year")
+        return v
+
+
 class UserIn(_In):
     country: Country
     income_type: IncomeType
@@ -502,27 +690,42 @@ class UserIn(_In):
     # so frontend rate-prediction chip can use the entered value across sessions.
     credit_score: Optional[int] = Field(None, ge=300, le=900)
     savings_balance: Amount
-    # Optional rich per-account cash breakdown (checking / savings / HYSA /
-    # FD / other). Engine drops it — used by /debts display and (Phase 2+)
-    # the cash-vs-debt advisor. `savings_balance` above stays authoritative
-    # for engine math; frontend keeps it in sync as the sum of optimizable
-    # balances when cash_accounts is set.
+    # Per-account cash breakdown (display + cash advisor; engine drops it).
+    # `savings_balance` stays authoritative; the web keeps it as their sum.
     cash_accounts: list[CashAccountIn] = Field(default_factory=list)
-    # Optional — annual tax owed on income NOT covered by employer TDS
-    # (rental, FD interest > ₹40k, cap gains, freelance side-income).
-    # Drives the tax-sleeve card on /debts for salaried users with non-
-    # TDS income. Business owners ignore — their sleeve comes from
-    # annual_business_income. Engine drops it.
+    # Yearly tax on income outside TDS (rent, FD interest, gains, freelance):
+    # the /debts tax-sleeve card for salaried users. Engine drops it.
     extra_income_annual_tax: Optional[Amount] = None
     primary_bank: str
     location_tier: str = "urban"
+    # Audit C11: most the user could borrow to cover short months (spare
+    # card limit), their currency. Blank = 3 months of take-home pay.
+    gap_credit_limit: Optional[Amount] = None
+    # Round 2 (founder, item 1): date of birth (YYYY-MM or YYYY-MM-DD) and
+    # the age loans should end by. With a date of birth, a tenure-first rate
+    # rise never runs a loan past that age; blank retirement age = 60
+    # salaried / 70 otherwise (engine/contract.default_retirement_age).
+    date_of_birth: Optional[str] = Field(None, pattern=r"^(19|20)\d\d-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$")
+    retirement_age: Optional[int] = Field(None, ge=40, le=85)
+    # Round 2 (item 3): the user's own assumed yearly return after tax on
+    # money kept back. Blank = 6.5% India / 4% US (labelled assumption).
+    assumed_post_tax_return: Optional[Annotated[Decimal, Field(ge=D("0"), le=D("0.3"))]] = None
+    # Round 2 (item 4): cost of sending money home, share of the amount
+    # sent. Blank = the published corridor average.
+    remittance_cost: Optional[Annotated[Decimal, Field(ge=D("0"), lt=D("0.2"))]] = None
+    # Round 2 (item 4): a monthly income pattern (see SeasonalIncomeIn).
+    # Read by /simulate only; to_engine() doesn't pass it on.
+    seasonal_income: Optional[SeasonalIncomeIn] = None
     other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
+    # Old regime: this tax year's s.123 [80C] items other than home-loan
+    # principal (EPF, PPF, ELSS, …). None = not asked (C10).
+    sec80c_other: Optional[Amount] = None
     pf: Optional[PFBalanceIn] = None
     filing_status: Optional[FilingStatusUS] = None
     state: Optional[str] = None
     state_marginal_rate: TaxRate = D("0")
-    itemises: bool = False
+    itemises: Optional[bool] = None
     efund_balance: Amount = D("0")
     efund_target: Amount = D("0")
     loans: list[LoanIn] = Field(default_factory=list, max_length=MAX_LOANS)
@@ -530,11 +733,8 @@ class UserIn(_In):
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
     annual_hike_rate: Decimal = Field(D("0"), ge=D("-0.5"), le=D("0.5"))
     hike_effective_month: int = Field(default=1, ge=1, le=12)
-    # Optional list of hike phases. Each entry: [year_from, year_to, rate].
-    # year_from is 1-based inclusive, year_to is 1-based exclusive, rate
-    # is annual decimal (0.08 = 8%). Empty list → engine uses annual_hike_rate
-    # uniformly. Validated for non-overlap on the frontend; engine picks
-    # the first matching phase regardless.
+    # Hike phases [year_from (incl, 1-based), year_to (excl), annual rate]; empty =
+    # annual_hike_rate throughout. The engine takes the first matching phase.
     hike_schedule: list[tuple[int, int, Decimal]] = Field(default_factory=list)
 
     @field_validator("hike_schedule")
@@ -598,17 +798,14 @@ class UserIn(_In):
 
     def _itemised(self) -> tuple[bool, Decimal]:
         """US only: does this person itemise, and what share of their
-        mortgage interest lowers their tax? Only itemised deductions above
-        the standard deduction save anything, so a $350k mortgage at 6.75%
-        ($23,625 of interest, $16,100 standard) saves tax on $7,525 of it:
-        a share of 0.32. The shield used to switch fully on the moment the
-        interest passed the standard deduction (6.75% effective at $230k,
-        4.73% at $240k). The web app never sends `itemises`, so it is
-        worked out from the deductions entered at onboarding; with none
-        entered, mortgage interest is estimated from the US home loans."""
-        if self.itemises:
-            return True, D("1")
-        if self.country != Country.US:
+        mortgage interest lowers their tax? Round 3 (UX walkthrough 2 #25):
+        only someone who said they itemise gets a break (Setup and /tax ask;
+        not answered = the standard deduction, no break). For them only the
+        part above the standard deduction saves anything: a $350k mortgage at
+        6.75% ($23,625 of interest, $16,100 standard) saves tax on $7,525, a
+        share of 0.32, from the deductions entered, else the US home loans.
+        With nothing showing above the standard deduction, their word stands."""
+        if self.country != Country.US or self.itemises is not True:
             return False, D("0")
         from engine.tax.usa import STANDARD_DEDUCTION_2026
 
@@ -624,14 +821,28 @@ class UserIn(_In):
         other = (ded.itemized_deductions_other if ded is not None else None) or D("0")
         std = STANDARD_DEDUCTION_2026[self.filing_status or FilingStatusUS.SINGLE]
         above = mortgage + other - std
-        if above <= 0 or mortgage <= 0:
-            return False, D("0")
-        return True, min(mortgage, above) / mortgage
+        if mortgage <= 0:
+            return True, D("0")
+        return True, (min(mortgage, above) / mortgage) if above > 0 else D("1")
+
+    def salary_deducted_emis(self) -> Decimal:
+        """#21: take-home is already net of EMIs cut from pay; the plan takes every EMI off it, so add them back."""
+        ccy = "INR" if self.country == Country.IN else "USD"
+        return sum((l.scheduled_emi for l in self.loans if l.salary_deducted and l.debt_status != "settled"
+                    and (l.currency or ccy).upper() == ccy), D("0"))
+
+    def _engine_loans(self) -> list[Loan]:
+        """A collections loan the user pinned or ordered is paid like any other (their choice wins)."""
+        mine = set(self.payoff_rules.pinned) | set(self.payoff_rules.custom_order) if self.payoff_rules else set()
+        loans = [l.to_engine() for l in self.loans]
+        for i in mine & set(range(len(loans))):
+            loans[i].extra_ok = True
+        return loans
 
     def to_engine(self) -> User:
         return User(
             country=self.country, income_type=self.income_type,
-            annual_income=self.annual_income, monthly_income=self.monthly_income,
+            annual_income=self.annual_income, monthly_income=self.monthly_income + self.salary_deducted_emis(),
             fixed_expenses=self.fixed_expenses,
             variable_expenses=self.variable_expenses,
             annual_gross_salary=self.annual_gross_salary,
@@ -641,13 +852,14 @@ class UserIn(_In):
             primary_bank=self.primary_bank, location_tier=self.location_tier,
             other_banks=list(self.other_banks),
             tax_regime=self.tax_regime,
+            sec80c_other=self.sec80c_other,
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
             state_marginal_rate=self.state_marginal_rate,
             itemises=self._itemised()[0],
             itemised_share=self._itemised()[1],
             efund_balance=self.efund_balance, efund_target=self.efund_target,
-            loans=[l.to_engine() for l in self.loans],
+            loans=self._engine_loans(),
             assets=[a.to_engine() for a in self.assets if a.purchase_date is not None],
             investment_options=[o.to_engine() for o in self.investment_options],
             annual_hike_rate=self.annual_hike_rate,
@@ -662,6 +874,11 @@ class UserIn(_In):
             prepay_hurdle=self.prepay_hurdle,
             asset_returns=dict(self.asset_returns),
             liquidation_costs=dict(self.liquidation_costs),
+            gap_credit_limit=self.gap_credit_limit,
+            age_months=age_in_months(self.date_of_birth),
+            retirement_age=self.retirement_age,
+            assumed_post_tax_return=self.assumed_post_tax_return,
+            remittance_cost=self.remittance_cost,
         )
 
 
@@ -707,6 +924,8 @@ class LifecycleEventIn(_In):
 class SimulateRequest(_In):
     user: UserIn
     strategy: Strategy = Strategy.AVALANCHE
+    # UX fix 4: loans whose EMI for this month is already paid (owed_today).
+    paid_emi_this_month: list[Annotated[int, Field(ge=0, le=200)]] = Field(default_factory=list, max_length=200)
     horizon_months: Horizon = 360
     matched_contribution: Amount = D("0")
     marginal_rate: Optional[TaxRate] = None
@@ -731,22 +950,20 @@ class SimulateRequest(_In):
     # The most the user wants to put toward debts each month (EMIs,
     # minimums and extra, in their own currency). Omitted: all spare cash.
     debt_budget: Optional[Amount] = None
-    # True when the user has an active preempting goal open (e.g. medical
-    # bill, planned wedding) that takes priority over EF + debt for the
-    # goal's funding window. Drives the surplus_allocation routing in the
-    # response: ef_preempted=True → 100% to goal_slice. Default False
-    # preserves baseline behaviour for callers that omit it.
+    # An open preempting goal (a medical bill, a wedding) takes the whole
+    # surplus_allocation (100% to goal_slice) for its window. Default False.
     ef_preempted: bool = False
-    # Per-goal input — engine runs serial-fill allocation per month
-    # with goal-expiry awareness, returning per-goal contributions in
-    # `surplus_allocation.goal_contributions` so the SurplusWaterfall
-    # can render slices without re-computing client-side. Empty list
-    # means "no active goals" (cascade gets full surplus).
+    # Per-goal input: serial-fill each month, returned in
+    # surplus_allocation.goal_contributions. Empty: no active goals.
     goals: list[GoalIn] = Field(default_factory=list)
     # Grill #38: a short month is paid from the emergency fund, then
     # borrowed at a card rate and repaid first (engine/gap_debt.py). False
     # keeps the old "the gap is found somewhere, free" assumption.
     gap_as_debt: bool = True
+    # Audit 80+ A4: the share of the extra the user chose to keep once every
+    # loan left costs under 10% a year (engine/prepay_invest.py). Omitted:
+    # the plan prepays everything, as before. Never set by RightDue.
+    low_rate_invest_share: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
 
 
 class TrajectoryPoint(_Base):
@@ -758,23 +975,14 @@ class TrajectoryPoint(_Base):
     # the request's `user.loans`. Drives the period-aware "pay ₹X to {bank}"
     # rows in the Plan schedule. Empty after all loans clear.
     payments_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
-    # Per-currency balance bucket. Keys are loan-currency codes ("INR", "USD").
-    # For single-currency users this is a 1-element dict that matches
-    # `balance` exactly. NRI-US hybrid users get one entry per loan currency
-    # so the trajectory chart can render separate lines instead of summing
-    # ₹ + $ into a misleading single number.
+    # Balance per loan currency ("INR", "USD"): one line each on the chart,
+    # never ₹ + $ summed. Single-currency users get one entry (= `balance`).
     balances_by_currency: dict[str, Decimal] = Field(default_factory=dict)
-    # Per-loan outstanding this month, keyed by 0-based index in user.loans.
-    # Drives the per-loan trajectory chart on /plan — each loan's curve
-    # shrinks until it clears. Stays populated past the loan's clear date
-    # with value 0 so chart consumers don't see disappearing series.
+    # Per-loan outstanding by 0-based index (cleared loans stay at 0): the
+    # per-loan chart on /plan.
     balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
-    # Pre-allocation surplus for this month — what the engine had to
-    # route before goals / EF / debt took their slices. Lets client-side
-    # achievability sum the actual series (which accounts for inflation,
-    # hike, lifecycle events) instead of multiplying a single static
-    # surplus by a month count. Defaults to 0 for clients that don't
-    # populate it (mirrors MonthRow.available_surplus default).
+    # Surplus before goals / EF / debt took their slices: achievability sums
+    # this series (inflation, hikes, events) rather than a static figure.
     available_surplus: Decimal = Field(default=D("0"))
     # All payments this month and the part above each loan's minimum, both
     # in the user's currency (per-loan payments are in each loan's own).
@@ -790,6 +998,16 @@ class TrajectoryPoint(_Base):
     gap_borrowed: Decimal = Field(default=D("0"))
     gap_repaid: Decimal = Field(default=D("0"))
     gap_from_savings: Decimal = Field(default=D("0"))
+    # Audit C5: extra saved for a loan still in its prepayment lock-in (the
+    # running pot at the month's end), shown as "saved for the lock-in to
+    # end", never as invested. Audit C11: the part of this month's shortfall
+    # that couldn't be borrowed (past the gap limit).
+    held_for_lock_in: Decimal = Field(default=D("0"))
+    unfunded_shortfall: Decimal = Field(default=D("0"))
+    # Founder 17 Oct 2026 (engine/debt_status.py), by loan position: overdue paid on a
+    # behind loan (loan currency), and each collections loan's settlement pot (user currency).
+    catch_up_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
+    settlement_pot_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -834,6 +1052,13 @@ class GoalIn(_In):
     funding_amount: Optional[Amount] = None
     funding_pct: Optional[Rate] = None
     after_loan_index: Optional[Annotated[int, Field(ge=0, le=99)]] = None
+    # Programmable diversion (audit 80+, engine/goals.py): "until" a 0-based
+    # sim month, a monthly cap, and a floor on the month's spare cash below
+    # which the goal pauses. With "after_debt", funding_amount or
+    # funding_pct sets what it takes once the debt clears.
+    funding_end_month_index: Optional[Months] = None
+    funding_cap: Optional[Amount] = None
+    pause_below: Optional[Amount] = None
 
     @model_validator(mode="after")
     def _validate_funding_rule(self) -> "GoalIn":
@@ -841,6 +1066,11 @@ class GoalIn(_In):
             raise ValueError("funding_amount: a fixed monthly amount above zero is needed for the 'fixed' rule")
         if self.funding_rule == "surplus_pct" and (self.funding_pct is None or self.funding_pct <= 0 or self.funding_pct > 1):
             raise ValueError("funding_pct: a share of spare cash between 0 and 1 is needed for the 'surplus_pct' rule")
+        if self.funding_pct is not None and not (0 < self.funding_pct <= 1):
+            raise ValueError("funding_pct: a share of spare cash between 0 and 1")
+        if self.funding_end_month_index is not None and self.funding_start_month_index is not None \
+                and self.funding_end_month_index <= self.funding_start_month_index:
+            raise ValueError("funding_end_month_index: the goal must stop after it starts")
         return self
 
     @model_validator(mode="after")
@@ -964,6 +1194,51 @@ class GoalTradeoffRequest(SimulateRequest):
     goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class RateRiseOptionOut(_Base):
+    mode: str                  # "extend" | "raise_emi" | "mix"
+    emi: Decimal
+    months_left: int
+    total_interest: Decimal
+    emi_change: Decimal
+    months_change: int
+    capped: bool = False       # the lender's maximum tenure bound
+
+
+class RateRiseEventOut(_Base):
+    """Audit C1 / A13: one floating-rate rise in the plan. `applied` is what
+    the plan did (tenure-first for an Indian loan unless the loan says
+    otherwise); `options` both outcomes; `recommended` the most valuable
+    step ("extend" | "raise_emi" | "keep_emi_and_prepay") and why."""
+    month: int
+    loan_index: int
+    old_rate: Decimal
+    new_rate: Decimal
+    old_emi: Decimal
+    months_left_before: int
+    applied: str
+    options: list[RateRiseOptionOut]
+    extra_interest_if_extended: Decimal
+    recommended: str
+    reason: str
+    source_url: str = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12529"
+
+
+class MaturityOut(_Base):
+    """Audit C2/C3: a bullet / interest-only loan's maturity, or a material
+    balloon in an EMI loan's last month. `short`: the month couldn't fund it
+    (renew or repay)."""
+    loan_index: int
+    month: int
+    kind: str
+    amount_due: Decimal
+    short: bool
+
+
+class LoanWarningOut(_Base):
+    loan_index: int
+    message: str
+
+
 class NonAmortisingOut(_Base):
     # Live re-test NEW-3: an EMI loan whose EMI is at or below its monthly
     # interest, so it never clears. The plan is not run on it.
@@ -986,10 +1261,41 @@ class PmiEventOut(_Base):
     note: str
 
 
+class SeasonalRunOut(_Base):
+    debt_free_month: Optional[int]
+    total_interest_paid: Decimal
+    total_gap_interest: Decimal
+    infeasible_from_month: Optional[int] = None
+
+
+class SeasonalOut(_Base):
+    """Round 2 (item 4): the plan ran on the user's monthly pattern. Both
+    versions are returned so the page can say honestly what holding a
+    reserve costs (or saves) in interest against not holding one."""
+    applied: bool
+    reserve_on: bool
+    # Why the pattern wasn't used (e.g. a salary change is planned), when not applied.
+    skipped_reason: Optional[str] = None
+    # Calendar months (1-12) whose take-home is below the year's average.
+    lean_months: list[int] = Field(default_factory=list)
+    with_reserve: Optional[SeasonalRunOut] = None
+    without_reserve: Optional[SeasonalRunOut] = None
+    # with_reserve − without_reserve total interest (can be above 0: the
+    # reserve can cost a little more interest in exchange for not
+    # borrowing in lean months).
+    reserve_interest_difference: Optional[Decimal] = None
+    # The most the reserve held back at once (user currency).
+    peak_reserve: Optional[Decimal] = None
+
+
 class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
     debt_free_month: Optional[int]
+    # UX fix 4: what you owe today (engine/owed_today), and the plan's opening balance.
+    owed_today: Optional[Decimal] = None
+    owed_start_of_month: Optional[Decimal] = None
+    owed_today_interest_in_paid: Optional[Decimal] = None
     total_interest_paid: Decimal
     total_invested: Decimal
     trajectory: list[TrajectoryPoint]
@@ -1034,6 +1340,8 @@ class SimulateResponse(_Base):
     # Loans whose EMI doesn't cover their interest. When non-empty the plan
     # was NOT run (no 1,200-month schedule): trajectory is empty.
     non_amortising: list[NonAmortisingOut] = Field(default_factory=list)
+    # Round 2 (item 4): set when the user gave a seasonal income pattern.
+    seasonal: Optional[SeasonalOut] = None
     # Live re-test 2 NEW-2: when the plan never clears, the trajectory stops
     # at the 30-year horizon, or earlier at the first month what's owed
     # (loans + gap borrowing) passes 100x what's owed at the start. This is
@@ -1041,6 +1349,21 @@ class SimulateResponse(_Base):
     # whether it stopped because the debt grows without limit.
     trajectory_cut_month: Optional[int] = None
     grows_without_limit: bool = False
+    # Audit C1: rate rises with both outcomes and the recommended step.
+    rate_rise_events: list[RateRiseEventOut] = Field(default_factory=list)
+    # Audit C2/C3: maturities and balloons.
+    maturities: list[MaturityOut] = Field(default_factory=list)
+    # Audit C3/C15: loans whose terms don't agree, in plain words.
+    loan_warnings: list[LoanWarningOut] = Field(default_factory=list)
+    # Audit C11: gap borrowing's limit (user currency; `gap_limit_assumed`
+    # when it's the 3-months-of-pay default), the first month a shortfall
+    # couldn't be borrowed (the plan isn't fundable as it stands from then),
+    # and what couldn't be borrowed in total. Lead with the monthly gap
+    # (`shortfall`), not compounded totals.
+    gap_limit: Optional[Decimal] = None
+    gap_limit_assumed: bool = False
+    infeasible_from_month: Optional[int] = None
+    unfunded_shortfall: Decimal = D("0")
 
 
 class BaselineRequest(_In):
@@ -1072,10 +1395,10 @@ class CompareRequest(_In):
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     goals: list[GoalIn] = Field(default_factory=list)
     debt_budget: Optional[Amount] = None
+    low_rate_invest_share: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
-    # A saved expense change, rather than an increase in take-home pay.
-    spending_cut: bool = False
+    spending_cut: bool = False  # a saved expense change, rather than an increase in take-home pay
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)
     income_shock_months: Optional[Months] = None
     rate_shock_delta: Optional[SignedRate] = None
@@ -1083,12 +1406,12 @@ class CompareRequest(_In):
     alt_strategy: Optional[Strategy] = None
     lump_sum_amount: Optional[Amount] = None
     lump_sum_target_loan_index: Optional[LoanIndex] = None
+    lump_sum_mode: Optional[Literal["reduce_tenure", "reduce_emi"]] = None  # UX2 #20; None = not answered: EMI kept
     # Live test #26: one loan re-amortised over this many more months.
     tenure_extension_loan_index: Optional[LoanIndex] = None
     tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
     gap_as_debt: bool = True
-    # Live test L#26: also return the scenario's month-by-month trajectory,
-    # so the Plan chart and table can show the what-if.
+    # Live test L#26: also return the scenario's trajectory, so the Plan chart and table can show the what-if.
     include_trajectory: bool = False
 
     @model_validator(mode="after")
@@ -1109,8 +1432,7 @@ class CompareResponse(_Base):
     # Total interest on each side, for a before/after picture.
     baseline_total_interest: Optional[Decimal] = None
     scenario_total_interest: Optional[Decimal] = None
-    # This month's cash gap on each side (0 when covered), so a what-if
-    # that closes it can say so (live test #26).
+    # This month's cash gap on each side (0 when covered), so a what-if that closes it can say so (#26).
     baseline_shortfall: Optional[Decimal] = None
     scenario_shortfall: Optional[Decimal] = None
     # Tenure what-if only: the loan's EMI and remaining months before and after.
@@ -1118,26 +1440,28 @@ class CompareResponse(_Base):
     tenure_new_emi: Optional[Decimal] = None
     tenure_old_months: Optional[int] = None
     tenure_new_months: Optional[int] = None
-    # Live re-test NEW-2: either side never clears within the horizon, so
-    # interest_saved compares two unbounded totals and must not be shown.
+    prepay_options: Optional[list[PrepayOption]] = None  # UX2 #20: the loan alone under each answer
+    prepay_mode_used: Optional[str] = None
+    # NEW-2: a side never clears within the horizon: interest_saved compares unbounded totals, never shown.
     baseline_never_clears: bool = False
     scenario_never_clears: bool = False
-    # Live test L#26: the scenario's trajectory (include_trajectory only),
-    # bounded the same way as /simulate's (NEW-2).
+    # L#26 scenario trajectory (include_trajectory), bounded like /simulate's (NEW-2); C11 first unfundable month.
     scenario_trajectory: Optional[list[TrajectoryPoint]] = None
     scenario_trajectory_cut_month: Optional[int] = None
     scenario_grows_without_limit: bool = False
+    scenario_infeasible_from_month: Optional[int] = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Decision modules
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Decision modules ─────────────────────────────────────────────────────────────
 
 class WindfallRequest(_In):
     amount: Amount
     user: UserIn
     marginal_rate: Optional[TaxRate] = None
     strategy: Strategy = Strategy.AVALANCHE
+    # UX fix 3: the plan's own gap (month 1, else the capped month's) and its first month.
+    monthly_gap: Optional[Amount] = None
+    short_from_label: Optional[str] = Field(default=None, max_length=20)
 
 
 class WindfallResponse(_Base):
@@ -1278,6 +1602,9 @@ class AssetLiquidationRequest(_In):
     country: Country = Country.IN
     filing_status: Optional[FilingStatusUS] = None
     state_marginal_rate: Optional[TaxRate] = None
+    # An NRI selling an Indian asset: Indian rules, but no 20%-with-
+    # indexation choice on pre-23-Jul-2024 property (residents only).
+    seller_resident: bool = True
 
     @model_validator(mode="after")
     def _needs_purchase_date(self):
@@ -1296,27 +1623,24 @@ class AssetLiquidationResponse(_Base):
     tax_notes: list[str] = []
     net_benefit: Decimal
     asset_real_return_net: Decimal
-    gate_1_net_benefit: bool
-    gate_2_high_rate: bool
-    gate_3_spread: bool
-    gate_0_wealth_edge: Optional[bool] = None
     surplus: Optional[Decimal] = None              # net_proceeds − debt_balance
     wealth_hold: Optional[Decimal] = None
     wealth_sell: Optional[Decimal] = None
     wealth_edge: Optional[Decimal] = None
-    # The edge selling must reach to pass Gate 0 (10% of the asset).
-    wealth_edge_needed: Optional[Decimal] = None
     # "amortising": the loan is paid on schedule on both paths;
     # "debt_compounds": no payment given, so the hold path lets it grow.
     wealth_basis: Optional[str] = None
     horizon_years: Optional[Decimal] = None
-    recommend_liquidation: bool
+    # Audit 80 W10: figures only. The sell/keep verdict and its pass/fail
+    # tests are gone (a calculator, not advice); the summary never chooses.
     rationale: str
+    debt_cleared: Decimal = D("0")
+    yearly_interest_on_cleared_debt: Decimal = D("0")
+    # Property bought before 23 Jul 2024 by a resident: both computations.
+    tax_options: list[dict] = []
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Layer 0 — employer match
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Layer 0 — employer match ─────────────────────────────────────────────────────────────
 
 class EmployerMatchIn(_In):
     name: str

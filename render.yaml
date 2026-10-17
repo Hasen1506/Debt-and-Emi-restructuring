@@ -97,6 +97,32 @@ services:
       # value (passed to the Docker build as a build arg).
       - key: NEXT_PUBLIC_DISABLE_AUTH
         sync: false
+      # ── Audit 80+ W8: trust and security (all sync: false — nothing here
+      # changes the live service until the founder fills them in and syncs
+      # the Blueprint; each is "off" while empty) ──────────────────────────
+      # D13: Cloudflare Turnstile on sign-in code requests. Both or neither.
+      # The site key is BUILD-TIME (Docker build arg, also opens
+      # challenges.cloudflare.com in the CSP), so set it, then "Clear build
+      # cache & deploy". The secret key is runtime. DEPLOY.md "Security and
+      # privacy settings"; RUNBOOK §5.
+      - key: NEXT_PUBLIC_TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      # D25: key for the HMAC of stored sign-in codes. Empty: falls back to
+      # INTERNAL_API_TOKEN (still keyed). Setting or changing it only voids
+      # codes already sent (they last 10 minutes); sessions are untouched.
+      - key: OTP_HASH_KEY
+        sync: false
+      # D19: scrubbed error reports (api/observability.py, web
+      # /api/client-error). /api/health shows "sentry": on|off, never the DSN.
+      - key: SENTRY_DSN
+        sync: false
+      # D13 caps, defaults in api/auth/session.py: OTP_GLOBAL_DAILY_CAP=60
+      # (new sign-ups only), OTP_NEW_PER_NETWORK_DAILY=5,
+      # OTP_ACCOUNT_DAILY_CAP=5. Add a key here only to override.
+      # D26: ALLOW_SCHEMA_DRIFT=1 lets the app start with a schema that does
+      # not match the models (emergency only; RUNBOOK §1). Never set by default.
 
 # ─── RETIRED after cutover: the old two-service deploy ───────────────────
 # Kept here, commented out, only as a record of the old settings. Once

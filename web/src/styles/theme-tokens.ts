@@ -21,7 +21,7 @@ export interface ThemeTokens {
   /** Font family applied to the whole container (cascades to text). */
   fontFamily: string;
   /** Base type size inside the container. */
-  fontSize: number;
+  fontSize: number | string;
   /** Border treatment for the container. Used for section + card. */
   containerBorder: string;
   /** Left-accent stripe — Ledger uses a hard inset, Editorial a thin
@@ -34,7 +34,7 @@ export interface ThemeTokens {
   /** Section-label styles: uppercase + letter-spacing for the
    *  mono-typographic themes, plain for the warm-card theme. */
   label: {
-    fontSize: number;
+    fontSize: number | string;
     letterSpacing: string;
     textTransform: 'uppercase' | 'none';
     color: string;
@@ -44,12 +44,12 @@ export interface ThemeTokens {
   };
   /** Big-number value style used in KPI cells. */
   value: {
-    fontSize: number;
+    fontSize: number | string;
     fontWeight: number;
   };
   /** Detail subline below the value. */
   detail: {
-    fontSize: number;
+    fontSize: number | string;
     color: string;
   };
   /** Accent CTA button style. */
@@ -58,7 +58,7 @@ export interface ThemeTokens {
     color: string;
     border: string;
     radius: number;
-    fontSize: number;
+    fontSize: number | string;
     letterSpacing: string;
     textTransform: 'uppercase' | 'none';
   };
@@ -66,25 +66,25 @@ export interface ThemeTokens {
 
 export const TOKENS: ThemeTokens = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+  fontSize: 'var(--fs-dense)',
   containerBorder: '1px solid var(--ink)',
   leftAccent: '',
   radius: 0,
   padding: '12px 14px',
   label: {
-    fontSize: 11,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.18em',
     textTransform: 'uppercase',
     color: 'var(--muted)',
   },
   value: { fontSize: 18, fontWeight: 700 },
-  detail: { fontSize: 11, color: 'var(--muted)' },
+  detail: { fontSize: 'var(--fs-small)', color: 'var(--muted)' },
   button: {
     background: 'var(--accent)',
     color: 'var(--canvas)',
     border: 'none',
     radius: 0,
-    fontSize: 10,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
   },

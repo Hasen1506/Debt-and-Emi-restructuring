@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import { formatCurrencyWhole, formatPct } from '@/lib/api';
 import type { RestructuringHeldBack, RestructuringOpportunity, UserPayload } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { formatAsOf } from '@/lib/as-of';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { EligibilityCaveat, OpportunityAlternative, UpdateTermsButton } from '@/components/plan/OpportunityAlternative';
@@ -49,7 +49,7 @@ function OfferSource({ o, score }: { o: RestructuringOpportunity; score: number 
     );
   }
   return (
-    <div style={{ fontSize: 11, lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
+    <div style={{ fontSize: 'var(--fs-small)', lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
       {bank}&apos;s advertised {o.kind === 'balance_transfer' ? 'offer' : 'rate'}
       {asOf}. {credit}
     </div>
@@ -67,6 +67,21 @@ function targetText(o: RestructuringOpportunity): string {
     return `${pct(d.promo_rate ?? '0')} FOR ${d.promo_months} MO${fee > 0 ? ` + ${pct(fee)} FEE` : ''}`;
   }
   return formatPct(o.target_rate);
+}
+
+/** E1 (audit 80+): the bank's published range and where the user could
+ *  land in it, instead of its floor quoted as theirs. */
+function RangeLine({ o, fc }: { o: RestructuringOpportunity; fc: (v: string | number) => string }) {
+  const d = o.detail ?? {};
+  if (!d.range_low || !d.range_high) return null;
+  const lo = Number(d.saving_at_range_low ?? 0);
+  const hi = Number(d.saving_at_range_high ?? 0);
+  return (
+    <div data-testid="cheaper-range" style={{ fontSize: 'var(--fs-small)', lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
+      {o.target_bank ?? 'The bank'} quotes {formatPct(d.range_low)} to {formatPct(d.range_high)}; this uses the middle.{' '}
+      Year one: {hi > 0 ? fc(hi) : 'no saving'} at the top of the range to {fc(lo)} at the bottom, depending on your score.
+    </div>
+  );
 }
 
 export function HomeRestructure({
@@ -92,10 +107,12 @@ export function HomeRestructure({
   const score = Number(user.credit_score) || null;
   const onPlan = opportunities.length > 0 && opportunities.every((o) => o.saving_basis === 'plan');
   const loanNames = (o: { affected_loan_indices?: number[]; affected_loan_banks?: string[] }) => {
+    // UX walkthrough fix 7: "Card 1" / "Card 2", the names the loan list uses.
+    const named = disambiguateLoans(user.loans);
     const names = (o.affected_loan_indices ?? [])
-      .map((i) => user.loans[i])
+      .map((i) => named[i])
       .filter(Boolean)
-      .map((l) => (l.bank ? `${l.bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type]));
+      .map((l) => loanNickname(l) || (l.bank ? `${l.bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type]));
     const text = names.length > 0 ? names.join(' + ') : (o.affected_loan_banks ?? []).join(' + ') || 'Your loan';
     return text.charAt(0).toUpperCase() + text.slice(1);
   };
@@ -105,15 +122,15 @@ export function HomeRestructure({
       <LSectionHeader
         right={
           opportunities.length > 0 ? (
-            <span style={{ fontSize: 11, color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
-              UP TO {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
+            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
+              ABOUT {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
             </span>
           ) : undefined
         }
       >
         <span id="home-cheaper">Cheaper rates · {opportunities.length}</span>
       </LSectionHeader>
-      <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
         {opportunities.length === 0
           ? 'We checked what banks advertise against your debts. Nothing is worth moving right now:'
           : onPlan
@@ -140,7 +157,7 @@ export function HomeRestructure({
                 rowGap: 6,
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
                 ...(i === 0 ? lStrip('accent') : null),
               }}
             >
@@ -149,7 +166,7 @@ export function HomeRestructure({
                 <div style={{ fontWeight: 700 }}>
                   {loanNames(o)} → {o.target_bank ?? 'another lender'}
                 </div>
-                <div style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted, marginTop: 3 }}>
+                <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted, marginTop: 3 }}>
                   <span style={{ color: L_T.accent, fontWeight: 700 }}>{KIND[o.kind]}</span> ·{' '}
                   {formatPct(o.current_rate)} NOW → {targetText(o)}
                   {o.kind === 'balance_transfer' && cost > 0 ? ` (${fc(cost)})` : cost > 0 ? ` · FEE ${fc(cost)}` : ' · NO FEE'}
@@ -157,12 +174,13 @@ export function HomeRestructure({
                   {o.plan_clears_in_months ? ` · YOUR PLAN CLEARS IT IN ${o.plan_clears_in_months} MO` : ''}
                 </div>
                 <OfferSource o={o} score={score} />
+                <RangeLine o={o} fc={fc} />
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: saving > 0 ? L_T.positive : L_T.negative }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--fs-body)', color: saving > 0 ? L_T.positive : L_T.negative }}>
                   {fc(o.estimated_annual_saving)}
                 </div>
-                <div style={{ fontSize: 10, color: L_T.muted }}>YEAR 1 ESTIMATE</div>
+                <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>YEAR 1 ESTIMATE</div>
               </div>
               <div style={{ gridColumn: '2 / -1' }}>
                 <LBracket
@@ -173,12 +191,12 @@ export function HomeRestructure({
                 </LBracket>
               </div>
               {isOpen && (
-                <div id={panelId} style={{ gridColumn: '2 / -1', fontSize: 12, lineHeight: 1.65 }}>
+                <div id={panelId} style={{ gridColumn: '2 / -1', fontSize: 'var(--fs-dense)', lineHeight: 1.65 }}>
                   <p style={{ margin: '0 0 6px' }}>
                     {o.headline}. {o.rationale}
                   </p>
                   {(o.target_is_existing_relationship || o.lifetime_net_saving != null) && (
-                    <p style={{ margin: '0 0 6px', color: L_T.muted, fontSize: 11 }}>
+                    <p style={{ margin: '0 0 6px', color: L_T.muted, fontSize: 'var(--fs-small)' }}>
                       {[
                         o.target_is_existing_relationship ? `You already bank with ${o.target_bank}` : null,
                         o.lifetime_net_saving != null ? `${fc(o.lifetime_net_saving)} saved over the rest of the loan` : null,
@@ -202,13 +220,13 @@ export function HomeRestructure({
       {heldBack.length > 0 && (
         <div style={{ marginTop: opportunities.length > 0 ? 14 : 0 }}>
           {opportunities.length > 0 && (
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, marginBottom: 6 }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted, marginBottom: 6 }}>
               LOOKED AT, NOT WORTH IT NOW
             </div>
           )}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
             {heldBack.map((h, i) => (
-              <li key={i} style={{ fontSize: 12, lineHeight: 1.55, padding: '8px 10px', border: `1px dashed ${L_T.ruleSoft}`, background: L_T.paper }}>
+              <li key={i} style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.55, padding: '8px 10px', border: `1px dashed ${L_T.ruleSoft}`, background: L_T.paper }}>
                 <b>
                   {KIND[h.kind].charAt(0) + KIND[h.kind].slice(1).toLowerCase()}: {loanNames(h)} → {h.target_bank ?? 'another lender'}.
                 </b>{' '}

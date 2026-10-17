@@ -1,0 +1,918 @@
+{
+ "inr_slide_vs_usd": "-0.035",
+ "remittance_default_usd": "0.0245",
+ "student_with_country": [
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf"
+   },
+   "country": "US",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr"
+   },
+   "country": "US",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf"
+   },
+   "country": "US",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr"
+   },
+   "country": "US",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more"
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "country": "IN",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "US",
+   "block": null
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "38000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "country": "IN",
+   "block": null
+  }
+ ]
+}

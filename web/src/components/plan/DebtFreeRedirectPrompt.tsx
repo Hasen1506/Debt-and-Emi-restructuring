@@ -183,7 +183,7 @@ function PromptCta({
         border: primary ? 'none' : '1px solid var(--positive)',
         borderRadius: 0,
         textDecoration: 'none',
-        fontSize: 12,
+        fontSize: 'var(--fs-label)',
         fontWeight: 600,
         fontFamily: 'var(--font-mono)',
         letterSpacing: '0.06em',

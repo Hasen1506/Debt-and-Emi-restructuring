@@ -5,11 +5,12 @@ import importlib.util
 from decimal import Decimal as D
 from pathlib import Path
 
+import pytest
 from hypothesis import given, strategies as st
 
 from engine.formulas import effective_rate
 from engine.models import Country, Loan, LoanType
-from engine.true_apr import TrueAprInputs, true_apr, true_apr_for_loan
+from engine.true_apr import TrueAprInputs, true_apr
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,7 +31,7 @@ def test_differential_fixture_is_current():
 
 def test_indian_card_includes_compounding_and_gst():
     loan = Loan(LoanType.CREDIT_CARD, "HDFC", D("50000"), D("0.42"), "fixed", 0, D("0"), currency="INR")
-    t = true_apr_for_loan(loan, D("0.3"), Country.IN)
+    t = true_apr(TrueAprInputs(0.42, None, gst_on_interest=0.18))
     # The old effective rate: 42% × 1.18 = 49.56%, no compounding.
     assert effective_rate(loan, D("0.3"), Country.IN) == D("0.4956")
     assert abs(t.compounding - ((1 + 0.42 / 12) ** 12 - 1 - 0.42)) < 1e-12
@@ -52,12 +53,6 @@ def test_fee_with_gst_and_tax_benefit_move_it_the_right_way():
     assert home.tax < 0 and home.apr < true_apr(TrueAprInputs(0.085, 240)).apr
 
 
-def test_engine_loan_adapter_reads_the_same_shield_as_effective_rate():
-    loan = Loan(LoanType.HOME, "SBI", D("500000"), D("0.085"), "floating", 240, D("4339"), property_use="let_out", currency="USD")
-    t = true_apr_for_loan(loan, D("0.3"), Country.US, itemises=True)
-    assert abs(t.tax - (true_apr(TrueAprInputs(0.085, 240, shield=0.3)).tax)) < 1e-12
-
-
 @given(
     nominal=st.floats(0, 0.6), months=st.sampled_from([None, 1, 12, 60, 240]),
     fee=st.floats(0, 0.03), gst=st.sampled_from([0.0, 0.18]), shield=st.floats(0, 0.45),
@@ -66,3 +61,13 @@ def test_components_add_up(nominal, months, fee, gst, shield):
     t = true_apr(TrueAprInputs(nominal, months, fee_rate=fee, gst_on_interest=gst, gst_on_fee=gst, shield=shield))
     assert abs(t.nominal + t.compounding + t.gst + t.fees + t.tax - t.apr) < 1e-9
     assert t.compounding >= -1e-9 and t.tax <= 1e-9
+
+
+@pytest.mark.parametrize("nominal", [1.192092896e-07, 1e-9, 1e-6, 1e-4])
+@pytest.mark.parametrize("months", [1, 2, 12, 240])
+def test_tiny_rates_never_give_negative_compounding(nominal, months):
+    """W5's Hypothesis finding: 1 − (1+r)^−n cancelled at r ≈ 1e-8 and gave
+    compounding −7e-8. Compounding is never negative at any positive rate."""
+    t = true_apr(TrueAprInputs(nominal, months))
+    assert t.compounding >= -1e-12
+    assert abs(t.nominal + t.compounding - t.apr) < 1e-12

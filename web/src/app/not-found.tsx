@@ -18,7 +18,7 @@ export default async function NotFound() {
     display: 'inline-block',
     fontFamily: L_MONO,
     fontWeight: 700,
-    fontSize: 12,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.1em',
     padding: '12px 18px',
     border: `1px solid ${L_T.ink}`,
@@ -26,24 +26,24 @@ export default async function NotFound() {
     color: L_T.bg,
     textDecoration: 'none',
   };
-  const link: CSSProperties = { display: 'inline-block', padding: '12px 0', fontSize: 12, letterSpacing: '0.1em', color: L_T.ink };
+  const link: CSSProperties = { display: 'inline-block', padding: '12px 0', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.ink };
   return (
     <div style={{ display: 'grid', gap: 14, maxWidth: 640, fontFamily: L_MONO }} data-testid="not-found">
       <h1 style={{ margin: 0, fontSize: 20, letterSpacing: '0.08em' }}>PAGE NOT FOUND</h1>
-      <p style={{ margin: 0, color: L_T.muted, fontSize: 13 }}>
+      <p style={{ margin: 0, color: L_T.muted, fontSize: 'var(--fs-body)' }}>
         This link doesn&apos;t go anywhere. It may be old or mistyped.
       </p>
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         {signedIn ? (
-          <Link href="/" style={btn}>[ GO TO HOME → ]</Link>
+          <Link href="/" style={btn}><span aria-hidden="true">[</span>GO TO HOME →<span aria-hidden="true">]</span></Link>
         ) : (
           // A full load: signed out, / is the static landing (a rewrite in
           // the middleware), which a client-side Link can't render.
           // eslint-disable-next-line @next/next/no-html-link-for-pages
-          <a href="/" style={btn}>[ BACK TO RIGHTDUE → ]</a>
+          <a href="/" style={btn}><span aria-hidden="true">[</span>BACK TO RIGHTDUE →<span aria-hidden="true">]</span></a>
         )}
-        <Link href="/glossary" style={link}>[GLOSSARY]</Link>
-        {!signedIn && <Link href="/tools/loan-check" style={link}>[LOAN CHECK]</Link>}
+        <Link href="/glossary" style={link}><span aria-hidden="true">[</span>GLOSSARY<span aria-hidden="true">]</span></Link>
+        {!signedIn && <Link href="/tools/loan-check" style={link}><span aria-hidden="true">[</span>LOAN CHECK<span aria-hidden="true">]</span></Link>}
       </div>
     </div>
   );

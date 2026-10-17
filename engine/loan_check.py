@@ -30,6 +30,17 @@ Findings:
 - below_expected: the rate is *below* what the repo moves imply. Good news
   for the borrower, never a claim (live test L#7: a negative gap once read
   as "worth a conversation").
+- rate_rise (audit 80+ A11a): the repo rate rose recently. The new EMI
+  (same end date) or the new tenure (same EMI), what each costs, and the
+  choice the lender must offer. Information, never a claim.
+- choice_not_offered (A11 letter): the borrower says the lender raised the
+  EMI or the tenure after a rise without offering the choice. A rights
+  issue with a letter (engine/complaints_in.reset_choice_letter), not a
+  money claim.
+- asymmetric_pass_through (A11c): from the borrower's own rate history,
+  rises reached the loan faster than cuts, or a cut took longer than the
+  three-month reset window. The late-cut interest is an estimate worth
+  asking about, not a claim (the bank may hold reset dates in the contract).
 - rule_not_binding: the lender is a housing finance company, NBFC,
   regional rural bank or co-operative bank. The external-benchmark rule
   binds commercial and small finance banks only (engine/lenders.py), so
@@ -55,7 +66,10 @@ from engine import lenders, policy_rates
 from engine.citations import (
     EBLR_MANDATE, EBLR_RESET, EBLR_SCOPE, EBLR_SPREAD, EBLR_SWITCH, HFC_PREPAY_FREE,
     HFC_RATE_POLICY, NHB_COMPLAINT, PROSPECTIVE_HFC, RBIOS_SCOPE, RESET_CHOICES_BANK,
-    RESET_CHOICES_NBFC, Citation,
+    RESET_CHOICES_NBFC, RESET_RISE_OPTIONS_BANK, RESET_RISE_OPTIONS_NBFC, Citation,
+)
+from engine.rate_reset import (
+    PassThrough, RateMoveImpact, SwitchSaving, pass_through, rate_move_impact, switch_saving,
 )
 from engine.formulas import emi as emi_formula
 from engine.lenders import EBLR_BOUND, TYPE_LABEL, LenderType
@@ -85,6 +99,27 @@ class Benchmark(str, Enum):
     MCLR = "mclr"
     BASE_RATE = "base_rate"
     UNKNOWN = "unknown"
+
+
+class BankAction(str, Enum):
+    """What the lender did to the loan after the last repo rise."""
+    UNKNOWN = "unknown"
+    NONE_YET = "none_yet"
+    EMI_RAISED = "emi_raised"
+    TENURE_EXTENDED = "tenure_extended"
+    BOTH = "both"
+
+
+class ChoiceOffered(str, Enum):
+    """Did the lender offer EMI / tenure / prepay before changing the loan?"""
+    UNSURE = "unsure"
+    YES = "yes"
+    NO = "no"
+
+
+# A rise is "the current one" for this long after the decision: the
+# three-month reset window plus a quarter for the statement to show it.
+RATE_RISE_RECENT_DAYS = 183
 
 
 class SpreadChange(str, Enum):
@@ -126,6 +161,32 @@ class LoanCheckInput:
     # Next scheduled policy meeting, for the reset watch (the API reads the
     # central-bank calendar; the engine does not read files).
     next_policy_meeting: Optional[date] = None
+    # Hike cycle (A11). What the lender did after the last rise, and
+    # whether it offered the choice the rules require.
+    bank_action: BankAction = BankAction.UNKNOWN
+    choice_offered: ChoiceOffered = ChoiceOffered.UNSURE
+    # The borrower's own rate history from statements or rate-change
+    # letters: (month the rate took effect, rate). Feeds the asymmetry check.
+    rate_history: list[tuple[date, Decimal]] = field(default_factory=list)
+    # MCLR / base rate: the repo-linked rate the bank quotes for the switch,
+    # and its one-time cost, when the borrower has them.
+    switch_rate: Optional[Decimal] = None
+    switch_cost: Optional[Decimal] = None
+
+
+@dataclass(frozen=True)
+class RateRise:
+    """The last repo rise and what it does to this loan (A11a)."""
+    decided: date
+    repo_from: Decimal
+    repo_to: Decimal
+    # applied: the rate already carries it; pending: not yet, it should by
+    # `reach_by`; if_passed_on: the loan does not follow the repo rate
+    # (MCLR, NBFC, HFC...), so this is what a rise of the same size does.
+    status: str
+    reach_by: Optional[date]
+    impact: RateMoveImpact
+    citations: list[Citation] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -185,6 +246,9 @@ class LoanCheckResult:
     # Says plainly whether new-borrower rates were compared, and why not.
     new_borrower_note: str = ""
     reset_watch: Optional[ResetWatch] = None
+    rate_rise: Optional[RateRise] = None
+    switch: Optional[SwitchSaving] = None
+    pass_through: Optional[PassThrough] = None
 
 
 class LoanCheckInputError(ValueError):
@@ -282,12 +346,16 @@ def _extra_interest(
 
 
 def find_lender(name: Optional[str]):
-    """Rate card for `name`, matched case- and space-insensitively."""
+    """Rate card for `name`, matched case- and space-insensitively.
+
+    Only a card read off the lender's own page counts (audit 80+ A21): an
+    extrapolated Tier-B/C card is "typical, unverified" and is never quoted
+    to a borrower as what their lender charges new borrowers."""
     if not name:
         return None
     key = " ".join(name.split()).lower()
     for card_name, card in ALL_INSTITUTIONS.items():
-        if card_name.lower() == key and card.country == Country.IN:
+        if card_name.lower() == key and card.country == Country.IN and not card.is_indicative:
             return card
     return None
 
@@ -340,6 +408,22 @@ def validate(inp: LoanCheckInput) -> None:
             "A spread change was given, but the answer to 'did your spread change?' "
             "is not 'yes'. Choose 'yes' or clear the amount.", "spread_change",
         )
+    if len(inp.rate_history) > 60:
+        raise LoanCheckInputError("At most 60 rate changes can be checked.", "rate_history")
+    for m, r in inp.rate_history:
+        if _month_start(m) > _month_start(inp.as_of):
+            raise LoanCheckInputError(f"A rate change in {m:%b %Y} is in the future.", "rate_history")
+        if _month_start(m) < _month_start(inp.loan_start):
+            raise LoanCheckInputError(
+                f"A rate change in {m:%b %Y} is before the loan started.", "rate_history")
+        if not (D("0.01") <= r <= D("0.30")):
+            raise LoanCheckInputError(
+                f"A rate of {_pct(r)} in the rate history is outside 1% to 30%. "
+                f"Send rates as fractions (8.55% is 0.0855).", "rate_history")
+    if inp.switch_rate is not None and not (D("0.01") <= inp.switch_rate <= D("0.30")):
+        raise LoanCheckInputError("The repo-linked rate offered must be between 1% and 30%.", "switch_rate")
+    if inp.switch_cost is not None and not (D("0") <= inp.switch_cost <= inp.outstanding):
+        raise LoanCheckInputError("The switch cost must be ₹0 or more and not above the balance.", "switch_cost")
     if inp.benchmark == Benchmark.REPO and _month_start(inp.loan_start) < REPO_LINKED_EARLIEST:
         raise LoanCheckInputError(
             "Repo-linked home loans started in July 2019. For an older loan "
@@ -352,7 +436,7 @@ def validate(inp: LoanCheckInput) -> None:
 # findings
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _old_benchmark_finding(inp: LoanCheckInput, card) -> Finding:
+def _old_benchmark_finding(inp: LoanCheckInput, card, sw: Optional[SwitchSaving] = None) -> Finding:
     lender = card.name if card else "your lender"
     detail = (
         "Loans taken before October 2019, or still marked MCLR or base rate, "
@@ -382,6 +466,27 @@ def _old_benchmark_finding(inp: LoanCheckInput, card) -> Finding:
                 f"with the bank, that is about {_inr(amount)} over the next 12 "
                 f"months (not money the bank owes you)."
             )
+    if sw is not None and sw.interest_saved_rest > 0:
+        # A11b: what the switch saves, at the rate the borrower was quoted (or
+        # the top of the bank's published range), keeping the EMI.
+        quoted = "the rate you entered" if inp.switch_rate is not None else "the top of that range"
+        gap = inp.current_rate - sw.switch_rate
+        amount = sw.interest_saved_12m
+        cost = (
+            f", less the {_inr(sw.switch_cost)} switch cost you entered: {_inr(sw.net_saving_rest)} net"
+            f"{f', earned back in about {sw.payback_months} months' if sw.payback_months else ''}"
+            if sw.switch_cost > 0 else
+            " (ask the bank for its administrative or legal charge and take it off)"
+        )
+        detail += (
+            f" Switching from {_pct(inp.current_rate)} to {_pct(sw.switch_rate)} ({quoted}) "
+            f"and keeping your EMI saves about {_inr(sw.interest_saved_12m)} in the next 12 "
+            f"months and {_inr(sw.interest_saved_rest)} over the rest of the loan, which "
+            f"ends about {sw.months_saved} months sooner{cost}. One thing to weigh while "
+            f"rates are rising: a repo-linked rate picks up each RBI rise within three "
+            f"months, while an MCLR rate moves only on its reset date, so the switch "
+            f"saves the difference in level but future rises reach you sooner."
+        )
     return Finding(
         kind="old_benchmark",
         headline="Your loan may still be on the old MCLR / base-rate system",
@@ -470,6 +575,260 @@ def _pricing_gap_finding(inp: LoanCheckInput, card, base_rate: Decimal) -> Optio
             ),
         )
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# the hike cycle (audit 80+ A11)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_NBFC_LIKE = (LenderType.NBFC, LenderType.HFC)
+
+
+def _rise_citations(kind_of: LenderType) -> list[Citation]:
+    if kind_of in EBLR_BOUND:
+        return [RESET_CHOICES_BANK, RESET_RISE_OPTIONS_BANK]
+    if kind_of in _NBFC_LIKE:
+        return [RESET_CHOICES_NBFC, RESET_RISE_OPTIONS_NBFC]
+    return []
+
+
+def rate_rise(
+    inp: LoanCheckInput, kind_of: LenderType, benchmark: Benchmark,
+    expected: Optional[Decimal],
+) -> Optional[RateRise]:
+    """The last repo move, when it was a rise in the last six months and
+    after the loan started, and what it does to this loan."""
+    hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= inp.as_of]
+    if len(hist) < 2:
+        return None
+    (last_day, last_rate), prev_rate = hist[-1], hist[-2][1]
+    if last_rate <= prev_rate or (inp.as_of - last_day).days > RATE_RISE_RECENT_DAYS:
+        return None
+    if _month_start(inp.loan_start) > _month_start(last_day):
+        return None   # priced after the rise
+    delta = last_rate - prev_rate
+    reach_by = last_day + timedelta(days=91)
+    if kind_of in EBLR_BOUND and benchmark == Benchmark.REPO and expected is not None:
+        g = inp.current_rate - expected
+        if abs(g) <= TOLERANCE:
+            status = "applied"
+        elif abs(g + delta) <= TOLERANCE:
+            status = "pending"
+        else:
+            status = "pending" if inp.as_of <= reach_by else "applied"
+    else:
+        status, reach_by = "if_passed_on", None
+    if status == "applied":
+        before, after, emi = inp.current_rate - delta, inp.current_rate, None
+        if inp.bank_action == BankAction.TENURE_EXTENDED:
+            # The months entered are after the extension and the EMI is the
+            # old one: run that EMI at the old rate to find the old end date.
+            emi = inp.emi or emi_formula(inp.outstanding, after, inp.tenure_months_remaining)
+    else:
+        before, after, emi = inp.current_rate, inp.current_rate + delta, inp.emi
+    if before <= 0:
+        return None
+    impact = rate_move_impact(inp.outstanding, before, after, inp.tenure_months_remaining, emi)
+    return RateRise(
+        decided=last_day, repo_from=prev_rate, repo_to=last_rate, status=status,
+        reach_by=reach_by if status == "pending" else None, impact=impact,
+        citations=_rise_citations(kind_of),
+    )
+
+
+def _rate_rise_finding(rr: RateRise, name: Optional[str], kind_of: LenderType, benchmark: Benchmark) -> Finding:
+    im = rr.impact
+    delta = rr.repo_to - rr.repo_from
+    who = "bank" if kind_of in EBLR_BOUND else "lender"
+    must = kind_of in EBLR_BOUND or kind_of in _NBFC_LIKE
+    if rr.status == "applied":
+        when = (
+            f"Your rate already carries it ({_pct(im.rate_before)} before, "
+            f"{_pct(im.rate_after)} now)."
+        )
+    elif rr.status == "pending":
+        when = (
+            f"It should reach your rate by about {rr.reach_by:%d %b %Y} (a repo-linked rate is "
+            f"reset at least once in three months): {_pct(im.rate_before)} to {_pct(im.rate_after)}."
+        )
+    elif benchmark in (Benchmark.MCLR, Benchmark.BASE_RATE):
+        when = (
+            f"An MCLR or base-rate loan picks up rises only on its reset date, and by however "
+            f"much the bank's MCLR moves. If the full {_pct(delta)} is passed on: "
+            f"{_pct(im.rate_before)} to {_pct(im.rate_after)}."
+        )
+    else:
+        when = (
+            f"Your {who} does not have to follow the repo rate, but most move with it. If it "
+            f"passes on the full {_pct(delta)}: {_pct(im.rate_before)} to {_pct(im.rate_after)}."
+        )
+    emi_txt = (
+        f"Keep the same end date and your EMI goes from {_inr(im.emi_before)} to "
+        f"{_inr(im.emi_after)} ({'+' if im.emi_change >= 0 else ''}{_inr(im.emi_change)} a month), "
+        f"with {_inr(im.interest_emi_option - im.interest_before)} more interest over the loan."
+    )
+    if im.tenure_option_possible:
+        ten_txt = (
+            f" Keep the same EMI and the loan runs {im.months_change} month"
+            f"{'s' if im.months_change != 1 else ''} longer, with "
+            f"{_inr(im.interest_tenure_option - im.interest_before)} more interest: "
+            f"{_inr(im.tenure_premium)} more than raising the EMI."
+        )
+        best = (
+            f" If you can afford the extra {_inr(im.emi_change)} a month, raising the EMI is "
+            f"the cheaper choice by {_inr(im.tenure_premium)}; if cash is tight, the longer "
+            f"tenure keeps your monthly outgo the same. Many banks extend the tenure unless "
+            f"you ask, and cap it at an age limit in your loan terms, after which the EMI "
+            f"has to rise."
+        ) if im.tenure_premium and im.tenure_premium > 0 else ""
+    else:
+        ten_txt = (
+            f" Keeping the same EMI is not possible: at {_pct(im.rate_after)} it would not "
+            f"cover the month's interest, and the rules say a longer tenure must not make the "
+            f"balance grow, so the EMI has to rise."
+        )
+        best = ""
+    pre = (
+        f" Or prepay about {_inr(im.prepay_to_keep_both)} to keep both the EMI and the end "
+        f"date." if im.prepay_to_keep_both > 0 else ""
+    )
+    rule = (
+        f" Your {who} must tell you of any rise in EMI or tenure immediately and let you "
+        f"choose: a higher EMI, a longer tenure, a mix, a fixed rate where it offers one, or "
+        f"prepaying." if must else
+        f" RBI's reset circular of 18 Aug 2023 (RBI/2023-24/55) also covers regional rural "
+        f"and co-operative banks: ask for the choice of a higher EMI, a longer tenure or "
+        f"prepaying before your EMI or tenure is changed."
+    )
+    return Finding(
+        kind="rate_rise",
+        headline=(
+            f"Rate up {_pct(delta)}: your new EMI or tenure, and the choice your {who} "
+            f"{'must offer you' if must else 'should offer you'}"
+        ),
+        detail=(
+            f"The RBI raised the repo rate from {_pct(rr.repo_from)} to {_pct(rr.repo_to)} on "
+            f"{rr.decided:%d %b %Y}. {when} {emi_txt}{ten_txt}{pre}{best}{rule} Worked on "
+            f"today's balance of {_inr(im.outstanding)} and {im.months_before} months left."
+        ),
+        claimable=False,
+        rate_gap=D("0"),
+        amount_this_year=D("0"),
+        overcharged_so_far=D("0"),
+        months_overcharged=0,
+        citations=list(rr.citations),
+        next_step=(
+            f"Decide which you prefer before the reset reaches your loan, and tell "
+            f"{name or f'your {who}'} in writing (a branch letter or the grievance e-mail). "
+            f"Check the next statement or rate-change SMS: it must show the new rate, EMI "
+            f"and EMIs left."
+        ),
+    )
+
+
+_ACTION_WORDS = {
+    BankAction.EMI_RAISED: "raised your EMI",
+    BankAction.TENURE_EXTENDED: "extended your tenure",
+    BankAction.BOTH: "raised your EMI and extended your tenure",
+}
+
+
+def _choice_finding(
+    inp: LoanCheckInput, rr: Optional[RateRise], name: Optional[str], kind_of: LenderType,
+) -> Optional[Finding]:
+    """The lender changed EMI or tenure after a rise without offering the
+    choice (A11 letter). Only on the borrower's own word; never money."""
+    if inp.bank_action not in _ACTION_WORDS or inp.choice_offered != ChoiceOffered.NO:
+        return None
+    who = name or ("Your bank" if kind_of in EBLR_BOUND else "Your lender")
+    cites = _rise_citations(kind_of)
+    numbers = ""
+    if rr is not None:
+        im = rr.impact
+        alt = (
+            f" Had it asked, the other choice was: keep the EMI and run "
+            f"{im.months_change} months longer"
+            if inp.bank_action == BankAction.EMI_RAISED and im.tenure_option_possible else
+            f" Had it asked, the other choice was: keep the end date and pay "
+            f"{_inr(im.emi_after)} a month, saving {_inr(im.tenure_premium)} of interest"
+            if inp.bank_action == BankAction.TENURE_EXTENDED and im.tenure_premium else ""
+        )
+        numbers = (
+            f" This follows the RBI's {rr.decided:%d %b %Y} rise ({_pct(rr.repo_from)} to {_pct(rr.repo_to)})."
+            f"{alt + '.' if alt else ''}"
+        )
+    rule = (
+        "The rules for banks, NBFCs and housing finance companies say any rise in EMI or "
+        "tenure must be told to you immediately, and that you must be given the choice of a "
+        "higher EMI, a longer tenure or both, and of prepaying; when a whole class of loans "
+        "is reset because the benchmark rose, a switch to a fixed rate where the lender "
+        "offers one as well."
+        if cites else
+        "RBI's reset circular of 18 Aug 2023 (RBI/2023-24/55), addressed to regional rural "
+        "and co-operative banks as well, asks for the same choice."
+    )
+    return Finding(
+        kind="choice_not_offered",
+        headline=f"{who} {_ACTION_WORDS[inp.bank_action]} without offering you the choice",
+        detail=f"You said {who.lower() if not name else name} {_ACTION_WORDS[inp.bank_action]} and did not offer a choice.{numbers} {rule}",
+        claimable=False,
+        rate_gap=D("0"),
+        amount_this_year=D("0"),
+        overcharged_so_far=D("0"),
+        months_overcharged=0,
+        citations=cites,
+        next_step=(
+            "Send the letter below: it asks for the options in writing, for your choice to "
+            "be applied from the next instalment, and for the new rate, EMI and EMIs left. "
+            "No refund is claimed, so the bank can fix it quickly."
+        ),
+    )
+
+
+def _pass_through_finding(pt: PassThrough, name: Optional[str]) -> Optional[Finding]:
+    if not pt.asymmetric:
+        return None
+    who = name or "your bank"
+    lags = []
+    if pt.avg_rise_lag is not None:
+        lags.append(f"rises reached your loan in about {pt.avg_rise_lag} months on average")
+    if pt.avg_cut_lag is not None:
+        lags.append(f"cuts took about {pt.avg_cut_lag}")
+    late = [m for m in pt.moves if m.is_cut and m.reached and m.late_months > 0]
+    late_txt = ""
+    if late:
+        parts = "; ".join(
+            f"the {m.decided:%b %Y} cut reached it in {m.reached:%b %Y}, {m.late_months} month"
+            f"{'s' if m.late_months != 1 else ''} after the three-month window" for m in late
+        )
+        late_txt = (
+            f" A repo-linked rate must be reset at least once in three months: {parts}. At "
+            f"today's balance (lower than then, so a cautious figure) that is about "
+            f"{_inr(pt.late_cut_interest)} of extra interest. Worth asking {who} about; it is "
+            f"not a refund claim until the bank shows its reset dates."
+        )
+    return Finding(
+        kind="asymmetric_pass_through",
+        headline=(
+            "A rate cut took longer than three months to reach your loan" if late
+            else "Rate rises reached your loan faster than cuts"
+        ),
+        detail=(
+            f"From the rate changes you entered, {' and '.join(lags) or 'the moves did not match'}."
+            f"{late_txt}"
+        ),
+        claimable=False,
+        rate_gap=D("0"),
+        amount_this_year=D("0"),
+        overcharged_so_far=D("0"),
+        months_overcharged=0,
+        citations=[EBLR_RESET],
+        next_step=(
+            f"Ask {who} in writing for the reset dates in your loan contract and the date "
+            f"each repo move was applied. If a cut was applied after a reset date it should "
+            f"have used, ask for the excess interest to be credited."
+        ),
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -809,6 +1168,11 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             except LoanCheckInputError:
                 expected = repo_start = repo_ref = None
         f = _not_binding_finding(inp, name, kind_of, expected)
+        rr = rate_rise(inp, kind_of, benchmark, expected)
+        extra_f = [x for x in (
+            _rate_rise_finding(rr, name, kind_of, benchmark) if rr else None,
+            _choice_finding(inp, rr, name, kind_of),
+        ) if x is not None]
         return LoanCheckResult(
             status="not_applicable",
             summary=(
@@ -816,7 +1180,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
                 f"floating-rate home loan must follow the repo rate binds banks only, so "
                 f"there is no rate-cut refund to claim. See what does apply below."
             ),
-            findings=[f],
+            findings=[f, *extra_f],
             expected_rate=expected,
             repo_at_start=repo_start,
             repo_reference_now=repo_ref,
@@ -828,6 +1192,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             gap=(inp.current_rate - expected) if expected is not None else None,
             new_borrower_note=_new_borrower_note(card, name, False) if card is None else "",
             reset_watch=reset_watch(inp, benchmark, kind_of),
+            rate_rise=rr,
             **common,
         )
 
@@ -847,14 +1212,27 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             )
 
     if benchmark in (Benchmark.MCLR, Benchmark.BASE_RATE):
-        finding = _old_benchmark_finding(inp, card)
+        sw_rate = inp.switch_rate
+        if sw_rate is None and card is not None and card.home_loan is not None:
+            sw_rate = card.home_loan.high
+        sw = (
+            switch_saving(inp.outstanding, inp.current_rate, sw_rate, inp.tenure_months_remaining,
+                          inp.emi, inp.switch_cost or D("0"))
+            if sw_rate is not None and sw_rate < inp.current_rate - TOLERANCE else None
+        )
+        finding = _old_benchmark_finding(inp, card, sw)
+        rr = rate_rise(inp, kind_of, benchmark, None)
+        extra_f = [x for x in (
+            _rate_rise_finding(rr, name, kind_of, benchmark) if rr else None,
+            _choice_finding(inp, rr, name, kind_of),
+        ) if x is not None]
         return LoanCheckResult(
             status="not_applicable",
             summary=(
                 "The repo-rate check does not apply to MCLR or base-rate "
                 "loans. Switching to the repo-linked rate may lower your rate."
             ),
-            findings=[finding],
+            findings=[finding, *extra_f],
             expected_rate=None,
             repo_at_start=None,
             repo_reference_now=None,
@@ -865,6 +1243,8 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             verdict="old_benchmark",
             new_borrower_note=_new_borrower_note(card, name, card is not None),
             reset_watch=reset_watch(inp, benchmark, kind_of),
+            rate_rise=rr,
+            switch=sw,
             **common,
         )
 
@@ -994,6 +1374,22 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             f"No rate card for '{inp.lender}', so new-borrower rates were not compared."
         )
 
+    # The hike cycle (A11): what the last rise does, whether the choice was
+    # offered, and whether rises travelled faster than cuts.
+    rr = rate_rise(inp, kind_of, benchmark, expected)
+    if rr is not None:
+        findings.append(_rate_rise_finding(rr, name, kind_of, benchmark))
+    cf = _choice_finding(inp, rr, name, kind_of)
+    if cf is not None:
+        findings.append(cf)
+    pt = None
+    if inp.rate_history:
+        pt = pass_through(inp.loan_start, inp.start_rate, inp.rate_history, changes,
+                          inp.as_of, inp.outstanding)
+        ptf = _pass_through_finding(pt, name)
+        if ptf is not None:
+            findings.append(ptf)
+
     claimable = [f for f in findings if f.claimable]
     claim_amount = sum((f.overcharged_so_far for f in claimable), D("0"))
     at_stake = sum((f.amount_this_year for f in claimable), D("0"))
@@ -1019,6 +1415,11 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             f"Your rate of {_pct(inp.current_rate)} matches the RBI repo rate "
             f"moves since the loan started. Nothing to claim.{extra}"
         )
+    if rr is not None and verdict != "missed_rate_cut":
+        summary += (
+            f" The {rr.decided:%d %b %Y} rise: see your new EMI or tenure, and the choice "
+            f"your bank must offer, below."
+        )
 
     return LoanCheckResult(
         status=status,
@@ -1035,5 +1436,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
         gap=gap,
         new_borrower_note=_new_borrower_note(card, name, pg is not None),
         reset_watch=reset_watch(inp, benchmark, kind_of),
+        rate_rise=rr,
+        pass_through=pt,
         **common,
     )

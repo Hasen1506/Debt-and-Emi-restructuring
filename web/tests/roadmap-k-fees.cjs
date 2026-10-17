@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -63,7 +64,7 @@ test('the form shows the default as "assumed" or "Not known", with its one-line 
   assert.match(qs, /label="Prepayment fee, % \(optional\)"/);
   assert.match(qs, /placeholder=\{feeShown\(loan, country\)\.placeholder\}/);
   assert.match(qs, /if \(fee && !/);
-  const pc = src('app/profile/ProfileClient.tsx');
+  const pc = profileSource();
   assert.match(pc, /hint=\{feeShown\(l, country\)\.hint\}/);
   assert.ok(!/frequently 2-4%/.test(pc), 'no made-up fee ranges in the help');
   // The bank chip is never offered where RBI fixes the fee.

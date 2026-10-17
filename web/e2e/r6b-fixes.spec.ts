@@ -40,10 +40,12 @@ test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offli
   await page.waitForURL('**/plan');
 
   // R6B-9: offline, a new order is saved and noted; the page stays put.
-  const first = page.locator('button[aria-label^="Switch to"][aria-pressed="false"]').first();
+  // Audit 80+ B20 (W7): the header switch is a "Payoff order" radio group
+  // (Cheapest · Smallest · Mine), not "Switch to …" buttons.
+  const first = page.getByRole('radiogroup', { name: 'Payoff order' }).locator('[role=radio][aria-checked="false"]').first();
   await expect(first).toBeVisible();
-  const label = (await first.getAttribute('aria-label')) as string;
-  const sw = page.getByRole('button', { name: label, exact: true });
+  const label = (await first.innerText()).trim();
+  const sw = page.getByRole('radiogroup', { name: 'Payoff order' }).getByRole('radio', { name: label, exact: true });
   // Let /plan finish loading first (Firefox: a click going offline mid-load
   // waits on that navigation forever).
   await page.waitForLoadState('networkidle');
@@ -53,7 +55,7 @@ test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offli
   await expect(page.getByTestId('strategy-offline-note').first()).toBeVisible();
   await expect(page).toHaveURL(/\/plan$/);
   await expect(page.locator('#main')).toHaveCount(1);
-  await expect(sw).toHaveAttribute('aria-pressed', 'true');
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
   await context.setOffline(false);
   await expect(page.getByTestId('strategy-offline-note')).toHaveCount(0);
   await expect(page).toHaveURL(/\/plan$/);

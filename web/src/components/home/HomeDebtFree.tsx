@@ -4,43 +4,63 @@
  * the rest of home paints without waiting on the engine.
  */
 import { localTerms } from '@/lib/terms';
-import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
-import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
+import { dueVsAffordable, dueVsAffordableLine, notFundable, shortGapLine, shortValue } from '@/lib/plan-gap';
+import { userMarginalCosts } from '@/lib/marginal-cost';
+import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
 import Link from 'next/link';
-import Decimal from 'decimal.js';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
 import { HomeProgress } from './HomeProgress';
+import { retentionInputs } from '@/lib/retention-inputs';
 import { localIsoDate } from '@/lib/today';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
-import { thisMonthMove } from '@/lib/this-month';
+import { extraSaving, loanClearsMonth, thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { needsHelp } from '@/lib/loan-status-core';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
+import { CashFlow } from './LedgerHome';
+import { InsightsPanel } from '@/components/insights/InsightsPanel';
+import { shortPriority, shortPriorityOrder } from '@/lib/short-priority';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
 
+/** UX walkthrough fix 9: a shortfall reads red, a date green, and the rest
+ *  (no date yet, see plan) in ink; never a gap in green. */
+const SHORT_TONE = { color: 'var(--negative)' } as const;
+const DATE_TONE = { color: 'var(--positive)' } as const;
+const CAPTION_TONE = { color: 'inherit' } as const;
+
 export async function HomeDebtFreeValue() {
+  return <span data-testid="home-debt-free-value">{await debtFreeValue()}</span>;
+}
+
+async function debtFreeValue() {
   const plan = await loadPlanOnce();
-  // Short this month: the date if the gap closes, as on Plan (live test #16).
-  if (plan.gaps.length === 0 && plan.shortfall > 0 && plan.gap?.closed?.debtFreeMonth)
-    return <>{monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, plan.user.country).toUpperCase()}</>;
+  // Audit 80+ A5: short this month, the headline is the gap, not the date it
+  // would take to close it; that date is demoted to the caption (shortGapLine).
+  if (plan.gaps.length === 0 && plan.shortfall > 0)
+    return <span style={SHORT_TONE}>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</span>;
+  // W1b / audit 80+ C11: a later month the gap credit limit can't carry leads
+  // with that month's gap, not a date.
+  if (plan.gaps.length === 0 && plan.infeasibleFrom != null && plan.futureShortfall)
+    return <span style={SHORT_TONE}>{shortValue(plan.futureShortfall.amount, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</span>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
-  if (plan.debtFreeMonth === 0) return <>NOW</>;
+  if (plan.debtFreeMonth === 0) return <span style={DATE_TONE}>NOW</span>;
   if (!plan.debtFreeMonth) return <>NOT ON THIS PLAN</>;
-  return <>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</>;
+  return <span style={DATE_TONE}>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</span>;
 }
 
 export async function HomeDebtFreeCaption() {
@@ -48,13 +68,14 @@ export async function HomeDebtFreeCaption() {
   if (plan.gaps.length > 0) return <Link href="/profile?step=loans" className="l-hit">ADD LOAN DETAILS →</Link>;
   if (plan.shortfall > 0) {
     return (
-      <Link href="/plan" className="l-hit">
+      <Link href="/plan" className="l-hit" style={SHORT_TONE}>
         {/* Live re-test 7 R7-2: Plan's and Setup's words, as-is date included. */}
         {(
           shortGapLine({
             shortfall: plan.shortfall,
             asIsMonth: plan.debtFreeMonth,
             closedMonth: plan.gap?.closed?.debtFreeMonth,
+            infeasibleFrom: plan.infeasibleFrom,
             label: (m) => monthIndexToCountryLabel(m, plan.user.country),
             money: (v) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country)),
           }) ?? ''
@@ -63,6 +84,13 @@ export async function HomeDebtFreeCaption() {
       </Link>
     );
   }
+  if (plan.futureShortfall && plan.infeasibleFrom != null)
+    return (
+      <Link href="/plan" className="l-hit">
+        FROM {monthIndexToCountryLabel(plan.futureShortfall.month, plan.user.country).toUpperCase()} ·{' '}
+        {notFundable(plan.infeasibleFrom, (m) => monthIndexToCountryLabel(m, plan.user.country)).toUpperCase()} · PLAN →
+      </Link>
+    );
   if (plan.futureShortfall) return <Link href="/plan" className="l-hit">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
@@ -81,23 +109,13 @@ export async function HomeDebtFreeCaption() {
       ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
       : '';
   return (
-    <Link href="/plan" className="l-hit">
+    <Link href="/plan" className="l-hit" style={CAPTION_TONE}>
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
       {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, ${rateWords}` : ''}
       {atPace} · PLAN →
     </Link>
   );
 }
-
-const PRODUCT: Record<string, string> = {
-  credit_card: 'CREDIT CARD',
-  personal_loan: 'PERSONAL LOAN',
-  home_loan: 'HOME LOAN',
-  auto_loan: 'CAR LOAN',
-  education_loan: 'EDUCATION LOAN',
-  gold_loan: 'GOLD LOAN',
-  bnpl: 'BNPL',
-};
 
 /** The calm view's one step, from the plan's first month. */
 const oneStepWords = cache(async (): Promise<string> => {
@@ -106,6 +124,8 @@ const oneStepWords = cache(async (): Promise<string> => {
   const m = deriveMetrics(profile);
   const fc = (v: number) => formatCurrencyWhole(v, userDefaultCurrency(profile.user.country));
   if (plan.gaps.length > 0) return 'ADD YOUR LOAN DETAILS IN PROFILE.';
+  // R3B-2 (#13): no "pay the minimum" for a loan that is behind or with collectors.
+  if (profile.user.loans.some(needsHelp)) return 'A LOAN IS BEHIND OR WITH COLLECTORS: START WITH THE STEPS ABOVE, THEN THE REST.';
   // Short of cash: the engine's gap (costs + minimums − income) when it
   // ran, else the same sum from the profile.
   const short = plan.live ? plan.shortfall : Math.max(0, -Number(m.surplus));
@@ -117,7 +137,7 @@ const oneStepWords = cache(async (): Promise<string> => {
   if (first && loan) {
     // In the loan's own currency (₹ for an NRI's Indian loan).
     const amount = formatLoanAmount(first.amount, loan, profile.user.country, plan.fxRatesUsed);
-    return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${PRODUCT[loan.loan_type] ?? 'LOAN'}.`;
+    return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${(LOAN_TYPE_NAME[loan.loan_type] ?? 'loan').toUpperCase()}.`;
   }
   if (move.ef > 0) return `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`;
   return localTerms('KEEP CURRENT EMIS RUNNING.', profile.user.country);
@@ -143,13 +163,9 @@ const WHY: Record<string, string> = {
 
 /** The loan's rate as its statement shows it, then what it costs a year
  *  when that differs: compounding, a card's GST, or a tax break. */
-function rateWords(l: LoanWithEffective, country: string): string {
-  const nominal = `${fmtPct(l.nominal)} a year`;
-  const gap = l.effective.minus(l.nominal);
-  if (gap.abs().lt(0.005)) return nominal;
-  if (gap.lt(0)) return `${nominal}, ${fmtPct(l.effective)} after the tax break`;
-  const extra = country === 'IN' && l.loan.loan_type === 'credit_card' ? 'with GST, compounded monthly' : 'compounded monthly';
-  return `${nominal}, ${fmtPct(l.effective)} ${extra}`;
+// Audit 80 B13/E2: the one rate wording (lib/card-rate).
+function rateWords(l: LoanWithEffective, _country: string): string {
+  return rateLine(l.nominal, l.effective);
 }
 
 /** This month's payments, one row each, to tick off (REDESIGN R2.2). */
@@ -197,17 +213,14 @@ export async function HomePayThisMonth() {
   const several = m.loans.filter((l) => l.outstanding.gt(0)).length > 1;
   const why = target
     ? mc
-      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirst(mc)}. `
+      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirstShort(mc.total, target.nominal)}. `
       : `${several ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. `
     : '';
   const reason =
     top && target
       ? {
           key: top.key,
-          text: `${why}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}It saves about ${formatCurrencyWhole(
-            Math.round(new Decimal(top.extra).times(mc ? Decimal.max(0, mc.total) : target.effective).toNumber()),
-            top.currency,
-          )} of interest a year.`,
+          text: `${why}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}${savesLine(top.extra, mc ? mc.total.toNumber() : target.effective.toNumber(), loanClearsMonth(plan, target.index), (v) => formatCurrencyWhole(v, top.currency), plan.user.country)}`,
         }
       : undefined;
   // Live test #24: what's due beside what the month can cover.
@@ -220,7 +233,7 @@ export async function HomePayThisMonth() {
             shortfall: plan.shortfall,
           }),
           (v) => fc(Math.round(v)),
-        )} ${localTerms('Pay every EMI and card minimum', plan.user.country)} in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
+        )} ${shortPriorityOrder(shortPriority(data, plan.user.loans, plan.shortfall), fc, country)} A missed payment is reported to the credit bureaus and brings late fees.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
@@ -258,8 +271,10 @@ export async function HomePayThisMonth() {
             : undefined
         }
         pay={data}
+        firstBalanceYm={plan.user.loans.map((l) => l.balance_as_of?.slice(0, 7)).filter((x): x is string => !!x).sort()[0] ?? null}
         strategy={plan.strategy}
         monthLabel={monthLabel}
+        {...retentionInputs(plan.user.loans, data, country)}
       />
     </>
   );
@@ -272,7 +287,7 @@ export async function HomeThisMonthStrip() {
   if (plan.gaps.length > 0 || !plan.live) return null;
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
   const data = payThisMonth(plan);
-  const line = homeThisMonthLine(data, plan.shortfall, fc, plan.user.country);
+  const line = homeThisMonthLine(data, plan.shortfall, fc, plan.user.country, plan.user.loans);
   if (!line || !data) return null;
   // Re-test 9 O-3: the strip notices payments logged this month.
   const progress = {
@@ -282,6 +297,36 @@ export async function HomeThisMonthStrip() {
     total: data.total,
   };
   return <HomeThisMonth line={line} progress={progress} />;
+}
+
+/** UX2B-12: "It saves about ₹X of interest a year", or, when the plan
+ *  clears the loan sooner, "… before it's cleared in <month>". */
+function savesLine(extra: number, cost: number, clears: number | null, money: (v: number) => string, country: 'IN' | 'US'): string {
+  const s = extraSaving(extra, cost, clears);
+  return s.months < 12 && clears != null
+    ? `It saves about ${money(s.amount)} of interest before the loan is cleared in ${monthIndexToCountryLabel(clears, country)}.`
+    : `It saves about ${money(s.amount)} of interest a year.`;
+}
+
+/** UX2B-8: this month's EMIs and minimums from the same run as "This month"
+ *  (6 cards read ₹26,590 there and ₹26,887 in the cash flow below, from the
+ *  profile's own minimum estimate). Null when the plan has no month 1. */
+async function planDues(): Promise<number | undefined> {
+  const plan = await loadPlanOnce();
+  if (!plan.live || plan.gaps.length > 0) return undefined;
+  return payThisMonth(plan)?.duesUser;
+}
+
+const planProfile = (plan: Awaited<ReturnType<typeof loadPlanOnce>>) => ({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
+
+export async function HomeCashFlow() {
+  return <CashFlow profile={planProfile(await loadPlanOnce())} dues={await planDues()} />;
+}
+
+export async function HomeDuesTotal() {
+  const plan = await loadPlanOnce();
+  const dues = await planDues();
+  return <>{formatCurrencyWhole(dues ?? deriveMetrics(planProfile(plan)).emiBurden.toNumber(), userDefaultCurrency(plan.user.country))}</>;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */
@@ -324,4 +369,13 @@ async function homeInterest(): Promise<{ value: string; caption: string }> {
   if (first?.interest != null) return homeInterestLine({ planInterest: first.interest, monthLabel: monthIndexToCountryLabel(1, plan.user.country), fallback: 0, money });
   const m = deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
   return homeInterestLine({ planInterest: null, monthLabel: '', fallback: m.monthlyInterest.toNumber(), money });
+}
+
+/** Audit 80+ A1/A5/A6 (+ the A4 nudge and "Don't sign that"): first on Home. */
+export async function HomeInsights() {
+  const plan = await loadPlanOnce();
+  if (!plan.live || !plan.runArgs || plan.gaps.length > 0) return null;
+  return (
+    <InsightsPanel runArgs={{ ...plan.runArgs, strategy: plan.strategy }} variant="home" closedDebtFreeMonth={plan.gap?.closed?.debtFreeMonth ?? null} capped={plan.infeasibleFrom != null} />
+  );
 }
