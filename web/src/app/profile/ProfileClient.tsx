@@ -50,7 +50,9 @@ import {
   MONTH_NAMES,
   localIsoDate,
 } from '@/lib/today';
-import { BALANCES_ENTERED_KEY } from '@/lib/activity';
+import { BALANCES_ENTERED_KEY, type BalanceDropReason } from '@/lib/activity';
+import { balanceDropOf, logBalanceDrops } from '@/lib/prepay-choice';
+import { BalanceDropQuestion } from '@/components/profile/BalanceDropQuestion';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
@@ -361,6 +363,7 @@ function ProfileEditor({
   const savedLoansRef = useRef<LoanPayload[]>([]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
+  const [dropReasons, setDropReasons] = useState<Record<string, BalanceDropReason>>({});
   const [saveFailed, setSaveFailed] = useState(false);
   // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
   // or jump to Loans, with no word, so a blocked save looked like a lost one.
@@ -921,9 +924,10 @@ function ProfileEditor({
       ? deductionDerived.toFixed(4)
       : composedRate.toFixed(4);
     // A balance typed now is dated today; one left as it was keeps its date.
+    const savedBefore = loadProfileClient().user.loans, recordedAt = new Date().toISOString();
     const stampedUser = {
       ...userWithFx,
-      loans: stampBalanceDates(userWithFx.loans, loadProfileClient().user.loans, localIsoDate(getCountryToday(country))),
+      loans: stampBalanceDates(userWithFx.loans, savedBefore, localIsoDate(getCountryToday(country)), recordedAt),
     };
     const saved = saveProfileWithPaidEmis({
       user: stampedUser,
@@ -937,6 +941,7 @@ function ProfileEditor({
       return;
     }
     setSaveFailed(false);
+    logBalanceDrops(savedBefore, stampedUser, dropReasons, localIsoDate(getCountryToday(country)), recordedAt); // UX2 #20
     // The balances were just entered, so cards aren't "never updated".
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
@@ -968,6 +973,8 @@ function ProfileEditor({
   const askPaid = (l: LoanPayload) =>
     needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
   const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
+  const dropOf = (l: LoanPayload) => balanceDropOf(l, savedLoans); // UX2 #20: a prepayment or a correction?
+  const dropErrors = loans.map((l) => (dropOf(l) > 0 && !(l.id && dropReasons[l.id]) ? 'Choose one, so Activity records it right.' : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
   const foreignCcys = Array.from(
@@ -992,7 +999,7 @@ function ProfileEditor({
   }
   const loansComplete =
     loanErrors.every((e) => Object.keys(e).length === 0) &&
-    paidErrors.every((e) => !e) &&
+    paidErrors.every((e) => !e) && dropErrors.every((e) => !e) &&
     Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
@@ -1696,6 +1703,8 @@ function ProfileEditor({
                     error={showLoanErrors ? paidErrors[i] : null}
                   />
                 )}
+                {dropOf(l) > 0 && l.id && <BalanceDropQuestion drop={formatCurrency(dropOf(l), loanCurrency(l, country))} value={dropReasons[l.id]}
+                  onChange={(r) => setDropReasons((d) => ({ ...d, [l.id as string]: r }))} error={showLoanErrors ? dropErrors[i] : null} />}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"
@@ -2115,18 +2124,9 @@ function ProfileEditor({
                   error={showLoanErrors ? loanErrors[i]?.emi : null}
                   info={
                     <>
-                      The <strong>contractual monthly amount</strong> the bank
-                      auto-debits — not what you actually pay if you overpay.
-                      <br />
-                      <br />
-                      Anything you pay above this number is captured as a{' '}
-                      <strong>paid_extra</strong> entry in the Activity
-                      ledger, or routed by the avalanche/snowball strategy as
-                      surplus.
-                      <br />
-                      <br />
-                      For credit cards: your usual payment amount, or{' '}
-                      <strong>0</strong> if you only ever pay the minimum.
+                      The <strong>contractual monthly amount</strong> the bank auto-debits, not what you pay when you overpay.
+                      Anything above it goes in Activity as an extra payment, or the plan sends it as spare cash.<br /><br />
+                      For credit cards: your usual payment, or <strong>0</strong> if you only ever pay the minimum.
                     </>
                   }
                 />

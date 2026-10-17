@@ -5,14 +5,15 @@ from decimal import ROUND_HALF_UP, Decimal, localcontext
 from fastapi import APIRouter, HTTPException
 
 from engine.simulation import simulate_plan, baseline_minimums_only, goal_tradeoff, non_amortising_loans
-from engine.models import LifecycleEvent, LifecycleEventKind, User
+from engine.models import LifecycleEvent, LifecycleEventKind, LoanType, User
 from engine.goals import GoalState, debt_gate, serial_fill_allocation
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
 )
-from engine.surplus import allocate_surplus, compute_available_surplus
+from engine.surplus import allocate_surplus, compute_available_surplus, from_user_currency
 from engine.tenure_whatif import stretch_tenure
+from engine.prepay_choice import PREPAY_MODES, REDUCE_TENURE, prepay_effect
 
 from api.engine_cache import engine_cache
 from api.schemas import (
@@ -22,6 +23,7 @@ from api.schemas import (
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
     GapClosedOut, NonAmortisingOut, SeasonalOut, SeasonalRunOut,
 )
+from api.prepay_schema import PrepayOption
 
 
 def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
@@ -690,6 +692,7 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
     scenario_user = deepcopy(user)
     scenario_result = base
     tenure = None
+    prepay_options, prepay_mode_used = None, None
     if req.surplus_delta is not None:
         scenario_result = with_surplus_delta(
             scenario_user, req.surplus_delta, strategy=req.strategy,
@@ -731,12 +734,14 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
             marginal_rate=req.marginal_rate, simulation_start_month=sm, **kw,
         )
     elif req.lump_sum_amount is not None and req.lump_sum_target_loan_index is not None:
+        prepay_mode_used = req.lump_sum_mode or REDUCE_TENURE
         scenario_result = with_lump_sum(
             scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index,
             strategy=req.strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
-            simulation_start_month=sm, plan=plan,
+            simulation_start_month=sm, plan=plan, mode=prepay_mode_used,
         )
+        prepay_options = _prepay_options(scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index)
 
     if non_amortising_loans(user) and base.debt_free_month is None:
         # Live re-test NEW-3: a loan that never clears; no unbounded totals.
@@ -757,6 +762,8 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
         tenure_new_emi=t.new_emi.quantize(_CENT, rounding=ROUND_HALF_UP) if t else None,
         tenure_old_months=t.old_tenure if t else None,
         tenure_new_months=t.new_tenure if t else None,
+        prepay_options=prepay_options,
+        prepay_mode_used=prepay_mode_used,
         baseline_debt_free_month=diff["debt_free_month_baseline"],
         scenario_debt_free_month=diff["debt_free_month_scenario"],
         months_pulled_forward=diff["months_pulled_forward"],
@@ -769,6 +776,28 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
         scenario_infeasible_from_month=getattr(scenario_result, "infeasible_from_month", None),
         **_scenario_trajectory(req, scenario_result, scenario_user if tenure is None else stretched, user),
     )
+
+
+def _prepay_options(user, amount, index) -> Optional[list[PrepayOption]]:
+    """UX2 #20: the target loan alone under each answer to "lower your EMI or
+    finish sooner?" (engine/prepay_choice). None for a card, a loan that
+    can't take a prepayment yet, or one the payment clears."""
+    if not 0 <= index < len(user.loans):
+        return None
+    loan = user.loans[index]
+    if (loan.loan_type == LoanType.CREDIT_CARD or loan.scheduled_emi <= 0 or loan.outstanding <= 0
+            or loan.pre_emi_months_remaining > 0 or loan.prepay_lock_in_months > 0):
+        return None
+    paid = from_user_currency(amount, loan, user) * (Decimal("1") - (loan.prepayment_penalty_pct or Decimal("0")))
+    if paid >= loan.outstanding:
+        return None
+    out = []
+    for mode in PREPAY_MODES:
+        e = prepay_effect(loan.outstanding, loan.nominal_rate, loan.scheduled_emi,
+                          loan.tenure_months_remaining, paid, mode)
+        out.append(PrepayOption(mode=mode, old_emi=e.old_emi, new_emi=e.new_emi, old_months=e.old_months,
+                                new_months=e.new_months, interest_saved=e.interest_saved))
+    return out
 
 
 def _scenario_trajectory(req, result, scenario_user, user) -> dict:

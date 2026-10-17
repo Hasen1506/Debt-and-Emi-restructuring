@@ -55,6 +55,7 @@ import { useWidth } from '@/lib/use-width';
 import { LBracket, LSectionHeader, L_T, lPayBtn } from '@/components/ledger/primitives';
 import { buildHistory, loanLabel, monthLabel, type HistoryRow, type MonthGroup, type Tone } from './history';
 import { LogDialog, type LogInitial, type LogSave } from './LogDialog';
+import { saveLowerEmi } from '@/lib/prepay-choice';
 
 type Act = 'paid' | 'other' | 'edit' | 'undo' | 'happened' | 'held';
 
@@ -162,6 +163,9 @@ export function ActivityPage({
           ? liveEntries.map((e) => (e.id === s.replaces ? { ...draft, id: e.id, loggedAt: e.loggedAt } : e))
           : addActivityEntry(liveEntries, draft, current.loans);
         saveEntries(next, message);
+        // UX2 #20: "lower my EMI" makes the lower EMI the loan's EMI from now on.
+        if (!s.replaces && draft.prepayMode === 'reduce_emi' && draft.emiAfter)
+          saveLowerEmi({ loanIndex: index, loanId: current.loans[index].id }, Number(draft.emiAfter));
       } else if (s.kind === 'life') {
         const before = new Set(readLifecycleClient().map((e) => e.id));
         let next = addLifecycleEvent(readLifecycleClient(), s.draft);

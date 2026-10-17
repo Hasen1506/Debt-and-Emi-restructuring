@@ -7,6 +7,7 @@
 import {
   addActivityEntry,
   readActivityClient,
+  type ActivityEntry,
   type ActivityKind,
 } from './activity';
 import type { Country, LoanPayload } from './api';
@@ -28,6 +29,8 @@ export interface ApplyToolResultInput {
   note?: string;
   loans: LoanPayload[];
   country: Country;
+  /** UX2 #20: the answer to "lower your EMI or finish sooner?". */
+  prepay?: Pick<ActivityEntry, 'prepayMode' | 'emiBefore' | 'emiAfter'>;
 }
 
 function todayISO(): string {
@@ -56,6 +59,7 @@ export function applyToolResult(input: ApplyToolResultInput): number {
     amount: input.amount,
     scheduledEmi: input.scheduledEmi,
     note: input.note,
+    ...(input.prepay ?? {}),
   }, profile.user.loans);
   commitActivity(next, profile.user);
   return next.length;

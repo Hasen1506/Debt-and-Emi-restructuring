@@ -18,7 +18,8 @@ their "before" date could differ from /plan's.
 from decimal import Decimal
 from copy import deepcopy
 from engine.plan_end import shown_debt_free_month
-from engine.models import LifecycleEvent, LifecycleEventKind, User
+from engine.formulas import emi
+from engine.models import LifecycleEvent, LifecycleEventKind, LoanType, User
 from engine.simulation import simulate_plan, SimulationResult
 from engine.ordering import Strategy
 from engine.surplus import from_user_currency
@@ -159,6 +160,7 @@ def with_lump_sum(
     marginal_rate: Decimal | None = None,
     simulation_start_month: int = 1,
     plan: dict | None = None,
+    mode: str = "reduce_tenure",
 ) -> SimulationResult:
     """Apply `amount` (in the user's currency) upfront to
     `user.loans[target_loan_index]` before simulating.
@@ -166,6 +168,11 @@ def with_lump_sum(
     The amount is converted to the loan's currency (P2-07), the bank's
     prepayment fee comes out of it, and a loan that can't take an extra
     payment yet (lock-in / pre-EMI) is left as it is.
+
+    `mode` is the borrower's answer to "lower your EMI or finish sooner?"
+    (engine/prepay_choice): reduce_tenure keeps the EMI (the loan ends
+    sooner); reduce_emi re-works the EMI on the lower balance over the
+    months left. A card has no EMI, so the mode changes nothing there.
     """
     u = deepcopy(user)
     if 0 <= target_loan_index < len(u.loans):
@@ -174,6 +181,9 @@ def with_lump_sum(
             in_loan_ccy = from_user_currency(amount, l, u)
             to_principal = in_loan_ccy * (D("1") - (l.prepayment_penalty_pct or D("0")))
             l.outstanding = max(D("0"), l.outstanding - to_principal)
+            if (mode == "reduce_emi" and l.loan_type != LoanType.CREDIT_CARD
+                    and l.outstanding > 0 and l.tenure_months_remaining > 0 and l.scheduled_emi > 0):
+                l.scheduled_emi = min(l.scheduled_emi, emi(l.outstanding, l.nominal_rate, l.tenure_months_remaining))
     return _run(u, strategy, horizon_months, marginal_rate, simulation_start_month, plan)
 
 

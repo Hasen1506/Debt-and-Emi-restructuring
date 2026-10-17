@@ -96,3 +96,21 @@ def test_size_zero_disables():
     cache.get_or_run("baseline", _req(), lambda: (n.append(1), _V(items=[1]))[1])
     cache.get_or_run("baseline", _req(), lambda: (n.append(1), _V(items=[1]))[1])
     assert len(n) == 2 and len(cache) == 0
+
+
+def test_ux2_20_lump_sum_compare_returns_both_answers_and_the_mode_used(client, india_user_payload):
+    """UX2 #20: the what-if carries the loan under "lower EMI" and "finish
+    sooner", and says which one the plan ran (none chosen: EMI kept)."""
+    loans = india_user_payload["loans"]
+    idx = next(i for i, l in enumerate(loans) if l["loan_type"] != "credit_card" and float(l["scheduled_emi"]) > 0)
+    amount = str(round(float(loans[idx]["outstanding"]) * 0.2))
+    base = {"user": india_user_payload, "horizon_months": 360, "lump_sum_amount": amount, "lump_sum_target_loan_index": idx}
+    none = client.post("/api/sensitivity/compare", json=base).json()
+    assert none["prepay_mode_used"] == "reduce_tenure"
+    modes = {o["mode"]: o for o in none["prepay_options"]}
+    assert set(modes) == {"reduce_tenure", "reduce_emi"}
+    assert float(modes["reduce_emi"]["new_emi"]) < float(modes["reduce_emi"]["old_emi"])
+    assert modes["reduce_tenure"]["new_months"] < modes["reduce_tenure"]["old_months"]
+    lower = client.post("/api/sensitivity/compare", json={**base, "lump_sum_mode": "reduce_emi"})
+    assert lower.status_code == 200 and lower.json()["prepay_mode_used"] == "reduce_emi"
+    assert client.post("/api/sensitivity/compare", json={**base, "lump_sum_mode": "both"}).status_code == 422

@@ -18,6 +18,7 @@ from engine.models import (
 from engine.formulas import flat_to_reducing
 from engine.layer0 import EmployerMatch
 from engine.ordering import Strategy
+from api.prepay_schema import PrepayOption
 
 D = Decimal
 
@@ -1402,8 +1403,7 @@ class CompareRequest(_In):
     low_rate_invest_share: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
-    # A saved expense change, rather than an increase in take-home pay.
-    spending_cut: bool = False
+    spending_cut: bool = False  # a saved expense change, rather than an increase in take-home pay
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)
     income_shock_months: Optional[Months] = None
     rate_shock_delta: Optional[SignedRate] = None
@@ -1411,12 +1411,12 @@ class CompareRequest(_In):
     alt_strategy: Optional[Strategy] = None
     lump_sum_amount: Optional[Amount] = None
     lump_sum_target_loan_index: Optional[LoanIndex] = None
+    lump_sum_mode: Optional[Literal["reduce_tenure", "reduce_emi"]] = None  # UX2 #20; None = not answered: EMI kept
     # Live test #26: one loan re-amortised over this many more months.
     tenure_extension_loan_index: Optional[LoanIndex] = None
     tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
     gap_as_debt: bool = True
-    # Live test L#26: also return the scenario's month-by-month trajectory,
-    # so the Plan chart and table can show the what-if.
+    # Live test L#26: also return the scenario's trajectory, so the Plan chart and table can show the what-if.
     include_trajectory: bool = False
 
     @model_validator(mode="after")
@@ -1437,8 +1437,7 @@ class CompareResponse(_Base):
     # Total interest on each side, for a before/after picture.
     baseline_total_interest: Optional[Decimal] = None
     scenario_total_interest: Optional[Decimal] = None
-    # This month's cash gap on each side (0 when covered), so a what-if
-    # that closes it can say so (live test #26).
+    # This month's cash gap on each side (0 when covered), so a what-if that closes it can say so (#26).
     baseline_shortfall: Optional[Decimal] = None
     scenario_shortfall: Optional[Decimal] = None
     # Tenure what-if only: the loan's EMI and remaining months before and after.
@@ -1446,8 +1445,9 @@ class CompareResponse(_Base):
     tenure_new_emi: Optional[Decimal] = None
     tenure_old_months: Optional[int] = None
     tenure_new_months: Optional[int] = None
-    # Live re-test NEW-2: either side never clears within the horizon, so
-    # interest_saved compares two unbounded totals and must not be shown.
+    prepay_options: Optional[list[PrepayOption]] = None  # UX2 #20: the loan alone under each answer
+    prepay_mode_used: Optional[str] = None
+    # NEW-2: a side never clears within the horizon: interest_saved compares unbounded totals, never shown.
     baseline_never_clears: bool = False
     scenario_never_clears: bool = False
     # L#26 scenario trajectory (include_trajectory), bounded like /simulate's (NEW-2); C11 first unfundable month.
