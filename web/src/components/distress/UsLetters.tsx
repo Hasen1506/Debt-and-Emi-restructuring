@@ -24,11 +24,14 @@ import { complaintUs, type UsComplaintKind, type UsComplaintResponse } from '@/l
 import { forSending, US_COLLECTOR_RULE } from '@/lib/distress-triage';
 import { US_FIELDS, US_LETTER_TITLES, fillUsLetter, usMissing, type UsLetterValues } from '@/lib/us-letters';
 import { LetterSection, Rule, type Line } from './CantPay';
+import { UsCollectionLetter } from './UsCollectionLetter';
+import { US_COLLECTION_KINDS, US_COLLECTION_SUB, US_COLLECTION_TITLES, type UsCollectionKind } from '@/lib/us-collection-letters';
 import { PUBLIC_LETTER_KINDS } from './CantPayPublic';
 
-type Kind = 'hardship' | UsComplaintKind;
-const KINDS: Kind[] = ['hardship', 'fcba_billing_error', 'respa_notice_of_error'];
+type Kind = 'hardship' | UsComplaintKind | UsCollectionKind;
+const KINDS: Kind[] = ['hardship', 'fcba_billing_error', 'respa_notice_of_error', ...US_COLLECTION_KINDS];
 const KIND_SUB: Record<Kind, string> = {
+  ...US_COLLECTION_SUB,
   hardship: 'Can’t pay in full: ask the lender for its hardship program before the due date.',
   fcba_billing_error: 'A wrong or unauthorised charge on a credit card statement (60-day deadline).',
   respa_notice_of_error: 'Your mortgage servicer made a mistake: a payment not credited, a wrong fee or escrow charge.',
@@ -40,7 +43,7 @@ const body: CSSProperties = { fontSize: 'var(--fs-body)', lineHeight: 1.6 };
 function kindFromUrl(): Kind {
   if (typeof window === 'undefined') return 'hardship';
   const k = new URLSearchParams(window.location.search).get('kind');
-  return k === 'fcba_billing_error' || k === 'respa_notice_of_error' ? k : 'hardship';
+  return KINDS.includes(k as Kind) ? (k as Kind) : 'hardship';
 }
 
 const tab = (on: boolean): CSSProperties => ({
@@ -70,7 +73,7 @@ export function UsLetters() {
     <LShell>
       <div style={{ padding: '24px 0 48px', display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }} data-testid="us-letters">
         <section aria-labelledby="usl-head">
-          <h1 id="usl-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>US LETTERS: HARDSHIP, BILLING DISPUTE, MORTGAGE ERROR</h1>
+          <h1 id="usl-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>US LETTERS: HARDSHIP, DISPUTES, DEBT COLLECTORS</h1>
           <p style={{ ...body, marginTop: 8 }}>
             Federal rules for the USA, as letters you can send yourself. No sign-in needed; what you type stays in this
             browser. Each one is a draft: read it against your statement before you send it.
@@ -79,16 +82,18 @@ export function UsLetters() {
             {KINDS.map((k) => (
               <button key={k} type="button" role="radio" aria-checked={kind === k} style={tab(kind === k)}
                 onClick={() => choose(k)} data-testid={`usl-kind-${k}`}>
-                {US_LETTER_TITLES[k]}
+                {k in US_LETTER_TITLES ? US_LETTER_TITLES[k as keyof typeof US_LETTER_TITLES] : US_COLLECTION_TITLES[k as UsCollectionKind]}
               </button>
             ))}
           </div>
           <p style={{ ...body, color: L_T.muted, marginTop: 8 }} data-testid="usl-kind-sub">{KIND_SUB[kind]}</p>
         </section>
-        {kind === 'hardship' ? <Hardship /> : <ApiLetter key={kind} kind={kind} />}
+        {kind === 'hardship' ? <Hardship />
+          : US_COLLECTION_KINDS.includes(kind as UsCollectionKind) ? <UsCollectionLetter key={kind} kind={kind as UsCollectionKind} />
+          : <ApiLetter key={kind} kind={kind as UsComplaintKind} />}
         <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
           Rules from the CFPB&apos;s Regulation Z (12 CFR 1026.13), Regulation X (12 CFR 1024.35) and Regulation F
-          (12 CFR 1006.6), read 14 Oct 2026. A draft, not legal advice. In India instead?{' '}
+          (12 CFR 1006.6, 1006.34, 1006.38) and the FDCPA. A draft, not legal advice. In India instead?{' '}
           <LBracket href="/cant-pay">CAN&apos;T PAY (INDIA)</LBracket>
         </p>
       </div>

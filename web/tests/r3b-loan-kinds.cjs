@@ -152,3 +152,50 @@ test('#21: the tick sits on EMI loans only, with its one hint line', () => {
   assert.match(SALARY_DEDUCTED_HINT, /won’t take it off again/);
   assert.match(src('components/setup/LoanExtras.tsx'), /data-testid="setup-salary-deducted"/);
 });
+
+// ── US collection letters ────────────────────────────────────────────────────
+test('US letters: validation, cease-contact and medical letters, placeholders kept until filled', () => {
+  const { usCollectionLetter, usCollectionMissing, US_COLLECTION_KINDS } = lib('us-collection-letters.ts');
+  assert.deepEqual(US_COLLECTION_KINDS, ['debt_validation', 'cease_contact', 'medical_bill']);
+  const val = usCollectionLetter('debt_validation', {});
+  assert.match(val, /^DRAFT/);
+  assert.match(val, /\[Your full name\]/);
+  assert.match(val, /\[Collector’s name\]/);
+  assert.match(val, /1692g\(b\)/);
+  assert.match(val, /stop collecting until you send me verification/);
+  assert.match(val, /report it as disputed/);
+  const filled = usCollectionLetter('debt_validation', { name: 'Ana Ruiz', collector: 'ABC Recovery', reference: 'R-77', address: '1 Main St' });
+  assert.match(filled, /Ana Ruiz/);
+  assert.doesNotMatch(filled, /\[Your full name\]/);
+  assert.match(usCollectionLetter('cease_contact', {}), /1692c\(c\)/);
+  const med = usCollectionLetter('medical_bill', {});
+  assert.match(med, /itemized bill/);
+  assert.match(med, /financial assistance/);
+  assert.match(med, /Hold this bill from collections/);
+  assert.deepEqual(usCollectionMissing('cease_contact', { name: 'A', address: 'B' }), ['collector’s name', 'their reference or account number']);
+});
+
+test('US letters: forSending strips the DRAFT line; the page carries the marker and caution', () => {
+  const { usCollectionLetter } = lib('us-collection-letters.ts');
+  const { forSending } = lib('distress-triage.ts');
+  for (const k of ['debt_validation', 'cease_contact', 'medical_bill']) {
+    const out = forSending(usCollectionLetter(k, {}));
+    assert.doesNotMatch(out, /DRAFT/);
+    assert.match(out, /^\[Today’s date\]/);
+  }
+  const ui = src('components/distress/UsCollectionLetter.tsx');
+  assert.match(ui, /<DraftLegalMarker id="letter-us-collections"/);
+  assert.match(ui, /DRAFT_MARK/);
+  assert.equal((ui.match(/forSending\(letter\)/g) ?? []).length, 3);   // copy, download, email
+  const page = src('components/distress/UsLetters.tsx');
+  assert.match(page, /US_COLLECTION_KINDS/);
+  const { LEGAL_REVIEW } = lib('legal-review.ts');
+  assert.equal(LEGAL_REVIEW['letter-us-collections'], 'pending');
+});
+
+test('US letters: the validation window is 30 days from the first notice', () => {
+  const { validationDeadline } = lib('us-collection-letters.ts');
+  assert.deepEqual(validationDeadline('2026-10-02', '2026-10-17'), { by: '2026-11-01', past: false });
+  assert.deepEqual(validationDeadline('2026-09-01', '2026-10-17'), { by: '2026-10-01', past: true });
+  assert.equal(validationDeadline('', '2026-10-17'), null);
+});

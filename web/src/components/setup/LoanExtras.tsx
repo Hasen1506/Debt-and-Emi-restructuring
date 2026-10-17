@@ -12,6 +12,7 @@ import { useState } from 'react';
 import type { LoanPayload } from '@/lib/api';
 import { L_T, LBracket, LChip as Chip, LChipRow as ChipRow } from '@/components/ledger/primitives';
 import { HOUSE_USE_KINDS } from '@/lib/loan-types';
+import { US_LETTERS_PATH } from '@/lib/us-letters';
 import {
   DEBT_STATUS_CHOICES, HOUSE_USE_CHOICES, SALARY_DEDUCTED_HINT, SALARY_DEDUCTED_LABEL, US_MEDICAL_NOTES,
   canBeSalaryDeducted, debtStatus,
@@ -72,6 +73,14 @@ export function LoanExtras({ loan, country, onPatch }: {
               <span><strong>{label}</strong> <span style={note}>{line}</span></span>
             </label>
           ))}
+          {(status === 'behind' || status === 'collections') && (
+            <p style={note} data-testid="setup-status-help">
+              Home will show what to do instead of “pay the minimum”.{' '}
+              {country === 'US' && status === 'collections'
+                ? <LBracket href={`${US_LETTERS_PATH}?kind=debt_validation`}>ASK THEM TO PROVE THE DEBT</LBracket>
+                : <LBracket href="/cant-pay">WHAT TO DO IF YOU CAN&apos;T PAY</LBracket>}
+            </p>
+          )}
         </div>
       )}
     </div>
