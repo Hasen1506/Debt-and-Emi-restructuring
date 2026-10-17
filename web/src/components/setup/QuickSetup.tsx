@@ -60,7 +60,7 @@ import { applyChoices, choicesFrom, missingChoices, startingChoices, type SetupC
 import { emiFromMonths, setupMarginalRate } from '@/lib/quick-setup';
 import { TaxBasicsRows } from './TaxBasics';
 import { applyTaxBasics, takeHomeWords, taxBasicsGap, taxBasicsOf, type TaxBasics } from '@/lib/tax-setup';
-import { SetupThisMonth } from './SetupThisMonth';
+const SetupThisMonth = dynamic(() => import('./SetupThisMonth').then((m) => m.SetupThisMonth)); // r3e: route budget (shown with the plan preview)
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';

@@ -24,7 +24,8 @@ import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
 import { loanLabel, loanName } from '@/lib/loan-types';
-import { DecisionLogControls } from '@/components/DecisionLogControls';
+import dynamic from 'next/dynamic';
+const DecisionLogControls = dynamic(() => import('@/components/DecisionLogControls').then((m) => m.DecisionLogControls)); // r3e: route budget (shown with a result)
 import { assetTypeLabel } from '@/components/portfolio/portfolioSummary';
 import { assetReturn as assumedReturn } from '@/lib/assumptions';
 import { LIQUIDATE_DISCLAIMER, LIQUIDATE_DISCLAIMER_US } from '@/lib/disclaimers';

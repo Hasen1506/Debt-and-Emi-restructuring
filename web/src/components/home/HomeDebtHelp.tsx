@@ -11,7 +11,8 @@ import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { loanLabel } from '@/lib/loan-types';
 import { SETTLED_NOTE, debtStatus, helpLines, isSettled, needsHelp, rightsNote } from '@/lib/loan-status';
 import { US_LETTERS_PATH } from '@/lib/us-letters';
-import { CatchUpCheck } from './CatchUpCheck';
+import dynamic from 'next/dynamic';
+const CatchUpCheck = dynamic(() => import('./CatchUpCheck').then((m) => m.CatchUpCheck)); // only for a behind loan
 
 const STATUS_WORDS = { behind: 'BEHIND ON PAYMENTS', collections: 'WITH A COLLECTION AGENCY' } as const;
 const body = { fontSize: 'var(--fs-dense)', lineHeight: 1.55, margin: '4px 0' } as const;
