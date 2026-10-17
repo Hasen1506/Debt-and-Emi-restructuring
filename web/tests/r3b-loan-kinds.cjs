@@ -127,3 +127,28 @@ test('#13: settled leaves the plan (nothing owed) and says what it does to the c
   // conservative: no settlement-offer calculator
   assert.doesNotMatch(src('lib/loan-status.ts'), /settlementOffer|offerPct|settle_pct/);
 });
+
+// ── #21 salary-deducted EMI ──────────────────────────────────────────────────
+test('#21: an EMI taken from salary is not taken off take-home again; the loan is still tracked', () => {
+  const { deriveMetrics } = lib('derived.ts');
+  const loan = { loan_type: 'personal_loan', bank: 'SBI', outstanding: '500000', nominal_rate: '0.11', rate_type: 'fixed',
+    tenure_months_remaining: 60, scheduled_emi: '10871' };
+  const user = (l) => ({ country: 'IN', income_type: 'salaried', annual_income: '1800000', monthly_income: '60000',
+    fixed_expenses: '30000', variable_expenses: '0', savings_balance: '0', primary_bank: 'SBI', location_tier: 'urban', loans: [l] });
+  const plain = deriveMetrics({ user: user(loan), marginalRate: '0', creditScore: null, isLive: true });
+  const ticked = deriveMetrics({ user: user({ ...loan, salary_deducted: true }), marginalRate: '0', creditScore: null, isLive: true });
+  assert.equal(plain.surplus.toNumber(), 60000 - 30000 - 10871);
+  assert.equal(ticked.surplus.toNumber(), 30000);
+  assert.equal(ticked.loans.length, 1);
+  assert.equal(ticked.totalOutstanding.toNumber(), 500000);
+});
+
+test('#21: the tick sits on EMI loans only, with its one hint line', () => {
+  const { canBeSalaryDeducted, SALARY_DEDUCTED_LABEL, SALARY_DEDUCTED_HINT } = lib('loan-status.ts');
+  assert.equal(canBeSalaryDeducted('credit_card'), false);
+  assert.equal(canBeSalaryDeducted('bnpl'), false);
+  assert.equal(canBeSalaryDeducted('personal_loan'), true);
+  assert.match(SALARY_DEDUCTED_LABEL, /salary before it reaches the bank/);
+  assert.match(SALARY_DEDUCTED_HINT, /won’t take it off again/);
+  assert.match(src('components/setup/LoanExtras.tsx'), /data-testid="setup-salary-deducted"/);
+});
