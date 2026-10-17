@@ -10,6 +10,7 @@ import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-type
 import { GST_RATE_IN } from '@/lib/gst';
 import { homeTaxReserve } from '@/lib/salaried-advance-tax';
 import { getCountryToday, localIsoDate } from '@/lib/today';
+import { debtStatus, isSettled } from '@/lib/loan-status';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
@@ -42,6 +43,12 @@ export interface PayRow {
   /** A payoff: the balance, the month's interest and (India, cards) GST
    *  that make up `amount`, in `currency`. */
   payoff?: { owed: number; interest: number; gst: number };
+  /** Round 3 (#21): the EMI comes out of pay before it reaches the bank, so
+   *  only the plan's extra on top is listed (minimum 0). */
+  fromSalary?: boolean;
+  /** Round 3 (#13): behind or with collectors. Shown, never ticked: Home
+   *  points to the steps on /cant-pay instead of "mark paid". */
+  held?: 'behind' | 'collections';
 }
 
 export interface PayThisMonth {
@@ -60,6 +67,8 @@ export interface PayThisMonth {
   duesUser: number;
   /** The user's own monthly total for debts; 0 = all spare cash. */
   budget: number;
+  /** Loans whose whole payment this month comes out of salary (not listed). */
+  fromSalary: string[];
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -75,14 +84,19 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   const named = disambiguateLoans(loans);
   const userCcy = userDefaultCurrency(country);
   const loanRows: PayRow[] = [];
+  const salaryOnly: string[] = [];
   for (const [k, v] of Object.entries(first.perLoan)) {
     const index = Number(k);
     const loan = loans[index];
     const paid = Number(v);
     const amount = Math.round(paid);
     if (!loan || !(amount >= 1)) continue;
-    const minimum = Math.min(amount, Math.round(Number(plan.firstMonthMinimums[index] ?? 0)));
-    const extra = amount - minimum;
+    const fromSalary = !!loan.salary_deducted && !isSettled(loan);
+    const fullMin = Math.min(amount, Math.round(Number(plan.firstMonthMinimums[index] ?? 0)));
+    // #21: a salary-deducted EMI is already gone from take-home; only an
+    // extra on top is the user's to send.
+    const minimum = fromSalary ? 0 : fullMin;
+    const extra = amount - fullMin;
     // Paid off only when the engine leaves nothing owing after this month's
     // interest. Against the opening balance, ₹80,500 on an ₹80,000 card
     // looked like a payoff while the interest kept ₹2,300 owing.
@@ -97,22 +111,31 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
     const charge = Math.max(0, amount - owedNow);
     const gstShare = isCard && country === 'IN' ? GST_RATE_IN.toNumber() : 0;
     const gst = Math.round((charge * gstShare) / (1 + gstShare));
-    const payoff = clears ? { owed: Math.round(Math.min(owedNow, amount)), interest: Math.round(charge) - gst, gst } : undefined;
+    const status = debtStatus(loan);
+    const held = status === 'behind' || status === 'collections' ? status : undefined;
+    const label = loanNickname(named[index]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]));
+    if (fromSalary && !(extra >= 1)) {
+      salaryOnly.push(label);
+      continue;
+    }
+    const payoff = clears && !fromSalary ? { owed: Math.round(Math.min(owedNow, amount)), interest: Math.round(charge) - gst, gst } : undefined;
     loanRows.push({
       key: loan.id ?? `loan-${index}`,
       loanIndex: index,
       // UX walkthrough fix 7: "Card 1" / "Card 2", the names the loan list uses.
-      name: loanNickname(named[index]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type])),
+      name: label,
       kind: clears ? 'clears' : extra >= 1 ? 'extra' : isCard ? 'minimum' : 'emi',
       card: isCard,
-      amount,
+      amount: amount - (fromSalary ? fullMin : 0),
       currency: loanCurrency(loan, country),
-      amountUser: Math.round(loanToUser(amount, loan, country, plan.fxRatesUsed) ?? amount),
+      amountUser: Math.round(loanToUser(amount - (fromSalary ? fullMin : 0), loan, country, plan.fxRatesUsed) ?? amount),
       minimum,
       extra: extra >= 1 ? extra : 0,
       ...(isCard && loan.due_day ? { dueDay: loan.due_day } : {}),
       ...(owedAfter != null ? { owedAfter: Math.max(0, Math.round(Number(owedAfter))) } : {}),
       ...(payoff ? { payoff } : {}),
+      ...(fromSalary ? { fromSalary } : {}),
+      ...(held ? { held } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not
@@ -144,7 +167,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   const unplaced = surplus - extraUser - ef - goals - tax;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
-  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0) };
+  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0), fromSalary: salaryOnly };
 }
 
 /**
@@ -165,6 +188,7 @@ function reconcileMonth(
   const { loans, country } = plan.user;
   const minimumsUser = loanRows.reduce((s, r) => {
     const loan = loans[r.loanIndex as number];
+    if (r.fromSalary) return s; // #21: already out of take-home
     // Unrounded, as the cash flow adds them (a ₹5,200.40 EMI is not ₹5,200).
     const raw = Math.min(Number(perLoan[String(r.loanIndex)] ?? r.amount), Number(plan.firstMonthMinimums[r.loanIndex as number] ?? 0));
     return s + (loanToUser(raw, loan, country, plan.fxRatesUsed) ?? raw);

@@ -207,7 +207,7 @@ export function PayThisMonth({
     try {
       let next = entries;
       for (const row of data.rows) {
-        if (row.loanIndex === null || statusOf(row)) continue;
+        if (row.loanIndex === null || row.held || statusOf(row)) continue;
         next = addActivityEntry(
           next,
           {
@@ -315,7 +315,9 @@ export function PayThisMonth({
     const st = statuses[i];
     return st ? s + (r.amount > 0 ? (st.amount / r.amount) * r.amountUser : 0) : s;
   }, 0);
-  const toGo = statuses.filter((s) => !s || s.tag !== 'PAID').length;
+  // Round 3 (#13): a loan behind or with collectors isn't ticked here.
+  const toGo = statuses.filter((s, i) => !data.rows[i].held && (!s || s.tag !== 'PAID')).length;
+  const tickTotal = data.total - data.rows.reduce((s, r) => s + (r.held ? r.amountUser : 0), 0);
   const firstExtra = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
   // UX50 B-01: one order and one number per loan on Home: this list
   // follows "Your loans and cards" (the order the loans were entered), and
@@ -347,7 +349,7 @@ export function PayThisMonth({
           <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
             {/* E10: held at its widest so the header doesn't wrap once Activity is read. */}
             <Reserve ghosts={[`${fmt(data.total)} OF ${fmt(data.total)} PAID · ALL DONE`]}>
-              {ready ? `${fmt(paidUser)} OF ${fmt(data.total)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : '\u00a0'}
+              {ready ? `${fmt(paidUser)} OF ${fmt(tickTotal)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : '\u00a0'}
             </Reserve>
           </span>
         }
@@ -451,7 +453,14 @@ export function PayThisMonth({
               {/* The buttons arrive once the browser has read Activity; their row is
                   held so the page under the list does not jump (E10). */}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', minHeight: 36 }}>
-                {!ready ? null : st && st.tag !== 'EMI PAID' ? (
+                {!ready ? null : row.held && !st ? (
+                  <span data-testid="pay-held" style={{ color: L_T.negative, lineHeight: 1.5 }}>
+                    {row.held === 'collections'
+                      ? 'With collectors: don’t pay until the debt is confirmed in writing.'
+                      : 'Behind: ask the lender for a hardship plan before paying.'}{' '}
+                    <LBracket href="/cant-pay">SEE THE STEPS →</LBracket>
+                  </span>
+                ) : st && st.tag !== 'EMI PAID' ? (
                   st.undoable ? (
                     <LBracket onClick={() => attempt(() => undo(row))} label={`Undo: ${row.name} not paid`}>
                       UNDO
@@ -573,6 +582,11 @@ export function PayThisMonth({
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18 }}>{fmt(data.total)}</span>
         </li>
       </ol>
+      {data.fromSalary.length > 0 && (
+        <p data-testid="pay-from-salary" style={{ margin: '10px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+          Taken from your salary before it reaches the bank, so not listed: {data.fromSalary.join(', ')}.
+        </p>
+      )}
       {data.leftOver > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
           {data.budget > 0
@@ -623,7 +637,7 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
     case 'extra':
       return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : emiTag} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
         ((t) => (t ? ` · ${t}` : ''))(owedAfterLabel(row, now, (v) => fmt(v, row.currency)))
-      }`;
+      }${row.fromSalary ? ` · ${emiTag} COMES OUT OF YOUR SALARY` : ''}`;
     case 'clears':
       return row.payoff
         ? `PAYS IT OFF · ${payoffBreakdown(row.payoff.owed, row.payoff.interest, row.payoff.gst, (n) => fmt(n, row.currency)).toUpperCase()}`

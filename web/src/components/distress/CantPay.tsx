@@ -53,6 +53,7 @@ import { CantPayPublic } from './CantPayPublic';
 import { AgentComplaintSection } from './AgentComplaint';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { UsLettersLink } from './UsLettersLink';
+import { emiOffTakeHome } from '@/lib/loan-status';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));
@@ -93,7 +94,9 @@ export function CantPay() {
   const lines = useMemo(
     () =>
       m.loans
-        .filter((l) => Number(l.outstanding) > 0)
+        // Round 3 (#21): an EMI taken from salary is gone before take-home
+        // arrives, so it isn't in the money to share out (lib/derived does the same).
+        .filter((l) => Number(l.outstanding) > 0 && emiOffTakeHome(l.loan))
         .map((l) => ({
           key: l.loan.id ?? String(l.index),
           label: loanLabel(l.loan),
