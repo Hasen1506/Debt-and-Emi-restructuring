@@ -11,7 +11,7 @@ def test_fix3_windfall_on_a_short_month_keeps_the_cash(client, india_user_payloa
     b = r.json()
     assert b["loan_index"] is None and not b["invest_instead"]
     assert D(b["leftover"]) == D("100000") and D(b["interest_avoided"]) == 0
-    assert "short" in b["rationale"] and "Keep" in b["rationale"]
+    assert "short" in b["rationale"] and b["rationale"].startswith("Kept for the shortfall")
 
 
 def test_fix3_windfall_on_a_capped_plan_keeps_the_cash(client, india_user_payload):
