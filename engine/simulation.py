@@ -44,6 +44,7 @@ from engine.gap_debt import GapRate, gap_interest, gap_rate_for
 from engine.ordering import Strategy, rank_loans
 from engine.marginal_cost import prepayment_fee_with_gst, user_marginal_costs
 from engine.us_loans import forgiveness_prepay_block, mortgage_insurance_kind, pmi_due
+from engine.debt_status import DebtStatusPlan, is_held
 from engine.goals import GoalState, MonthlyGoalAllocation, debt_gate, serial_fill_allocation
 from engine.surplus import (
     _user_residence_currency,
@@ -301,6 +302,11 @@ class MonthRow:
     # month's end, user currency. Paid in on the first month the loan
     # accepts it ("saved for the lock-in to end", Audit C5). Not invested.
     held_for_lock_in: Decimal = D("0")
+    # Founder 17 Oct 2026 (engine/debt_status.py), by position: the overdue paid
+    # on a behind loan this month (loan currency, inside its payment), and each
+    # collections loan's settlement pot at the month's end (user currency; not paid).
+    catch_up_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
+    settlement_pot_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
     # Loans whose contract ends this month and what that month asks for, by
     # position, loan currency: a bullet's principal plus interest, an
     # interest-only loan's principal, or an EMI loan's final adjustment
@@ -728,6 +734,7 @@ def _simulate_plan(
     pre_emi_start: dict[int, int] = {id(l): l.pre_emi_months_remaining for l in loans}
     bullet_accrued: dict[int, Decimal] = {}     # simple interest a bullet owes, unpaid
     lock_pot = D("0")                           # C5: extra held for a loan in lock-in
+    ds = DebtStatusPlan(loans, loan_position, user)   # behind / collections (engine/debt_status.py)
     rate_rise_events: list[RateRiseEvent] = []
     pending_rises: list[RateRiseEvent] = []
     maturities: list[MaturityEvent] = []
@@ -1084,6 +1091,9 @@ def _simulate_plan(
             gap_debt -= pay_back
             gap_repaid += pay_back
             pre_ef_surplus -= pay_back
+        # Then the overdue on loans behind on payments (founder, 17 Oct 2026).
+        catch_up, caught = ({}, D("0")) if minimums_only else ds.take_catch_up(active, minimums, pre_ef_surplus)
+        pre_ef_surplus -= caught
         efund_monthly_to_credit = min(efund_monthly_to_credit, max(D("0"), pre_ef_surplus))
         surplus = max(D("0"), pre_ef_surplus - efund_monthly_to_credit)
         shortfall = compute_shortfall(scratch_user, active, simple_mode=simple_mode, minimums=minimums)
@@ -1158,15 +1168,8 @@ def _simulate_plan(
         # then the cascade ef_slice below is the only EF money).
         ef_balance += efund_monthly_to_credit
 
-        # Multi-goal monthly outflow. `goals is not None` (not
-        # `if goals`): an explicit empty list means "no active goals"
-        # and falls through to the cascade — the goal block is skipped
-        # only when the caller didn't model goals at all (goals=None).
-        # We call the allocator unconditionally (even when surplus is
-        # 0 or negative) so the API can surface past_date / over_funded
-        # / surplus_exhausted rows in lean months. The allocator
-        # internally clamps the funding pool at 0, so the surplus
-        # subtraction below is a no-op when there's nothing to give.
+        # Goals (None = not modelled; [] = none active). The allocator runs even
+        # in lean months (it clamps at 0) so past_date / over_funded rows show.
         goal_contributions_this_month: dict[str, Decimal] = {}
         if goals is not None and not minimums_only:
             # Rule "after debt X clears" (roadmap PR F) reads this month's balances.
@@ -1174,26 +1177,16 @@ def _simulate_plan(
                 goals, surplus, m - 1,
                 debt_cleared=debt_gate(loans, user.country, loan_position),
             )
-            # `alloc.total_outflow` is already bounded by `surplus`
-            # inside the allocator, so no defensive min() needed —
-            # adding one would risk a desync where goal.saved_so_far
-            # disagrees with the surplus subtraction.
+            # total_outflow is bounded by `surplus` inside the allocator.
             surplus -= alloc.total_outflow
-            # Capture per-goal contributions for this month so the API
-            # can expose an engine-truth array. Includes zero rows for
-            # past_date / over_funded / surplus_exhausted goals so the
-            # client sees a consistent shape across months.
+            # Per-goal contributions (zero rows included) for the API.
             goal_contributions_this_month = {
                 c.goal_id: c.amount for c in alloc.contributions
             }
             if m == 1:
                 first_month_alloc = alloc
 
-        # Soft EF waterfall: route through the shared `allocate_surplus`
-        # helper so the engine and the /plan SurplusWaterfall snapshot
-        # use one source of truth for the goal/EF/debt cascade. Any
-        # future change to the cascade semantics (e.g. EF preempts goal
-        # under hardship) only needs editing in one place.
+        # Soft EF waterfall: the helper /plan's SurplusWaterfall uses too.
         ef_gap_this_month = (
             ef_target - ef_balance
             if ef_target > 0 and ef_balance < ef_target
@@ -1285,12 +1278,9 @@ def _simulate_plan(
         # convert to the target loan's currency before adding so the
         # amortisation math (interest/principal) stays consistent with the
         # loan's outstanding balance. No-op for single-currency users.
-        payments = {id(l): minimums[id(l)] for l in active}
-        # Pre-compute the per-loan penalty paid this month from prepay
-        # routing (in user residence currency). Added back to interest_paid
-        # after amortisation so the user sees the real cost — the bank
-        # took the fee out of the principal payment, not as a separate
-        # charge against surplus.
+        payments = {id(l): minimums[id(l)] + catch_up.get(id(l), D("0")) for l in active}
+        # Prepayment fee this month (user currency), added to interest_paid
+        # after amortisation: the bank takes it out of the principal paid.
         prepay_penalty_paid = D("0")
         penalised = None
         extra_target_index = None
@@ -1301,6 +1291,11 @@ def _simulate_plan(
             return (l.outstanding > 0 and not _can_part_pay(l, m)
                     and forgiveness_prepay_block(l, user.country) is None)
 
+        worth_all = worth_prepaying
+        if ds.active and not minimums_only:     # a collections loan's share goes to its settlement pot
+            extra_for_debt = ds.fill_pots(worth_prepaying, extra_for_debt + ds.release_cleared(), lambda l: _can_part_pay(l, m))
+            worth_prepaying = [l for l in worth_prepaying if not is_held(l)]
+            worth_ids = {id(l) for l in worth_prepaying}
         if lock_pot > 0:
             if ranked and any(_can_part_pay(l, m) for l in worth_prepaying):
                 extra_for_debt += lock_pot        # the lock-in ended: pay it in
@@ -1450,6 +1445,7 @@ def _simulate_plan(
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)
         if cascade_surplus > 0 and not minimums_only:
+            cascade_surplus = ds.fill_pots([l for l in worth_all if l.outstanding > 0], cascade_surplus, lambda l: _can_part_pay(l, m))
             # Walk the payoff order until the freed money is used up (H2):
             # only the next loan used to get it, and anything above its
             # balance was dropped. Gated loans (lock-in / cooldown /
@@ -1492,7 +1488,7 @@ def _simulate_plan(
                 gap_debt -= pay_back
                 gap_repaid += pay_back
                 reinvest_amount -= pay_back
-            remaining_active = [l for l in loans if l.outstanding > 0 and m >= l.first_payment_month]
+            remaining_active = [l for l in loans if l.outstanding > 0 and m >= l.first_payment_month and not is_held(l)]
             if remaining_active:
                 # Re-rank by current effective APR (some loans may have
                 # cleared this month — those drop out automatically).
@@ -1624,6 +1620,8 @@ def _simulate_plan(
             gap_repaid=gap_repaid,
             gap_from_savings=gap_from_savings,
             held_for_lock_in=lock_pot,
+            catch_up_by_loan_index={loan_position[k]: v for k, v in catch_up.items()},
+            settlement_pot_by_loan_index=ds.pots_by_position(),
             maturity_due=maturity_due,
             unfunded_shortfall=unfunded_this,
             gap_minimum_due=gap_int_month,
@@ -1648,7 +1646,7 @@ def _simulate_plan(
                 break
 
     # Money still held for a lock-in when the run ends stays with the user.
-    total_invested += lock_pot
+    total_invested += lock_pot + ds.total_pot()
     return SimulationResult(
         months=months,
         debt_free_month=debt_free_month,
