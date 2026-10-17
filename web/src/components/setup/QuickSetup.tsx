@@ -1040,7 +1040,7 @@ export function QuickSetup() {
               )}
               {justSaved && (
                 <p role="status" style={{ color: L_T.positive, margin: 0 }}>
-                  Saved. Opening your plan…
+                  Saved in this browser. Sending it to your account, then opening your plan (a slow connection can take several seconds)…
                 </p>
               )}
               <Actions back={<LBracket onClick={() => goTo(1)}>← BACK</LBracket>}>

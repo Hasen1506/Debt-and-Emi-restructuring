@@ -197,7 +197,7 @@ export function activityDeltas(
       continue; // This balance already includes this payment and every older entry.
     }
 
-    if (e.kind === 'paid_full') continue;
+    if (e.kind === 'paid_full' || e.kind === 'balance_correction') continue;
 
     if (e.kind === 'closed') {
       const cur = acc(e.loanIndex);

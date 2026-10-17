@@ -21,7 +21,7 @@ import {
   type ActivityKind,
 } from '@/lib/activity';
 import { commitActivity } from '@/lib/commit-activity';
-import { paymentState } from '@/lib/payment-state';
+import { isMoneyPaid, paymentState } from '@/lib/payment-state';
 import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/user-store';
 import { alignToLoans } from '@/lib/loan-ids';
 import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
@@ -118,7 +118,7 @@ export function PayThisMonth({
     if (row.loanIndex === null) {
       return ticked.includes(row.key) ? { tag: 'PAID', amount: row.amount, date: today, undoable: true } : null;
     }
-    const mine = entries.filter((e) => e.loanIndex === row.loanIndex && e.date.slice(0, 7) === month);
+    const mine = entries.filter((e) => e.loanIndex === row.loanIndex && e.date.slice(0, 7) === month && isMoneyPaid(e));
     const state = paymentState(mine, row.minimum, row.amount);
     if (state === 'due') return null;
     const amount = mine.reduce((s, e) => s + Number(e.amount || 0), 0);

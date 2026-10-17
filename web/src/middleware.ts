@@ -155,7 +155,7 @@ export function isPublicPage(pathname: string): boolean {
 
 export const config = {
   matcher: [
-    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|og\\.png$|apple-touch-icon\\.png$|apple-icon\\.png$|icon-(?:192|512|maskable-512)\\.png$|og-loan-check\\.png$|\\.well-known/|fonts/).*)',
+    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|offline\\.html$|sw\\.js$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|og\\.png$|apple-touch-icon\\.png$|apple-icon\\.png$|icon-(?:192|512|maskable-512)\\.png$|og-loan-check\\.png$|\\.well-known/|fonts/).*)',
   ],
 };
 

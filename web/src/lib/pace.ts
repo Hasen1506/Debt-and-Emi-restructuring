@@ -21,7 +21,7 @@ import type { ActivityEntry } from './activity';
 import type { Country, LoanPayload, TrajectoryPointRaw } from './api';
 import { loanToUser } from './currency';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
-import { isRegularPayment } from './payment-state';
+import { isMoneyPaid, isRegularPayment } from './payment-state';
 
 /** Months looked back over, before this one. */
 export const PACE_MONTHS = 3;
@@ -87,7 +87,7 @@ export function paceMonths(entries: ActivityEntry[], loans: LoanPayload[], thisM
     return { from, closedOn };
   });
   return months.map((month) => {
-    const inMonth = aligned.filter((e) => e.date.slice(0, 7) === month);
+    const inMonth = aligned.filter((e) => e.date.slice(0, 7) === month && isMoneyPaid(e));
     const byLoan = new Map<number, { regular: Decimal; oneOff: Decimal }>();
     for (const e of inMonth) {
       const cur = byLoan.get(e.loanIndex) ?? { regular: new Decimal(0), oneOff: new Decimal(0) };

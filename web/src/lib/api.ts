@@ -742,8 +742,7 @@ export interface SeasonalOutRaw {
 
 export interface CompareResponse {
   /** Live re-test NEW-2: a side never clears; interest_saved is unbounded, never shown. */
-  baseline_never_clears?: boolean;
-  scenario_never_clears?: boolean;
+  baseline_never_clears?: boolean; scenario_never_clears?: boolean;
   /** Live test L#26 (include_trajectory): the what-if's own trajectory. */
   scenario_trajectory?: TrajectoryPointRaw[] | null;
   scenario_trajectory_cut_month?: number | null;
@@ -755,17 +754,17 @@ export interface CompareResponse {
   interest_saved: string;
   extra_invested: string;
   /** Total interest on each side (plan, and plan with the change). */
-  baseline_total_interest?: string | null;
-  scenario_total_interest?: string | null;
+  baseline_total_interest?: string | null; scenario_total_interest?: string | null;
   /** This month's cash gap on each side ('0' when covered). */
-  baseline_shortfall?: string | null;
-  scenario_shortfall?: string | null;
+  baseline_shortfall?: string | null; scenario_shortfall?: string | null;
   /** Tenure what-if (live test #26): the loan's EMI and months, before and after. */
-  tenure_old_emi?: string | null;
-  tenure_new_emi?: string | null;
-  tenure_old_months?: number | null;
-  tenure_new_months?: number | null;
+  tenure_old_emi?: string | null; tenure_new_emi?: string | null;
+  tenure_old_months?: number | null; tenure_new_months?: number | null;
+  /** UX2 #20 lump sum: the loan under each answer to "lower EMI or finish sooner?"; the one the plan ran. */
+  prepay_options?: { mode: PrepayMode; old_emi: string; new_emi: string; old_months: number; new_months: number; interest_saved: string }[] | null;
+  prepay_mode_used?: PrepayMode | null;
 }
+export type PrepayMode = 'reduce_tenure' | 'reduce_emi';
 
 export interface NewDebtResponse {
   list_price: string;
@@ -1690,6 +1689,7 @@ export const api = {
     alt_strategy?: Strategy;
     lump_sum_amount?: string;
     lump_sum_target_loan_index?: number;
+    lump_sum_mode?: PrepayMode; // UX2 #20: the user's answer, sent once given
     /** Live test #26: re-amortise this loan over this many more months. */
     tenure_extension_loan_index?: number;
     tenure_extension_months?: number;

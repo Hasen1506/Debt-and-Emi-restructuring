@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer } from '@/lib/strategy';
@@ -18,6 +18,9 @@ import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
 import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 import { INTRO_HIDE_SCRIPT } from '@/lib/intro-seen';
+import { THEME_SCRIPT } from '@/lib/theme';
+import { OfflineSupport } from '@/components/site/OfflineSupport';
+import { OtherTabSavedNotice } from '@/lib/tab-guard';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -30,6 +33,14 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', images: ['/og.png'] },
 };
 
+// UX2 #23: the browser bar matches the page in light and dark.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fbfaf3' },
+    { media: '(prefers-color-scheme: dark)', color: '#141412' },
+  ],
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [profile, strategy, rules] = await Promise.all([loadProfileServer(), loadStrategyServer(), loadRulesServer()]);
   // The strategy orders debts, so it shows only when there are some.
@@ -37,8 +48,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // When every strategy pays the debts in the same order, the switch says so.
   const sameOrder = hasDebt ? sharedPayoffOrder({ ...profile.user, payoff_rules: rulesOrDefault(rules, profile.user.country) }, profile.marginalRate) : null;
   return (
-    <html lang="en">
+    // suppressHydrationWarning: THEME_SCRIPT may set data-theme before React loads.
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* UX2 #23: a chosen light/dark theme applies before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* The ledger look: IBM Plex Mono for figures and labels, IBM Plex
             Sans for body text, self-hosted (UX50 A-12, audit 80+ B5;
             @font-face in styles/globals.css). */}
@@ -71,6 +85,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         <SaveFailedNotice />
         <AccountSyncNotice />
+        {/* UX2 #23: offline page, last-seen plan "as of", offline notice. */}
+        <OfflineSupport register={process.env.NODE_ENV === 'production'} />
+        {/* UX2 #23: the profile was saved in another tab after this one loaded. */}
+        <OtherTabSavedNotice />
         {/* audit80 D2: one-tap agreement when the notice or terms changed. */}
         <ConsentNotice />
         <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>

@@ -99,6 +99,10 @@ function entryRow(e: ActivityEntry, loan: LoanPayload, country: Country): Histor
   if (e.coversForwardMonths) notes.push(`covers ${e.coversForwardMonths} months${e.source ? ` · ${e.source.replace('-', ' ')}` : ''}`);
   else if (e.source) notes.push(e.source.replace('-', ' '));
   if (e.note) notes.push(e.note);
+  // UX2 #20: what the prepayment did, and balances changed in Profile.
+  if (e.prepayMode === 'reduce_emi') notes.push(e.emiAfter ? `${country === 'US' ? 'payment' : 'EMI'} lowered to ${fmt(e.emiAfter)}` : `${country === 'US' ? 'payment' : 'EMI'} lowered`);
+  else if (e.prepayMode === 'reduce_tenure') notes.push('same EMI, ends sooner');
+  if (e.fromProfileEdit) notes.push(`balance changed in Profile: ${fmt(e.fromProfileEdit.from)} → ${fmt(e.fromProfileEdit.to)}`);
   const base = {
     key: e.id,
     date: e.date,
@@ -146,6 +150,9 @@ function entryRow(e: ActivityEntry, loan: LoanPayload, country: Country): Histor
       };
     case 'closed':
       return { ...base, type: 'PAYOFF', status: 'PAID OFF', tone: 'positive', effect: { text: 'BALANCE → 0', tone: 'positive' } };
+    case 'balance_correction':
+      return { ...base, type: 'CORRECTION', status: 'FIXED', tone: 'muted', planned: undefined,
+        effect: { text: `−${fmt(e.amount)} ENTERED WRONG BEFORE, NOT A PAYMENT`, tone: 'muted' } };
   }
 }
 

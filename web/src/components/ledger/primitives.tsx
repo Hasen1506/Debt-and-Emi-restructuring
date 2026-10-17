@@ -21,20 +21,24 @@ import Link from 'next/link';
 import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
-  bg: '#fbfaf3',
-  paper: '#ffffff',
-  ink: '#0a0a0a',
-  inkSoft: '#2a2a26',
-  muted: '#5e5e58',
-  faint: '#a8a8a3',
-  rule: '#0a0a0a',
-  ruleSoft: '#d8d6cd',
-  accent: '#ab4f30',       // 4.5:1 as text on bg and under white text (was #c96442)
-  accentInk: '#8b3a1f',
-  positive: '#137a3a',     // 4.5:1 on the highlight rows too (was #15803d)
-  negative: '#b91c1c',
-  highlight: '#fff3a3',
-  highlightSoft: '#fff8d3',
+  // UX2 #23: CSS variables (styles/globals.css), so dark mode is one switch
+  // of the tokens. Light values: bg #fbfaf3, paper #fff, ink #0a0a0a, muted
+  // #5e5e58, accent #ab4f30 (4.5:1 as text on bg and under white text),
+  // positive #137a3a, negative #b91c1c, highlight #fff3a3.
+  bg: 'var(--canvas)',
+  paper: 'var(--card)',
+  ink: 'var(--ink)',
+  inkSoft: 'var(--ink-soft)',
+  muted: 'var(--muted)',
+  faint: 'var(--soft)',
+  rule: 'var(--border)',
+  ruleSoft: 'var(--rule-soft)',
+  accent: 'var(--accent)',
+  accentInk: 'var(--accent-ink)',
+  positive: 'var(--positive)',
+  negative: 'var(--negative)',
+  highlight: 'var(--highlight)',
+  highlightSoft: 'var(--highlight-soft)',
 } as const;
 
 export const L_MONO = "'IBM Plex Mono', 'RD Mono Fallback', 'JetBrains Mono', ui-monospace, monospace";
@@ -330,7 +334,7 @@ export function LAllocationBar({
                 flex: share,
                 minWidth: 6,
                 background: s.color,
-                color: s.ink ?? '#fff',
+                color: s.ink ?? 'var(--card)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

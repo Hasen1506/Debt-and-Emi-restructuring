@@ -116,6 +116,8 @@
   --highlight: #fff3a3;
   --highlight-soft: #fff8d3;
   --rule-soft: #d8d6cd;          /* slider track */
+  --ink-soft: #2a2a26;
+  color-scheme: light;
 
   --font-sans: 'IBM Plex Sans', 'RD Sans Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'RD Mono Fallback', ui-monospace, monospace;
@@ -148,6 +150,66 @@
 
   --shadow-card: none;
   --shadow-elev: none;
+}
+
+/* UX2 #23 dark mode. The page follows the system setting
+   (prefers-color-scheme) unless Profile > Appearance chose one: the inline
+   script in app/layout.tsx sets <html data-theme> before the first paint
+   (lib/theme.ts), so there is no light flash. Screen only: printing stays
+   light. Every pair used for text is 4.5:1 or more (WCAG AA), checked by
+   web/tests/r3d-ux2.cjs against these values. Components read these
+   tokens (L_T in ledger/primitives is var(--…) of them). */
+@media screen {
+  :root[data-theme='dark'] {
+  --canvas: #141412;
+  --card: #1d1d1a;
+  --ink: #ecebe3;
+  --ink-soft: #d6d5cc;
+  --muted: #a8a79e;
+  --soft: #6e6d66;
+  --border: #ecebe3;
+  --dash: #6e6d66;
+  --accent: #e8906e;
+  --accent-muted: #7a3f2b;
+  --accent-ink: #f2a98b;
+  --negative: #f28b82;
+  --positive: #5dd08c;
+  --warning: #e6a85a;
+  --soft-bg: #23231f;
+  --calm-bg: #1d1d1a;
+  --overwhelmed-bg: #211e1a;
+  --highlight: #3d3610;
+  --highlight-soft: #2d2a16;
+  --rule-soft: #3a3934;
+  --masthead-edge: #000000;
+  color-scheme: dark;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --canvas: #141412;
+  --card: #1d1d1a;
+  --ink: #ecebe3;
+  --ink-soft: #d6d5cc;
+  --muted: #a8a79e;
+  --soft: #6e6d66;
+  --border: #ecebe3;
+  --dash: #6e6d66;
+  --accent: #e8906e;
+  --accent-muted: #7a3f2b;
+  --accent-ink: #f2a98b;
+  --negative: #f28b82;
+  --positive: #5dd08c;
+  --warning: #e6a85a;
+  --soft-bg: #23231f;
+  --calm-bg: #1d1d1a;
+  --overwhelmed-bg: #211e1a;
+  --highlight: #3d3610;
+  --highlight-soft: #2d2a16;
+  --rule-soft: #3a3934;
+  --masthead-edge: #000000;
+  color-scheme: dark;
+  }
 }
 
 * {

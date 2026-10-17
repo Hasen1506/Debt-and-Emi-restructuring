@@ -51,6 +51,8 @@ import {
 import { computeGoalSlip, materialPullForwards } from '@/lib/goal-slip';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { PrepayChoice } from '@/components/PrepayChoice';
+import { asksPrepayChoice, lowerEmiAfter, prepayFields, saveLowerEmi, type PrepayMode } from '@/lib/prepay-choice';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -158,6 +160,12 @@ export function WhatIfPanel({
   const [surplus, setSurplus] = useState<ScenarioState>(INITIAL);
   const [rate, setRate] = useState<ScenarioState>(INITIAL);
   const [lump, setLump] = useState<ScenarioState>(INITIAL);
+  // UX2 #20: "lower your EMI or finish sooner?" is the user's answer; a new
+  // amount or loan asks again.
+  const [lumpMode, setLumpMode] = useState<PrepayMode | null>(null);
+  const [lumpModeTried, setLumpModeTried] = useState(false);
+  useEffect(() => { setLumpMode(null); setLumpModeTried(false); }, [lumpAmount, lumpTarget]);
+  const lumpAsks = lumpAmount > 0 && lumpAmount < lumpTargetCap && asksPrepayChoice(user.loans[lumpTarget]);
 
   // Currency of the loan the lump-sum is being applied to. A USD card
   // lump-sum should show "$" everywhere; an INR home-loan lump-sum
@@ -197,6 +205,10 @@ export function WhatIfPanel({
 
   function commitLumpSum() {
     if (lumpAmount <= 0 || !Number.isFinite(lumpAmount) || lumpTarget < 0) return;
+    if (lumpAsks && !lumpMode) {
+      setLumpModeTried(true);
+      return;
+    }
     const stored = loadProfileClient();
     const index = resolveLoanIndex(lumpRef, stored.user.loans);
     if (!stored.isLive || !isOpenCurrentLoan(stored.user.loans[index])) {
@@ -220,6 +232,12 @@ export function WhatIfPanel({
     const outstandingD = new Decimal(owedLoans[lumpTarget]?.outstanding || target.outstanding || '0');
     const paymentD = new Decimal(String(lumpAmount));
     const fullyClears = paymentD.gte(outstandingD);
+    // The engine's figure for the lower EMI when it has one, else the same
+    // formula here (lib/prepay-choice).
+    const option = lump.result?.prepay_options?.find((o) => o.mode === 'reduce_emi');
+    const newEmi = !fullyClears && lumpMode === 'reduce_emi'
+      ? Number(option?.new_emi ?? lowerEmiAfter(owedLoans[lumpTarget] ?? target, lumpAmount) ?? 0)
+      : null;
     applyToolResult({
       loanIndex: index,
       kind: fullyClears ? 'closed' : 'paid_extra',
@@ -230,7 +248,9 @@ export function WhatIfPanel({
       note: `What-if lock-in — ${fmtLump(lumpAmount)} → ${target.bank}`,
       loans: stored.user.loans,
       country: stored.user.country,
+      ...(!fullyClears && lumpMode ? { prepay: prepayFields(lumpMode, sched, newEmi) } : {}),
     });
+    const emiSaved = newEmi ? saveLowerEmi({ loanIndex: index, loanId: target.id }, newEmi) : false;
     const entry: Omit<CommitmentEntry, 'id'> = {
       date: todayISO(),
       kind: 'lump_sum',
@@ -243,7 +263,8 @@ export function WhatIfPanel({
     writeCommitmentsClient(next);
     setCommitments(next);
     setLumpAmount(0);
-    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.`);
+    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.` +
+      (emiSaved && newEmi ? ` Its EMI is now ${fmtLump(newEmi)} in Profile; check it against the bank's letter.` : ''));
     startTransition(() => router.refresh());
   }
 
@@ -299,7 +320,7 @@ export function WhatIfPanel({
   );
 
   useDebouncedScenario(
-    `${baseKey}|${lumpAmount}|${lumpTarget}`,
+    `${baseKey}|${lumpAmount}|${lumpTarget}|${lumpMode}`,
     setLump,
     async (signal: AbortSignal) =>
       lumpAmount === 0 || lumpTarget < 0
@@ -309,6 +330,7 @@ export function WhatIfPanel({
             horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
+            ...(lumpMode ? { lump_sum_mode: lumpMode } : {}),
           }, signal),
     lumpAmount !== 0 && lumpTarget >= 0,
   );
@@ -491,6 +513,20 @@ export function WhatIfPanel({
               </select>
               <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>★ The dearest, the plan&apos;s own pick</span>
             </label>
+            {lumpAsks && (
+              <PrepayChoice
+                country={user.country}
+                value={lumpMode}
+                onChange={setLumpMode}
+                detail={prepayDetail(lump.result, fmtLump, user.country)}
+                error={lumpModeTried && !lumpMode ? 'Choose one before logging it: it changes what the bank does.' : null}
+              />
+            )}
+            {lumpAsks && !lumpMode && lump.result && (
+              <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>
+                Until you choose, the figures above keep the {user.country === 'US' ? 'payment' : 'EMI'}, which is what a bank does with no instruction.
+              </span>
+            )}
             <LockItInButton
               disabled={lumpAmount <= 0}
               label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions.find(o => o.value === lumpTarget)?.label.split(' · ')[0] ?? 'loan'}`}
@@ -598,6 +634,23 @@ function LockItInButton({
       {reason && <span style={{display:'block', fontSize: 'var(--fs-small)', color:L_T.muted}}>{reason}</span>}
     </span>
   );
+}
+
+/** One line per answer to "lower your EMI or finish sooner?", from the
+ *  engine's figures for the loan on its own schedule. */
+function prepayDetail(result: CompareResponse | null, fmt: (v: number) => string, country: UserPayload['country']): Partial<Record<PrepayMode, string>> | undefined {
+  const opts = result?.prepay_options;
+  if (!opts?.length) return undefined;
+  const pay = country === 'US' ? 'payment' : 'EMI';
+  const out: Partial<Record<PrepayMode, string>> = {};
+  for (const o of opts) {
+    const saved = Number(o.interest_saved);
+    const save = saved > 0 ? `, about ${fmt(Math.round(saved))} less interest on this loan` : '';
+    out[o.mode] = o.mode === 'reduce_tenure'
+      ? `${pay} stays ${fmt(Math.round(Number(o.old_emi)))}; ${o.new_months} months left instead of ${o.old_months}${save}`
+      : `${pay} ${fmt(Math.round(Number(o.old_emi)))} → ${fmt(Math.round(Number(o.new_emi)))} a month, ending as planned${save}`;
+  }
+  return out;
 }
 
 function roundStep(value: number, base: number): number {

@@ -30,6 +30,8 @@ import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, L_MONO, L_T } from '@/components/ledger/primitives';
 import { LifeEventForm } from '@/components/lifecycle/LifeEventForm';
 import { loanLabel, openLoans } from './history';
+import { PrepayChoice } from '@/components/PrepayChoice';
+import { asksPrepayChoice, lowerEmiAfter, prepayFields, type PrepayMode } from '@/lib/prepay-choice';
 import { rateChangeLoanIndex, isOpenCurrentLoan } from '@/lib/plan-controls';
 
 export type LogType = 'payment' | 'rate' | 'pay' | 'spending' | 'loan';
@@ -79,6 +81,8 @@ const STATUS_OF: Record<ActivityKind, PayStatus> = {
   missed: 'missed',
   paid_extra: 'extra',
   closed: 'off',
+  // A Profile correction is changed in Profile; here it reads as an extra.
+  balance_correction: 'extra',
 };
 const SOURCES: { v: string; label: string }[] = [
   { v: 'surplus', label: 'This month’s spare cash' },
@@ -155,6 +159,8 @@ export function LogDialog({
   const [source, setSource] = useState(edit?.source ?? 'surplus');
   const [note, setNote] = useState(edit?.note ?? '');
   const [tried, setTried] = useState(false);
+  // UX2 #20: a prepayment on an EMI loan asks "lower your EMI or finish sooner?".
+  const [prepayMode, setPrepayMode] = useState<PrepayMode | null>(edit?.prepayMode ?? null);
 
   // An amount left blank means the usual one, where there is one.
   const typed = amount.trim();
@@ -165,6 +171,8 @@ export function LogDialog({
   const fmt = (v: Decimal.Value) => formatCurrencyWhole(new Decimal(v).toFixed(0), lccy);
   const usual = card ? `Minimum ${fmt(planned)}` : `${country === 'US' ? 'Payment' : 'EMI'} ${fmt(planned)}`;
 
+  const asksPrepay = !edit && status === 'extra' && asksPrepayChoice(loan) && amt.gt(0) && amt.lt(new Decimal(loan?.outstanding || 0));
+  const lowerEmi = asksPrepay && loan ? lowerEmiAfter(loan, amt.toNumber()) : null;
   const payProblems: Record<string, string | null> = {
     timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? localTerms('The first EMI is not due yet. Choose “Paid extra” for an early prepayment.', country) : null,
     loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
@@ -178,6 +186,7 @@ export function LogDialog({
     date: !date ? 'Pick the date.' : date > today ? 'That’s after today. A payment you’re planning goes on Plan.' : null,
     newBalance: newBalance.trim() && !(Number(newBalance) >= 0) ? 'Enter the balance, or leave it blank.' : null,
     fee: fee.trim() && !(Number(fee) >= 0) ? 'Enter the fee, or leave it blank.' : null,
+    prepay: asksPrepay && !prepayMode ? 'Choose one: it changes what the bank does with the money.' : null,
   };
   const payValid = !Object.values(payProblems).some(Boolean);
   const showPay = (k: string) => (tried ? payProblems[k] : null);
@@ -219,6 +228,7 @@ export function LogDialog({
       ...(status === 'extra' ? { source } : {}),
       ...(plannedExtra ? { plannedExtra } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
+      ...(asksPrepay && prepayMode ? prepayFields(prepayMode, loan?.scheduled_emi || 0, lowerEmi) : {}),
     };
   }
 
@@ -439,6 +449,15 @@ export function LogDialog({
                 <Field label="Date" kind="date" value={date} onChange={setDate} error={showPay('date')} />
               </div>
             </Row>
+            {asksPrepay && (
+              <PrepayChoice
+                country={country}
+                value={prepayMode}
+                onChange={setPrepayMode}
+                detail={lowerEmi ? { reduce_emi: `${fmt(new Decimal(loan?.scheduled_emi || 0))} → ${fmt(lowerEmi)} a month` } : undefined}
+                error={showPay('prepay')}
+              />
+            )}
             {status === 'extra' && (
               <LChipRow label="Where it came from">
                 {SOURCES.map(({ v, label }) => (

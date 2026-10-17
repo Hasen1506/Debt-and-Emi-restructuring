@@ -328,6 +328,11 @@ export const LOCAL_PER_USER_KEYS = [
   // written even with the funnel off). return_month2 stays counted once per
   // device by rightdue_funnel_once.
   'rightdue_first_plan_ym',
+  // UX2 #23: the text of this person's last Home and Plan, kept for the
+  // offline page (lib/offline-snapshot.ts); the next person must not see it.
+  'rightdue_offline_snapshot',
+  // UX2 #23: when this browser last saved the profile (lib/tab-guard).
+  'rightdue_profile_saved_at',
 ] as const;
 
 /** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's
@@ -338,7 +343,8 @@ export const LOCAL_PER_USER_PREFIXES = ['rd_intro_seen_'] as const;
 /** Device-level keys kept on sign-out on purpose: counts-only funnel
  *  dedupe (A15; no user data, clearing would double-count this browser)
  *  and the page trail used for back links. */
-export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail'] as const;
+// UX2 #23: rightdue_theme (light/dark choice, lib/theme.ts) is the screen's, not the person's.
+export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail', 'rightdue_theme'] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 

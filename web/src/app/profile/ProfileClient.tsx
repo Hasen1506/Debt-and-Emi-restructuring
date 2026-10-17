@@ -50,7 +50,9 @@ import {
   MONTH_NAMES,
   localIsoDate,
 } from '@/lib/today';
-import { BALANCES_ENTERED_KEY } from '@/lib/activity';
+import { BALANCES_ENTERED_KEY, type BalanceDropReason } from '@/lib/activity';
+import { balanceDropOf, logBalanceDrops } from '@/lib/prepay-choice';
+import { BalanceDropQuestion } from '@/components/profile/BalanceDropQuestion';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
@@ -87,6 +89,7 @@ import { CountrySwitchPanel } from './parts/country-switch';
 import { AdvancedTaxDetails } from './parts/income-fields';
 import { HikeScheduleEditor, MinPaymentExplainer, TenureField } from './parts/loan-fields';
 import { EfLiquidityWarning, EfTierPicker, OtherBanksField } from './parts/savings-fields';
+import { useProfileEditGuard } from '@/lib/tab-guard';
 
 /**
  * True when any field on the deductions payload is set to a meaningful
@@ -363,10 +366,12 @@ function ProfileEditor({
   const savedLoansRef = useRef<LoanPayload[]>([]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
+  const [dropReasons, setDropReasons] = useState<Record<string, BalanceDropReason>>({});
   const [saveFailed, setSaveFailed] = useState(false);
   // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
   // or jump to Loans, with no word, so a blocked save looked like a lost one.
   const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
+  const tabGuard = useProfileEditGuard(() => save()); // UX2 #23 two tabs
   // R8-7: the text typed in whole-month loan fields, by `${loan id}:lock|freq`.
   const [monthsText, setMonthsText] = useState<Record<string, string>>({});
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
@@ -815,8 +820,8 @@ function ProfileEditor({
   }
 
   async function save() {
-    // A country change waits for its currency decision.
-    if (pendingCountry) return;
+    // A country change waits for its currency decision; another tab's save waits for reload-or-overwrite (UX2 #23).
+    if (pendingCountry || tabGuard.blocks()) return;
     // A deep link can reach Review without passing the Loans check.
     if (!loansComplete) {
       onOpen(3);
@@ -852,10 +857,7 @@ function ProfileEditor({
       fetchedQuotes,
       Date.now(),
     );
-    // When the user provided gross income, derive marginal_rate from the
-    // bracket they fall into — that's a sharper signal than the manual
-    // marginal_rate field on Step 4. Fall back to the manual value only
-    // when no gross is provided.
+    // Gross income given: marginal_rate comes from its bracket (sharper than Step 4's manual field).
     // Streams (when present) override the single annual_gross_salary /
     // annual_business_income input. Each stream contributes per its
     // tax_treatment: salary/business_normal at 100%, 44ADA at 50%,
@@ -923,9 +925,10 @@ function ProfileEditor({
       ? deductionDerived.toFixed(4)
       : composedRate.toFixed(4);
     // A balance typed now is dated today; one left as it was keeps its date.
+    const savedBefore = loadProfileClient().user.loans, recordedAt = new Date().toISOString();
     const stampedUser = {
       ...userWithFx,
-      loans: stampBalanceDates(userWithFx.loans, loadProfileClient().user.loans, localIsoDate(getCountryToday(country))),
+      loans: stampBalanceDates(userWithFx.loans, savedBefore, localIsoDate(getCountryToday(country)), recordedAt),
     };
     const saved = saveProfileWithPaidEmis({
       user: stampedUser,
@@ -939,6 +942,7 @@ function ProfileEditor({
       return;
     }
     setSaveFailed(false);
+    logBalanceDrops(savedBefore, stampedUser, dropReasons, localIsoDate(getCountryToday(country)), recordedAt); // UX2 #20
     // The balances were just entered, so cards aren't "never updated".
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
@@ -970,6 +974,8 @@ function ProfileEditor({
   const askPaid = (l: LoanPayload) =>
     needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
   const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
+  const dropOf = (l: LoanPayload) => balanceDropOf(l, savedLoans); // UX2 #20: a prepayment or a correction?
+  const dropErrors = loans.map((l) => (dropOf(l) > 0 && !(l.id && dropReasons[l.id]) ? 'Choose one, so Activity records it right.' : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
   const foreignCcys = Array.from(
@@ -994,7 +1000,7 @@ function ProfileEditor({
   }
   const loansComplete =
     loanErrors.every((e) => Object.keys(e).length === 0) &&
-    paidErrors.every((e) => !e) &&
+    paidErrors.every((e) => !e) && dropErrors.every((e) => !e) &&
     Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
@@ -1107,7 +1113,7 @@ function ProfileEditor({
                           selected ? 'var(--accent)' : 'var(--border)'
                         }`,
                         background: selected ? 'var(--accent)' : 'var(--card)',
-                        color: selected ? '#fff' : 'var(--ink)',
+                        color: selected ? 'var(--card)' : 'var(--ink)',
                         fontSize: 'var(--fs-body)',
                         cursor: 'pointer',
                       }}
@@ -1698,6 +1704,8 @@ function ProfileEditor({
                     error={showLoanErrors ? paidErrors[i] : null}
                   />
                 )}
+                {dropOf(l) > 0 && l.id && <BalanceDropQuestion drop={formatCurrency(dropOf(l), loanCurrency(l, country))} value={dropReasons[l.id]}
+                  onChange={(r) => setDropReasons((d) => ({ ...d, [l.id as string]: r }))} error={showLoanErrors ? dropErrors[i] : null} />}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"
@@ -1923,7 +1931,7 @@ function ProfileEditor({
                               borderRadius: 999,
                               border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
                               background: on ? 'var(--accent)' : 'var(--card)',
-                              color: on ? '#fff' : 'var(--ink)',
+                              color: on ? 'var(--card)' : 'var(--ink)',
                               fontSize: 'var(--fs-body)',
                               cursor: 'pointer',
                             }}
@@ -2114,18 +2122,9 @@ function ProfileEditor({
                   error={showLoanErrors ? loanErrors[i]?.emi : null}
                   info={
                     <>
-                      The <strong>contractual monthly amount</strong> the bank
-                      auto-debits — not what you actually pay if you overpay.
-                      <br />
-                      <br />
-                      Anything you pay above this number is captured as a{' '}
-                      <strong>paid_extra</strong> entry in the Activity
-                      ledger, or routed by the avalanche/snowball strategy as
-                      surplus.
-                      <br />
-                      <br />
-                      For credit cards: your usual payment amount, or{' '}
-                      <strong>0</strong> if you only ever pay the minimum.
+                      The <strong>contractual monthly amount</strong> the bank auto-debits, not what you pay when you overpay.
+                      Anything above it goes in Activity as an extra payment, or the plan sends it as spare cash.<br /><br />
+                      For credit cards: your usual payment, or <strong>0</strong> if you only ever pay the minimum.
                     </>
                   }
                 />
@@ -2765,6 +2764,7 @@ function ProfileEditor({
             Confirm or cancel the country change above before saving.
           </p>
         )}
+        {tabGuard.ui}
         {saveBlocked && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             {saveBlocked}

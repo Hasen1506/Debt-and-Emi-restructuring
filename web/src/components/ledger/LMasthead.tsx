@@ -144,7 +144,7 @@ export function LMasthead({
     <header
       className="rd-masthead"
       style={{
-        borderTop: `6px solid ${L_T.ink}`,
+        borderTop: '6px solid var(--masthead-edge, var(--ink))', // UX2 #23: a dark band in both themes
         padding: '14px clamp(16px, 4vw, 32px) 0',
         background: L_T.bg,
         fontFamily: L_MONO,

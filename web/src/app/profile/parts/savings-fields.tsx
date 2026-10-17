@@ -297,7 +297,7 @@ export function OtherBanksField({
           style={{
             padding: '8px 14px',
             background: 'var(--accent)',
-            color: 'white',
+            color: 'var(--card)',
             border: 'none',
             borderRadius: 6,
             cursor: draft.trim() ? 'pointer' : 'not-allowed',
