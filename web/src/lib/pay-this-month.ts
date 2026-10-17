@@ -11,7 +11,6 @@ import { GST_RATE_IN } from '@/lib/gst';
 import { homeTaxReserve } from '@/lib/salaried-advance-tax';
 import { getCountryToday, localIsoDate } from '@/lib/today';
 import { debtStatus, isSettled } from '@/lib/loan-status-core';
-import { overdueOf } from '@/lib/catch-up';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
@@ -150,7 +149,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
       ...(payoff ? { payoff } : {}),
       ...(fromSalary ? { fromSalary } : {}),
       ...(held ? { held } : {}),
-      ...(status === 'behind' ? { behind: true, ...(catchUp >= 1 ? { catchUp, estimated: overdueOf(loan).estimated } : {}) } : {}),
+      ...(status === 'behind' ? { behind: true, ...(catchUp >= 1 ? { catchUp, estimated: !loan.overdue_amount } : {}) } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not
@@ -171,10 +170,8 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   // A collections loan's share is kept back for a settlement, not paid to it.
   for (const [k, v] of Object.entries(plan.debtStatusMonth1?.pot ?? {})) {
     const add = Math.round(Number(v));     // month 1: the pot starts empty, so all of it is this month's
-    const loan = loans[Number(k)];
-    if (!loan || !(add >= 1)) continue;
-    const name = loanNickname(named[Number(k)]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]));
-    setAside.push({ key: `pot-${loan.id ?? k}`, loanIndex: null, name: `Settlement pot · ${name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: Number(k) });
+    const held = loanRows.find((r) => r.loanIndex === Number(k));
+    if (held && add >= 1) setAside.push({ key: `pot-${held.key}`, loanIndex: null, name: `Settlement pot · ${held.name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: Number(k) });
   }
   const pots = setAside.reduce((s, r) => s + (r.kind === 'pot' ? r.amount : 0), 0);
   const surplus = Math.round(a?.surplus ?? plan.surplus);
