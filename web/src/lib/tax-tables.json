@@ -299,6 +299,20 @@
         ]
       ],
       "standard_deduction": 16100
+    },
+    "se": {
+      "net_factor": 0.9235,
+      "ss_rate": 0.124,
+      "medicare_rate": 0.029,
+      "ss_wage_base": 184500,
+      "min_net": 400,
+      "addl_medicare_rate": 0.009,
+      "addl_medicare_threshold": {
+        "single": 200000,
+        "hoh": 200000,
+        "mfj": 250000,
+        "mfs": 125000
+      }
     }
   }
 }

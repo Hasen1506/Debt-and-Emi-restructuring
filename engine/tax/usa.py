@@ -339,3 +339,36 @@ def itemisation_benefit(
         deductible_interest = min(mortgage_interest_paid, incremental)
         return deductible_interest * marginal_rate, True
     return D("0"), False
+
+
+# ── Self-employment tax (round 3, u08gig) ────────────────────────────────────
+# IRS Topic 554 (https://www.irs.gov/taxtopics/tc554, read 17 Oct 2026): 12.4%
+# Social Security + 2.9% Medicare on 92.35% of net earnings from self-employment
+# ($400 or more); the Social Security part stops at the contribution and benefit
+# base, $184,500 for 2026 (SSA, https://www.ssa.gov/oact/cola/cbb.html, read
+# 17 Oct 2026); 0.9% Additional Medicare above $200,000 ($250,000 married filing
+# jointly, $125,000 separately); half the SE tax is deducted in working out AGI.
+# Estimated tax is paid by 15 Apr, 15 Jun, 15 Sep and 15 Jan (IRS FAQ,
+# https://www.irs.gov/faqs/estimated-tax/individuals/individuals-2, read 17 Oct 2026).
+SE_NET_FACTOR = D("0.9235")
+SE_SS_RATE = D("0.124")
+SE_MEDICARE_RATE = D("0.029")
+SE_SS_WAGE_BASE_2026 = D("184500")
+SE_MIN_NET = D("400")
+ADDL_MEDICARE_RATE = D("0.009")
+ADDL_MEDICARE_THRESHOLD = {
+    FilingStatusUS.SINGLE: D("200000"), FilingStatusUS.HOH: D("200000"),
+    FilingStatusUS.MFJ: D("250000"), FilingStatusUS.MFS: D("125000"),
+}
+
+
+def self_employment_tax(net_earnings: Decimal, filing_status: FilingStatusUS | None = None) -> tuple[Decimal, Decimal]:
+    """(SE tax for the year, the half deducted from income) on net earnings
+    from self-employment (Schedule C profit). The Additional Medicare part is
+    not halved."""
+    se = max(D("0"), net_earnings) * SE_NET_FACTOR
+    if net_earnings < SE_MIN_NET:
+        return D("0"), D("0")
+    base = SE_SS_RATE * min(se, SE_SS_WAGE_BASE_2026) + SE_MEDICARE_RATE * se
+    extra = ADDL_MEDICARE_RATE * max(D("0"), se - ADDL_MEDICARE_THRESHOLD[filing_status or FilingStatusUS.SINGLE])
+    return base + extra, base / 2
