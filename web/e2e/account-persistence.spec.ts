@@ -61,12 +61,20 @@ test('signed in: a Profile save reaches the account, survives a reload, and leav
 test('sign-in ended elsewhere: the save is kept here, the notice says why, and signing in again sends it', async ({ page, context, playwright }) => {
   const email = 'l1-ended@rightdue.app';
   await setUp(page, email);
+  // Profile is open (loaded while still signed in) when the sign-in ends.
+  // Revoking first and then opening Profile is a different journey: with
+  // nothing waiting to send, that browser's copies are dropped (D21) and it
+  // is asked to sign in again (the next test).
+  await page.goto('/profile');
+  await openProfileSection(page, 'Income and spending');
   // Revoke this browser's session from outside it (another tab's sign-out,
   // expiry, a database reset); the cookie stays in this browser.
   const session = (await context.cookies()).find((c) => c.name === 'rightdue_session')!;
   const outside = await playwright.request.newContext();
   expect((await outside.post(`${API}/api/auth/logout`, { headers: { Cookie: `rightdue_session=${session.value}` } })).status()).toBe(204);
-  await setTakeHome(page, '70000');
+  await page.getByLabel(/In-hand salary|Take-home/).first().fill('70000');
+  await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
+  await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
   await expect(notice(page)).toHaveAttribute('data-sync-state', 'signed_out');
   await expect(notice(page)).toContainText("saved on this device, but you're signed out");
   await expect(page.getByText('Changes have not reached your account. Keep this tab open')).toHaveCount(0);
@@ -88,6 +96,18 @@ test('sign-in ended elsewhere: the save is kept here, the notice says why, and s
   await takeHome(page, '₹70,000');
   await expect(notice(page)).toHaveCount(0);
   expect(await accountTakeHome(context)).toBe('70000');
+});
+
+test('sign-in ended with nothing waiting to send: opening a page asks to sign in again, not Setup', async ({ page, context, playwright }) => {
+  await setUp(page, 'l1-ended-idle@rightdue.app');
+  const session = (await context.cookies()).find((c) => c.name === 'rightdue_session')!;
+  const outside = await playwright.request.newContext();
+  expect((await outside.post(`${API}/api/auth/logout`, { headers: { Cookie: `rightdue_session=${session.value}` } })).status()).toBe(204);
+  await page.goto('/profile');
+  // The dead cookie is still sent, so the page opens; the 401 behind it drops
+  // this browser's copies (D21) and sends the person to sign in, back to Profile.
+  await expect(page).toHaveURL(/\/login\?next=%2Fprofile/, { timeout: 15_000 });
+  await expect(page.getByPlaceholder('you@example.com')).toBeVisible();
 });
 
 test('two devices: a stale edit is not written over the newer one; the person chooses which to keep', async ({ page, browser }) => {

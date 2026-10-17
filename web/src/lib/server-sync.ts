@@ -21,6 +21,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onSignInPage, SESSION_CHANGED_EVENT } from './session-events';
+import { isGatedAppPath } from './app-routes';
 import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 import { migrateLegacyClientStorage } from './storage-migration';
@@ -724,7 +725,15 @@ export function SessionHydrator(): null {
         noteSignedOut();
         // D21: a definite "signed out" (not a network error) for a browser
         // that was caching an account: drop that account's copies.
-        if ((err as { status?: number } | null)?.status === 401 && forgetExpiredAccount() && !onSignInPage()) router.refresh();
+        // The session cookie is still here (httpOnly), so refreshing an app
+        // page sent the person to Setup with an empty profile: the middleware
+        // saw a session and no profile. Ask them to sign in again instead,
+        // back to this page (account-persistence e2e, Chromium).
+        if ((err as { status?: number } | null)?.status === 401 && forgetExpiredAccount() && !onSignInPage()) {
+          const { pathname, search } = window.location;
+          if (isGatedAppPath(pathname)) router.replace(`/login?next=${encodeURIComponent(pathname + search)}`);
+          else router.refresh();
+        }
       }
     }
     void hydrate();
