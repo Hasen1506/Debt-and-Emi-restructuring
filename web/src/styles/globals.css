@@ -181,6 +181,7 @@
   --highlight: #3d3610;
   --highlight-soft: #2d2a16;
   --rule-soft: #3a3934;
+  --masthead-edge: #000000;
   color-scheme: dark;
   }
 }
@@ -206,6 +207,7 @@
   --highlight: #3d3610;
   --highlight-soft: #2d2a16;
   --rule-soft: #3a3934;
+  --masthead-edge: #000000;
   color-scheme: dark;
   }
 }
