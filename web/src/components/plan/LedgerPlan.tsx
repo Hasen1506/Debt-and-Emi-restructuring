@@ -50,7 +50,6 @@ import { RateDecisions } from './RateDecisions';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
-import { FxCachePersister } from './FxCachePersister';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { PlanSchedule } from './PlanSchedule';
@@ -290,7 +289,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             `${l.bank} from ${monthIndexToCountryLabel(l.planned_effective_month!,plan.user.country)}`).join('; ')}.
           Confirm, postpone or cancel the event when the date arrives.
         </div>}
-        <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
 
         {whatIfPlan && whatIf && (

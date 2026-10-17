@@ -26,7 +26,7 @@ import type { LoanPayload } from './api';
 
 const D = (v: Decimal.Value) => new Decimal(v);
 
-export const US_RULES_AS_OF = '2026-10-12';
+// Rules as of 2026-10-12.
 
 export const US_SOURCES = {
   pslf: 'https://studentaid.gov/manage-loans/forgiveness-cancellation/public-service',
@@ -45,11 +45,6 @@ export const US_SOURCES = {
 } as const;
 
 // ── Student loans ───────────────────────────────────────────────────────────
-
-export type StudentLoanKind = 'federal' | 'private';
-export type ForgivenessTrack = 'pslf' | 'idr';
-/** E7 (audit 80): the user's answer, including "no" and "not sure". */
-export type ForgivenessAnswer = ForgivenessTrack | 'none' | 'unsure';
 
 type LoanLike = Pick<LoanPayload, 'loan_type' | 'currency' | 'student_loan_kind' | 'forgiveness_track'>;
 

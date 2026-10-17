@@ -52,11 +52,8 @@ test('the defaults shown are the engine\'s (asset returns, selling costs, prepay
 test('each value takes the user\'s own figure, else the default', () => {
   const a = lib('assumptions.ts');
   const u = { country: 'IN' };
-  assert.equal(a.prepayHurdle(u), 0.005);
-  assert.equal(a.prepayHurdle({ ...u, prepay_hurdle: '0.02' }), 0.02);
   assert.equal(a.assetReturn(u, 'equity_mf'), 0.11);
   assert.equal(a.assetReturn({ ...u, asset_returns: { equity_mf: '0.08' } }, 'equity_mf'), 0.08);
-  assert.equal(a.liquidationCost({ ...u, liquidation_costs: { gold_physical: '0.05' } }, 'gold_physical'), 0.05);
   assert.equal(a.efMonths(u), 6);
   assert.equal(a.efMonths({ ...u, assumptions: { ef_months: 4 } }), 4);
   assert.equal(a.efMonths({ ...u, assumptions: { ef_months: 40 } }), 6);

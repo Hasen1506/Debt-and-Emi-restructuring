@@ -54,11 +54,6 @@ export function assumedReturnFor(user: Pick<UserPayload, 'assumed_post_tax_retur
   return { value: Number(DEFAULT_ASSUMED_RETURN[user.country === 'US' ? 'US' : 'IN']), assumed: true };
 }
 
-/** The after-tax cost below which a loan gets the prepay / keep / split question. */
-export function splitThreshold(user: Pick<UserPayload, 'assumed_post_tax_return' | 'country'>): number {
-  return assumedReturnFor(user).value + SPLIT_MARGIN;
-}
-
 /** YYYY-MM or YYYY-MM-DD, a real past month after 1900; '' blank; null invalid. */
 export function parseDob(v: string, todayIso: string): string | null {
   const t = v.trim();

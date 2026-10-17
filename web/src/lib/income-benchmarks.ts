@@ -21,7 +21,7 @@
  */
 import type { Country, IncomeType } from './api';
 
-export const INCOME_BENCHMARKS_AS_OF = '2026-05';
+// Benchmarks as of 2026-05.
 
 export interface IncomeBenchmark {
   /** Median monthly income for this country × employment type, in
