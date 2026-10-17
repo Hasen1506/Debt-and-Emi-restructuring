@@ -77,3 +77,11 @@ test('E2E_FROZEN_NOW defaults parse as a date', () => {
     assert.ok(!Number.isNaN(Date.parse(m[1])), `${f}: ${m[1]}`);
   }
 });
+
+test('#20 x country switch: a loan converted ₹ -> $ is not asked "prepayment or entered wrong?"', () => {
+  const { balanceDropOf } = require(path.join(root, 'lib', 'prepay-choice.ts'));
+  const saved = [{ id: 'a', loan_type: 'personal_loan', outstanding: '150000', currency: 'INR' }];
+  assert.equal(balanceDropOf({ id: 'a', loan_type: 'personal_loan', outstanding: '1801.80', currency: 'USD' }, saved), 0);
+  assert.equal(balanceDropOf({ id: 'a', loan_type: 'personal_loan', outstanding: '100000', currency: 'INR' }, saved), 50000);
+  assert.match(src('app/profile/ProfileClient.tsx'), /balanceDropOf\(\{ \.\.\.l, currency: loanCurrency\(l, country\) \}, savedLoans\)/);
+});

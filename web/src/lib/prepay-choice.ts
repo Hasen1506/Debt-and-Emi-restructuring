@@ -74,6 +74,8 @@ export function prepayFields(mode: PrepayMode, emiBefore: string | number, emiAf
 export function balanceDropOf(loan: LoanPayload, saved: LoanPayload[]): number {
   const before = loan.id ? saved.find((p) => p.id === loan.id) : undefined;
   if (!before || loan.loan_type === 'credit_card' || !(Number(loan.outstanding) >= 0)) return 0;
+  // A country switch converted it (₹ -> $): a smaller number, not a lower balance.
+  if (before.currency && loan.currency && before.currency !== loan.currency) return 0;
   return Math.max(0, Number(before.outstanding) - Number(loan.outstanding));
 }
 

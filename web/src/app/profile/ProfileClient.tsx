@@ -472,7 +472,7 @@ function ProfileEditor({
       setHikeMonthTouched(true);
     }
     if (u.loans && u.loans.length > 0) {
-      savedLoansRef.current = withLoanIds(u.loans);
+      savedLoansRef.current = withLoanIds(u.loans).map((l) => ({ ...l, currency: loanCurrency(l, u.country) })); // currency: balanceDropOf
       setLoans(withLoanIds(u.loans));
       // Decide auto vs manual per loan on rehydrate: if the saved tenure
       // matches what we'd derive from the current outstanding+EMI+rate,
@@ -974,7 +974,7 @@ function ProfileEditor({
   const askPaid = (l: LoanPayload) =>
     needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
   const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
-  const dropOf = (l: LoanPayload) => balanceDropOf(l, savedLoans); // UX2 #20: a prepayment or a correction?
+  const dropOf = (l: LoanPayload) => balanceDropOf({ ...l, currency: loanCurrency(l, country) }, savedLoans); // UX2 #20
   const dropErrors = loans.map((l) => (dropOf(l) > 0 && !(l.id && dropReasons[l.id]) ? 'Choose one, so Activity records it right.' : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
