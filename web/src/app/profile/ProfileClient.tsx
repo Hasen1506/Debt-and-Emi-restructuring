@@ -270,7 +270,6 @@ function ProfileEditor({
   payoffOrder,
   focus,
 }: {
-  /** The profile the server already read, so the summary is in the first HTML. */
   initial: StoredProfile;
   section: number | null;
   saved: boolean;
@@ -283,8 +282,6 @@ function ProfileEditor({
   // -1 while the summary shows: no form section is open.
   const step = section ?? -1;
   const [ready, setReady] = useState(initial.isLive);
-  // Form state starts empty. Until the effect copies the saved profile into
-  // it, the summary must show that profile, not the empty fields on top of it.
   const [filled, setFilled] = useState(false);
   // The page the user came from ("Plan"), for a way back to it.
   const [back, setBack] = useState<{ href: string; name: string } | null>(null);
@@ -429,13 +426,7 @@ function ProfileEditor({
   useEffect(() => {
     const stored = loadProfileClient();
     setReady(true);
-    // No saved cookie in this browser: a signed-out page opens the empty
-    // form. A page the server already painted from the request cookie keeps
-    // those figures (the cookie was not in document.cookie).
-    if (!stored.isLive) {
-      if (!initial.isLive) setFilled(true);
-      return;
-    }
+    if (!stored.isLive) { if (!initial.isLive) setFilled(true); return; }
     const u = stored.user;
     if (u.display_name) setDisplayName(u.display_name);
     if (u.age_bracket) setAgeBracket(u.age_bracket);
@@ -454,8 +445,6 @@ function ProfileEditor({
     setExtraIncomeAnnualTax(u.extra_income_annual_tax ?? '');
     setDeductions(u.deductions);
     setIncomeStreams(u.income_streams ?? []);
-    // Preserve the user's chosen view: if they previously filled out a
-    // variable_expenses split, default the form to detailed mode.
     if (Number(u.variable_expenses || 0) > 0) {
       setShowDetailedExpenses(true);
     }
@@ -486,11 +475,6 @@ function ProfileEditor({
     if (u.loans && u.loans.length > 0) {
       savedLoansRef.current = withLoanIds(u.loans).map((l) => ({ ...l, currency: loanCurrency(l, u.country) })); // currency: balanceDropOf
       setLoans(withLoanIds(u.loans));
-      // Decide auto vs manual per loan on rehydrate: if the saved tenure
-      // matches what we'd derive from the current outstanding+EMI+rate,
-      // the user is in auto mode — re-deriving on next submit gives the
-      // same number, no surprise. If the saved tenure differs (manual
-      // entry, or numbers have drifted), preserve it as manual.
       const manualOnLoad = new Set<number>();
       u.loans.forEach((loan, idx) => {
         if (loan.loan_type === 'credit_card') return;
@@ -1049,9 +1033,6 @@ function ProfileEditor({
   }
 
   if (section === null) {
-    // The server has no document.cookie, so it uses the profile it already
-    // read. The browser reads the cookie, which is the same profile, including
-    // a save that happened after this page was rendered.
     const stored = summaryProfile(initial);
     return (
       <LShell>
