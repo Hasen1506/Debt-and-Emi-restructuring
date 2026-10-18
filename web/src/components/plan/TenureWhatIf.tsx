@@ -7,13 +7,17 @@
  * user picks one EMI loan and how many more months, and the engine re-runs
  * the plan with that loan re-amortised (engine/tenure_whatif.py, the same
  * EMI formula as everywhere else): the new EMI, whether this month's gap
- * closes, and what the extra months cost in interest. Nothing is saved.
+ * closes, and what the extra months cost in interest. Saved only by APPLY
+ * TO MY PLAN (founder, 18 Oct 2026), with UNDO.
  */
 import { loanMarket } from '@/lib/currency';
 import { paymentWords } from '@/lib/terms';
 import { engineRequests, isAbortError } from '@/lib/engine-requests';
 import { tenureWhatIfCopy } from '@/lib/tenure-whatif-copy';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { applyTenure, planFigures, recordAppliedChange } from '@/lib/applied-change';
+import { AppliedChangeCard } from '@/components/AppliedChangeCard';
 import { api, formatCurrencyWhole, type CompareResponse } from '@/lib/api';
 import { loanCurrency } from '@/lib/currency';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
@@ -57,6 +61,9 @@ export function TenureWhatIf({
     error: null,
   });
   const baseKey = JSON.stringify(plan.runArgs ?? null);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   useEffect(() => {
     if (loanIdx < 0 || months <= 0) {
@@ -105,6 +112,24 @@ export function TenureWhatIf({
   const pw = paymentWords(user.country);
   const inIndia = loan ? loanMarket(loan, user.country) === 'IN' : user.country === 'IN';
   const r = state.result;
+  function applyToPlan() {
+    if (!r || r.tenure_new_emi == null || !loan) return;
+    try {
+      const undo = applyTenure({ loanIndex: loanIdx, loanId: loan.id }, months, r.tenure_new_emi);
+      const fl = (v: string | number) => formatCurrencyWhole(v, lccy);
+      recordAppliedChange({
+        country: user.country, currency: ccy === 'USD' ? 'USD' : 'INR',
+        what: `${loanLabel(loan)}: ${months / 12} more year${months > 12 ? 's' : ''}, ${pw.one} ${fl(undo.before.emi)} → ${fl(undo.after.emi)}`,
+        from: `in your plan from ${monthIndexToCountryLabel(1, user.country)}; at the bank, from the ${pw.one} after they agree`,
+        before: planFigures(r, 'baseline'), after: planFigures(r, 'scenario'), bankNote: true, undo,
+      });
+      setApplyError(null);
+      setMonths(0);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setApplyError((e as Error).message);
+    }
+  }
   const label = (m: number | null | undefined) =>
     m ? monthIndexToCountryLabel(m, user.country) : 'not within 30 years';
   const when = (m: number | null | undefined, infeasibleFrom: number | null | undefined) =>
@@ -141,7 +166,7 @@ export function TenureWhatIf({
       <p style={{ margin: '4px 0 8px', color: L_T.inkSoft }}>
         A longer tenure (more months to repay) lowers the {pw.one}, but you pay interest for longer. Pick a loan and how many
         more months; the plan re-runs with the new {pw.one}, and the chart and table below switch to it (a button there takes
-        you back to your plan). Nothing is saved until you change the loan in Profile.
+        you back to your plan). Nothing is saved until you press APPLY TO MY PLAN.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
         {/* UI revert 2: the card is open again, so at 320px the loan picker
@@ -180,6 +205,7 @@ export function TenureWhatIf({
           ))}
         </span>
       </div>
+      <AppliedChangeCard kinds={['tenure']} />
       {state.loading && <p style={{ margin: '8px 0 0', color: L_T.muted }}>Re-running your plan…</p>}
       {state.error && <p role="alert" style={{ margin: '8px 0 0', color: L_T.negative }}>Couldn&apos;t run this: {state.error}</p>}
       {r && r.tenure_new_emi != null && (
@@ -192,6 +218,14 @@ export function TenureWhatIf({
           {/* Integration phase 5 (C11): a capped side has no date, only the month it stops being fundable. */}
           Debt-free: {when(r.scenario_debt_free_month, r.scenario_infeasible_from_month)} (as things stand: {when(r.baseline_debt_free_month, plan.infeasibleFrom)}).{' '}
           {copy?.interest}
+          <span style={{ display: 'block', marginTop: 6 }}>
+            <button type="button" className="l-hit" onClick={applyToPlan}
+              style={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '4px 10px', border: `1px solid ${L_T.ink}`, background: L_T.ink, color: L_T.bg, cursor: 'pointer' }}>
+              APPLY TO MY PLAN
+            </button>{' '}
+            <span style={{ color: L_T.muted, fontSize: 11 }}>Saves this tenure and {pw.one} on the loan in Profile. Confirm them with your bank.</span>
+          </span>
+          {applyError && <span role="alert" style={{ display: 'block', color: L_T.negative }}>{applyError}</span>}
         </div>
       )}
       {/* R8-3: RBI's reset rule applies to a loan from an Indian lender only. */}

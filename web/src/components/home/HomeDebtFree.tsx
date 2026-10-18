@@ -28,6 +28,8 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
+import { DebtBudgetPromptLazy as DebtBudgetPrompt } from '@/components/plan/DebtBudgetPromptLazy';
+import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { CashFlow } from './LedgerHome';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
 import { shortPriority, shortPriorityOrder } from '@/lib/short-priority';
@@ -242,6 +244,17 @@ export async function HomePayThisMonth() {
   const datedPlan = plan.live && plan.shortfall <= 0 && !plan.futureShortfall ? plan.debtFreeMonth : null;
   return (
     <>
+      {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
+          defaulted; until then the list holds EMIs and minimums only. */}
+      {plan.profileIsLive && plan.debtBudgetChoice === 'unset' && (
+        <DebtBudgetPrompt
+          choice={plan.debtBudgetChoice}
+          budget={plan.debtBudget ?? ''}
+          figures={debtBudgetFigures(plan)}
+          currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
+          hasFundTarget={Number(plan.user.efund_target || 0) > 0}
+        />
+      )}
       <PayThisMonth
         data={data}
         loans={plan.user.loans}

@@ -247,10 +247,12 @@ export function shortGapLine(args: ShortStoryArgs): string | null {
 }
 
 /**
- * Live test #17: the month the chart's x-axis ends on. It follows the
- * plan's own payoff month (with the gap borrowed, when short), not a fixed
- * scale or the minimums-only line's end. `minClear` lets the dashed
- * minimums line show whole when it finishes within twice the plan.
+ * The month the chart's x-axis ends on. Founder, 18 Oct 2026: the dashed
+ * "paying only minimums" line is always shown whole, to the month it clears
+ * (`minClear`), or to the engine's horizon when it never clears (the chart
+ * says so), so both flows are seen side by side. It used to stop at the
+ * plan's payoff (live re-test L#17), leaving a stub when a card plan clears
+ * in 3 months and the minimums take years.
  */
 export function chartEndMonth(args: {
   planClears: number | null;
@@ -269,11 +271,9 @@ export function chartEndMonth(args: {
   if (notFundableFrom != null) return Math.max(1, Math.min(lastMonth, notFundableFrom));
   if (!planClears && growingGapFrom) return Math.min(lastMonth, Math.max(24, growingGapFrom + 36));
   if (!planClears) return lastMonth;
-  // Live re-test L#17: end at the payoff month itself. Padding to the end of
-  // the minimums line (or a quarter more) ran the axis a year past payoff;
-  // the minimums' own clear date is printed in the chart note instead.
-  void minClear;
-  return Math.min(lastMonth, planClears);
+  // Minimums never clear: to the horizon, with the "never clear" note.
+  if (minClear == null) return lastMonth;
+  return Math.min(lastMonth, Math.max(planClears, minClear));
 }
 
 /**

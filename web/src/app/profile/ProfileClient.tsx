@@ -36,9 +36,7 @@ import {
 } from '@/lib/income-streams';
 import { deriveMarginalRate } from '@/lib/deductions';
 import { newLoanId, withLoanIds } from '@/lib/loan-ids';
-import {
-  loadProfileClient,
-} from '@/lib/user-store';
+import { loadProfileClient } from '@/lib/user-store';
 import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';
@@ -53,6 +51,7 @@ import {
 import { BALANCES_ENTERED_KEY, type BalanceDropReason } from '@/lib/activity';
 import { balanceDropOf, logBalanceDrops } from '@/lib/prepay-choice';
 import { BalanceDropQuestion } from '@/components/profile/BalanceDropQuestion';
+import { OwedNowHintLazy as OwedNowHint } from '@/components/profile/OwedNowHintLazy';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
@@ -1695,6 +1694,7 @@ function ProfileEditor({
                     </>
                   }
                 />
+                <OwedNowHint loan={l} country={country} />
                 {askPaid(l) && (
                   <EmiPaidQuestion
                     monthName={thisMonthName}

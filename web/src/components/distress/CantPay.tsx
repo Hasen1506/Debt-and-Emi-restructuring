@@ -84,34 +84,65 @@ const selectStyle: CSSProperties = {
 };
 const captionStyle: CSSProperties = { fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
-export function CantPay() {
+/** Owed-fix: this month's plan payment and its EMI/minimum per loan (by
+ *  loan id, else position), in the user's currency, from Home's pay list. */
+export interface CantPayPlanRow {
+  key: string;
+  amountUser: number;
+  minimumUser: number;
+  /** Already paid this month (user's currency), and the latest day ("9 Oct"). */
+  paidUser: number;
+  paidDay: string;
+  /** What's owed now (lib/owed-now-core), user's currency. */
+  owedNowUser: number;
+}
+
+export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
   const profile = useStoredProfile();
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const country = profile.user.country;
   const ccy = userDefaultCurrency(country);
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
-
   const lines = useMemo(
     () =>
       m.loans
         // Round 3 (#21): an EMI taken from salary is gone before take-home
         // arrives, so it isn't in the money to share out (lib/derived does the same).
         .filter((l) => Number(l.outstanding) > 0 && emiOffTakeHome(l.loan))
-        .map((l) => ({
-          key: l.loan.id ?? String(l.index),
-          label: loanLabel(l.loan),
-          loan_type: l.loan.loan_type,
-          required: Number(m.toUserCcy(l.required, l.loan)),
-          ratePct: Number(l.loan.nominal_rate || 0) * 100,
-          floating: l.loan.rate_type === 'floating',
-          bank: l.loan.bank ?? '',
-        })),
-    [m],
+        .map((l) => {
+          const key = l.loan.id ?? String(l.index);
+          const plan = planRows.find((r) => r.key === key);
+          // Owed-fix: what's already paid this month and owed now, from the
+          // plan's run (the page's server part), as Home shows them.
+          const paid = plan?.paidUser ?? 0;
+          const minimum = plan?.minimumUser ?? Number(m.toUserCcy(l.required, l.loan));
+          return {
+            key,
+            label: loanLabel(l.loan),
+            loan_type: l.loan.loan_type,
+            // What's still due on the EMI or minimum after this month's payments.
+            required: Math.max(0, minimum - paid),
+            ratePct: Number(l.loan.nominal_rate || 0) * 100,
+            floating: l.loan.rate_type === 'floating',
+            bank: l.loan.bank ?? '',
+            paid,
+            paidDate: plan?.paidDay ?? '',
+            planAmount: plan?.amountUser ?? null,
+            toGo: plan ? Math.max(0, plan.amountUser - paid) : null,
+            owedNow: plan?.owedNowUser ?? Number(m.toUserCcy(l.outstanding, l.loan)),
+          };
+        }),
+    [m, planRows],
   );
   const due = lines.reduce((s, l) => s + l.required, 0);
+  const paidSoFar = lines.reduce((s, l) => s + l.paid, 0);
+  const planToGo = lines.every((l) => l.toGo != null) && lines.length > 0 ? lines.reduce((s, l) => s + (l.toGo ?? 0), 0) : null;
+  const planTotal = planToGo != null ? lines.reduce((s, l) => s + (l.planAmount ?? 0), 0) : null;
+  const paidLines = lines.filter((l) => l.paid > 0);
   // Take-home minus costs: what is left for loan payments before any EMI.
+  // Less what's already been paid on loans this month (owed-fix).
   const leftBeforeEmis =
-    num(profile.user.monthly_income) - num(profile.user.fixed_expenses) - num(profile.user.variable_expenses ?? '0');
+    num(profile.user.monthly_income) - num(profile.user.fixed_expenses) - num(profile.user.variable_expenses ?? '0') - paidSoFar;
   // B24: the amount is filled in visibly from the profile once it has loaded
   // (it used to start blank on first paint and still say COVERED), and the
   // user's own edit is never overwritten.
@@ -163,11 +194,26 @@ export function CantPay() {
                   prefix={ccy === 'INR' ? '₹' : '$'}
                   testId="cp-available"
                   hint={
-                    availableTouched || !fromProfile
-                      ? `Your take-home minus spending is ${fc(leftBeforeEmis)}. Due this month: ${fc(due)}.`
-                      : `Filled from your profile (take-home minus spending). Change it if this month is different. Due this month: ${fc(due)}.`
+                    (availableTouched || !fromProfile
+                      ? `Your take-home minus spending${paidSoFar > 0 ? ', less what you’ve paid on loans this month,' : ''} is ${fc(leftBeforeEmis)}.`
+                      : `Filled from your profile (take-home minus spending${paidSoFar > 0 ? `, less the ${fc(paidSoFar)} you’ve paid on loans this month` : ''}). Change it if this month is different.`) +
+                    ` EMIs and minimums still due this month: ${fc(due)}.`
                   }
                 />
+              </div>
+              <div data-testid="cp-still-to-pay" style={{ fontSize: 12, lineHeight: 1.7, marginTop: 10 }}>
+                {planToGo != null && planTotal != null ? (
+                  <p style={{ margin: 0 }}>
+                    <strong>Still to pay this month: {fc(planToGo)}</strong>
+                    {paidSoFar > 0 ? ` (the plan’s ${fc(planTotal)} less ${fc(paidSoFar)} already paid)` : ''}, of which {fc(due)} is EMIs and minimums.
+                  </p>
+                ) : null}
+                {paidLines.map((l) => (
+                  <p key={l.key} data-testid="cp-paid-row" style={{ margin: 0, color: L_T.muted }}>
+                    {l.label}: {fc(l.paid)} paid{l.paidDate ? ` ${l.paidDate}` : ''}
+                    {l.required <= 0 ? (l.loan_type === 'credit_card' ? ', minimum covered' : ', EMI covered') : ''}; owes {formatCurrencyWhole(Math.round(l.owedNow), ccy)} now.
+                  </p>
+                ))}
               </div>
               <ol style={{ paddingLeft: 18, margin: '14px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {order.map((l) => (

@@ -14,6 +14,8 @@
  * (REDESIGN R2).
  */
 
+import { DebtBudgetPromptLazy as DebtBudgetPrompt } from './DebtBudgetPromptLazy';
+import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
@@ -23,21 +25,9 @@ import type { CompareResponse } from '@/lib/api';
 import { planWithWhatIf } from '@/lib/trajectory';
 import { loanLabel } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
-import {
-  monthIndexToCountryLabel,
-  monthsSpan,
-} from '@/lib/today';
+import { monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { planHeadline } from '@/lib/plan-headline';
-import {
-  LShell,
-  LSectionHeader,
-  LCli,
-  LKpi,
-  LBracket,
-  LRule,
-  L_T,
-  L_MONO,
-} from '@/components/ledger/primitives';
+import { LShell, LSectionHeader, LCli, LKpi, LBracket, LRule, L_T, L_MONO } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { dec } from '@/lib/safe-decimal';
@@ -59,6 +49,7 @@ import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
 import { TenureWhatIf } from './TenureWhatIf';
+import { AppliedChangeCard } from '@/components/AppliedChangeCard';
 import { StudentLoanHold } from './StudentLoanHold';
 import { LIKELY_HOW, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
@@ -148,14 +139,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   return (
     <LShell>
       <div
-        style={{
-          flex: 1,
-          padding: '4px 0 0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 22,
-          fontFamily: L_MONO,
-        }}
+        style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22, fontFamily: L_MONO }}
       >
         {plan.activityImpact && (
           <ActivityImpactBanner
@@ -163,6 +147,19 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             loans={plan.user.loans}
             country={plan.user.country}
             variant="ledger"
+          />
+        )}
+
+        <AppliedChangeCard banner />
+        {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
+            defaulted; until it's chosen the plan pays EMIs and minimums only. */}
+        {plan.live && plan.profileIsLive && plan.debtBudgetChoice === 'unset' && plan.user.loans.some((l) => Number(l.outstanding) > 0) && (
+          <DebtBudgetPrompt
+            choice={plan.debtBudgetChoice}
+            budget={plan.debtBudget ?? ''}
+            figures={debtBudgetFigures(plan)}
+            currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
+            hasFundTarget={Number(plan.user.efund_target || 0) > 0}
           />
         )}
 

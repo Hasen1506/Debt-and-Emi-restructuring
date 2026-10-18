@@ -33,7 +33,8 @@ import {
   type LoanCheckResponse,
   type SpreadChanged,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+// Owed-fix: the balance prefilled is what's owed now, as Home shows.
+import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
 import { TOL, gapWords, parseSpreadChange } from '@/lib/loan-check';

@@ -2,7 +2,7 @@
  * Shared shape produced by the Plan page's data loader (load-plan.ts) and
  * consumed by LedgerPlan and the home page.
  */
-import type { OwedTodayFigures } from '@/lib/owed-today';
+import type { OwedTodayFigures, PaidNowNote } from '@/lib/owed-today';
 import type {
   PlanRunArgs,
   RestructuringHeldBack,
@@ -170,8 +170,12 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
-  /** The user's monthly total for debts ('' = all spare cash). */
+  /** The user's set monthly total for debts ('' = not a set total: see debtBudgetChoice). */
   debtBudget: string;
+  /** Founder 18 Oct 2026: whether the user has chosen a monthly total for
+   *  debts (lib/debt-budget). 'unset': the plan pays EMIs and minimums only
+   *  and Plan and Home ask. */
+  debtBudgetChoice: import('@/lib/debt-budget').DebtBudgetKind;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.
@@ -249,6 +253,9 @@ export interface PlanData {
   /** UX walkthrough fix 4: what you owe today (engine/owed_today) against the
    *  plan's opening balance, with the interest inside the EMIs already paid. */
   owedToday?: OwedTodayFigures | null;
+  /** Owed-fix: payments logged this month that the opening balance still
+   *  holds (cards), by loan: the start row shows owed now beside them. */
+  paidNow?: PaidNowNote[];
   /** Grill #38 / live tests #15-#17: how short months are funded (the
    *  emergency fund, then card-rate borrowing repaid first) and the date
    *  if this month's gap closes. Null when nothing was ever short. */

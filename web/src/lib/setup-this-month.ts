@@ -49,7 +49,7 @@ export function setupPayMonth(plan: SimulateResponse, minimums: SimulateResponse
       : null,
     surplus: sa ? Number(sa.surplus) : 0,
     shortfall: Number(plan.shortfall ?? 0),
-    debtBudget: 0, // Setup asks for no total for debts: all spare cash
+    debtBudget: 0, // Setup's preview: all spare cash. Plan and Home then ask for the total (lib/debt-budget).
   } as unknown as PlanData;
   return payThisMonth(asPlan);
 }

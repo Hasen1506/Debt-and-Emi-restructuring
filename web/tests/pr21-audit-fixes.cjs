@@ -62,7 +62,10 @@ test('all spare cash stays uncapped and stale debt budgets cannot save an outdat
   const {commitSpendingCut}=lib('commit-spending-cut.ts');const {readDebtBudgetClient}=lib('debt-budget.ts');
   const u=user({fixed_expenses:'60000'});let s=stores(u);
   try{
-    commitSpendingCut(u,10000,1,'');assert.equal(readDebtBudgetClient(),'');
+    // 'all' (chosen) goes to /simulate as no budget, and a cut keeps it 'all'.
+    s.jar.set('rightdue_debt_budget','all');commitSpendingCut(u,10000,1,'');assert.equal(readDebtBudgetClient(),'all');
+    // Not chosen yet (founder 18 Oct 2026): the plan sent '0' (EMIs and minimums only), and it stays not chosen.
+    s=stores(u);commitSpendingCut(u,10000,1,'0');assert.equal(readDebtBudgetClient(),'');
     s=stores(u);s.jar.set('rightdue_debt_budget','45000');
     assert.throws(()=>commitSpendingCut(u,10000,1,'50000'),/debt budget changed/);
     assert.equal(s.data.size,0);

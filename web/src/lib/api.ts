@@ -167,11 +167,8 @@ export interface LoanPayload {
    *  "user keeps using the card" rather than freeze-and-pay-off. Default
    *  '0' for backwards compatibility. Ignored on non-card loans. */
   expected_monthly_spend?: string;
-  /** Credit cards only: day-of-month the statement is generated (1-28).
-   *  Used for UX labels in the activity log ("Apr 5 statement, due Apr 25")
-   *  and to default the payment date when logging. The engine doesn't
-   *  consume this — interest math stays monthly-accrual. Omitting it
-   *  keeps the old "this month" generic framing. */
+  /** Cards only: statement day (1-28), for Activity labels and the default payment
+   *  date. The engine doesn't read it. */
   statement_day?: number;
   /** Credit cards only: day-of-month the bill is due (1-28). Onboarding
    *  pre-fills via suggestedGraceDays(bank) but the user can override —
@@ -194,14 +191,9 @@ export interface LoanPayload {
    *  '-0.005' if you expect cuts). Applied at each reset proportional
    *  to the reset frequency. */
   rate_drift_annualized?: string;
-  /** True-APR restructuring triggers — see engine/models.py:Loan for
-   *  semantics. All optional; defaults model the "no penalties / no
-   *  restrictions / immediate-EMI" case.
-   *  • prepayment_penalty_pct  — '0.02' = 2% of the prepay amount fee
-   *  • prepay_lock_in_months   — months of lock-in as typed (counted from
-   *    `prepay_lock_in_until`'s stamp; see lib/roll-forward stampBalanceDates)
-   *  • part_payment_freq_months — minimum gap between extra payments
-   *  • pre_emi_months_remaining — interest-only window before EMI starts */
+  /** True-APR triggers (engine/models.py:Loan), all optional: prepayment_penalty_pct ('0.02' = 2%),
+   *  prepay_lock_in_months (from `prepay_lock_in_until`'s stamp), part_payment_freq_months
+   *  (gap between extras), pre_emi_months_remaining (interest-only window). */
   prepayment_penalty_pct?: string;
   prepay_lock_in_months?: number;
   /** Audit 80+ C4: 'YYYY-MM', the first month extra payments are allowed.
@@ -257,12 +249,8 @@ export interface InvestmentOptionPayload {
   is_in_pool?: boolean;
 }
 
-/** A single cash account — checking, savings, HYSA, FD, or other. The
- *  cash module captures this as a list so the advisor can compare each
- *  account's post-tax APY against debt APR independently (e.g. Chase
- *  checking at 0.01% vs Ally HYSA at 4.5%). The engine doesn't consume
- *  these yet; for Phase 1 they're pure data capture + display, with
- *  `savings_balance` derived as the sum for backward compatibility. */
+/** One cash account (checking, savings, HYSA, FD, other), for comparing each APY with
+ *  debt APR. Data and display only; `savings_balance` is their sum. */
 export type CashAccountKind = 'checking' | 'savings' | 'hysa' | 'fd' | 'other';
 
 export interface CashAccountPayload {
@@ -307,39 +295,24 @@ export interface UserPayload {
    *  to "0" and the engine subtracts both this and fixed_expenses from
    *  income to derive available surplus. */
   variable_expenses?: string;
-  /** Annual pre-tax salary for salaried users — the gross number on the
-   *  offer letter / Form 16 line 1, before TDS and 80C/80D deductions but
-   *  AFTER subtracting employer PF, gratuity, and insurance from CTC.
-   *  Optional; when present we derive marginal_rate + bracket info from
-   *  it (otherwise the manual marginal_rate field takes over). */
+  /** Annual pre-tax salary (Form 16 line 1, CTC less employer PF, gratuity, insurance),
+   *  optional; derives marginal_rate when present. */
   annual_gross_salary?: string;
   /** Annual business income for self-employed users — the "Total Income"
    *  line from last filed ITR-3/ITR-4 (revenue − expenses − depreciation).
    *  Optional; same role as annual_gross_salary on the SE side. */
   annual_business_income?: string;
-  /** Self-reported credit score — CIBIL (300-900) for India, FICO (300-850)
-   *  for US. Optional. Drives the rate-prediction chip in setup: a higher
-   *  score moves the predicted rate down inside the bank's published range
-   *  (banks reserve the lower-end of their range for high-tier borrowers).
-   *  Treated as a string for parity with other numeric fields entered in
-   *  free-text inputs. */
+  /** Self-reported CIBIL (300-900) / FICO (300-850), optional; moves Setup's predicted
+   *  rate inside the bank's published range. A string, like other typed numbers. */
   credit_score?: string;
   savings_balance: string;
-  /** Optional per-account breakdown of liquid cash. When non-empty, the
-   *  rich `cash_accounts` array is the source of truth and `savings_balance`
-   *  is the legacy total (sum of optimizable balances, kept in sync at
-   *  save time for back-compat with older callers / the engine's surplus
-   *  model). When empty/omitted, `savings_balance` alone is used.
-   *  Captured at onboarding step 4, displayed on /debts. */
+  /** Optional per-account cash. When non-empty it is the source of truth and
+   *  `savings_balance` the legacy total kept in sync at save time. */
   cash_accounts?: CashAccountPayload[];
   primary_bank: string;
-  /** Where the user lives (live test #5, sprint L3), optional. `state` is an
-   *  Indian state / union territory or a US state, by its full name; the
-   *  engine reads it as the default state for a property's stamp duty or
-   *  selling costs when the asset has none. `city` is for the user's own
-   *  reference; the engine ignores it. A US user's state is its two-letter
-   *  code (sprint G3, lib/us-loans: mortgage interest saves no state tax in
-   *  a no-income-tax state or one that disallows it, #79). */
+  /** Where the user lives, optional: `state` (an Indian state by name, a US state by its
+   *  two-letter code) is the default for a property's stamp duty / selling costs and US
+   *  state tax (lib/us-loans); `city` is the user's own reference. */
   state?: string;
   city?: string;
   location_tier?: string;
@@ -367,32 +340,23 @@ export interface UserPayload {
   /** Calendar month (1-12) when the annual hike fires. Defaults to 1 (Jan)
    *  if omitted; IN onboarding defaults to 4 (FY-1, April). */
   hike_effective_month?: number;
-  /** Optional hike phases for varied year-by-year rates. Each tuple is
-   *  [yearFrom (1-based inclusive), yearTo (1-based exclusive), rate (decimal)].
-   *  Example: [[1, 3, "0.07"], [3, 7, "0.10"]] = 7% in years 1-2, 10% in
-   *  years 3-6, fallback to annual_hike_rate after. Empty / omitted →
-   *  engine uses annual_hike_rate uniformly. */
+  /** Optional hike phases [yearFrom incl., yearTo excl., rate]: [[1,3,"0.07"],[3,7,"0.10"]];
+   *  annual_hike_rate after / when empty. */
   hike_schedule?: [number, number, string][];
   inflation_rate?: string;
   /** NRI on a US work visa (tax-resident in US, may hold INR debts); dual-currency views. */
   is_nri_us?: boolean;
   /** Round 3: an NRI on a rupee plan living in a Gulf state or elsewhere (lib/tax-setup). */
   nri_residence?: 'AE' | 'SA' | 'QA' | 'OM' | 'KW' | 'BH' | 'OTHER';
-  /** FX rate per loan currency, expressed as "units of residence currency
-   *  per 1 unit of loan currency" — same direction as /api/fx-rate. Used
-   *  by the engine to convert non-residence-currency EMIs into residence
-   *  currency before summing into the surplus / DTI calculation. Empty
-   *  dict is the safe default (parity, so the helper is a no-op). */
+  /** FX per loan currency, residence units per 1 loan unit (as /api/fx-rate), to sum
+   *  foreign EMIs into the surplus / DTI. Empty = parity. */
   fx_to_user_currency?: Record<string, string>;
   /** Where each rate in fx_to_user_currency came from and when (lib/fx-refresh):
    *  the provider's as-of date, when it was fetched, and whether the user typed
    *  it (a typed rate isn't auto-refreshed). */
   fx_meta?: Record<string, FxMeta>;
-  /** Annualized FX drift per non-residence currency. When non-empty, the
-   *  engine compounds drift into the FX rate each month so long-horizon
-   *  loans denominated in a different currency see year-over-year
-   *  appreciation/depreciation. Wired up by the /plan FX-drift toggle
-   *  (NRI-US users only). Empty / omitted → flat FX rate. */
+  /** Annual FX drift per foreign currency, compounded monthly (the /plan FX-drift toggle,
+   *  NRI-US only). Empty = flat FX. */
   fx_drift_annualized?: Record<string, string>;
   /** Strategy 'rules' (roadmap PR E): the user's payoff rules (lib/payoff-rules). */
   payoff_rules?: { small_first_below: string | null; pinned: number[]; custom_order: number[] };
@@ -402,22 +366,13 @@ export interface UserPayload {
   liquidation_costs?: Record<string, string>;
   /** Web-only assumptions (emergency-fund months and fixed top-up, goal buffer); the API ignores them. */
   assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null; confirmed?: string[]; confirmed_at?: string };
-  /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
-   *  rental, FD interest > ₹40k, capital gains, freelance side-income.
-   *  Salaried users opt in by entering a number here; the tax sleeve
-   *  card on /debts then targets this annual liability. Defaults to 0
-   *  / undefined when user has no extra income. Business owners ignore
-   *  this — their sleeve target is derived from annual_business_income. */
+  /** Annual tax (₹/$) on income not covered by employer TDS (rental, FD
+   *  interest, gains, side-income); the /debts tax sleeve targets it.
+   *  Business owners ignore it (sleeve uses annual_business_income). */
   extra_income_annual_tax?: string;
-  /** Multi-stream income model — captures sources beyond a single
-   *  primary income, and historical transitions (salaried → freelance,
-   *  added a side gig, retired from one role). When non-empty, the
-   *  monthly_income field is derived as sum of *active* streams / 12 at
-   *  save time, and the tax sleeve consumes active streams instead of a
-   *  single annual_business_income / extra_income_annual_tax input.
-   *
-   *  Empty / omitted → legacy single-source behaviour. Engine drops the
-   *  field — it consumes the derived monthly_income + marginal_rate. */
+  /** Multi-stream income (side gigs, transitions). Non-empty: monthly_income
+   *  is derived from *active* streams / 12 at save time and the tax sleeve
+   *  uses them. Empty → legacy single source. Engine drops the field. */
   /** Audit C11 / round 2 (item 2): most the user could borrow to cover short
    *  months (spare card limit), their currency. Blank = 3 months of
    *  take-home (labelled on Plan as an assumption). */
@@ -436,12 +391,8 @@ export interface UserPayload {
    *  when income varies by season; `reserve` opts into the seasonal reserve. */
   seasonal_income?: SeasonalIncomePayload;
   income_streams?: IncomeStreamPayload[];
-  /** Old-regime / itemized deductions. Captured at onboarding step 2
-   *  conditionally — IN only renders these when tax_regime === 'old';
-   *  US renders the itemized block unconditionally (state tax + mortgage
-   *  interest are universally relevant). All fields are annual rupees /
-   *  dollars as strings, optional everywhere. Drives a more accurate
-   *  derived marginal_rate when gross income is on file. */
+  /** Old-regime (IN) / itemized (US) deductions, annual strings, all optional; they sharpen
+   *  the derived marginal_rate when gross income is on file. */
   deductions?: DeductionsPayload;
   /** Sprint G2 (#20): the user confirmed the tax rate estimated from
    *  take-home pay. UI-only. */
@@ -458,27 +409,9 @@ export type IncomeStreamKind =
   | 'interest'
   | 'other';
 
-/**
- * How the stream gets taxed — drives slab vs flat-tax routing in the
- * marginal-rate computation. Defaulted from `kind` at the UI layer; the
- * user can override (e.g. a freelancer whose actual expenses exceed 50%
- * of gross will pick business_normal over the presumptive default).
- *
- *  • salary           — slab; TDS by employer; standard deduction applies
- *                       (₹50k IN / per-filing-status US)
- *  • business_44ada   — presumptive professionals: 50% of gross deemed
- *                       profit; remaining gross excluded from slab pool.
- *                       Requires gross < ₹50L (IN services).
- *  • business_normal  — full P&L: stream contributes gross to slab pool,
- *                       allowable_expenses subtract back out at compute.
- *  • rental           — house property: gross × 0.7 contributes to slab
- *                       (30% standard deduction), home-loan interest
- *                       deductible separately at the loan record.
- *  • capital_gains    — bypasses slab; LTCG taxed at 20% (with indexation)
- *                       or 10% above ₹1L exempt threshold (equity STT).
- *                       Stream's tax computed at flat rate, added to total
- *                       liability after slab math runs.
- */
+/** How the stream is taxed (slab vs flat), defaulted from `kind`, user can override:
+ *  salary (slab, TDS, standard deduction) · business_44ada (50% deemed profit, gross < ₹50L)
+ *  · business_normal (full P&L) · rental (gross × 0.7 to slab) · capital_gains (flat, off slab). */
 export type IncomeStreamTaxTreatment =
   | 'salary'
   | 'business_44ada'
@@ -505,24 +438,16 @@ export interface IncomeStreamPayload {
    *  (business income, freelance under 194J, capital gains). Used by the
    *  tax sleeve to know how much liability falls on the user vs the payer. */
   tds_pct?: string;
-  /** Tax-treatment routing for the bracket computation. Defaulted from
-   *  `kind` at the UI layer; users with non-typical situations (a
-   *  freelancer claiming actual expenses, a salary stream with allowances)
-   *  override it explicitly. When omitted, callers must apply
-   *  `defaultTaxTreatment(kind)`. See [[IncomeStreamTaxTreatment]] for the
-   *  routing rules. */
+  /** Tax-treatment routing, defaulted from `kind` (callers apply `defaultTaxTreatment(kind)`
+   *  when omitted); see IncomeStreamTaxTreatment. */
   tax_treatment?: IncomeStreamTaxTreatment;
   /** Round 2 (advance tax): capital_gains streams only. Blank = taxed at
    *  the slab rate (an assumption the panel labels). */
   cg_kind?: 'equity_stcg' | 'equity_ltcg' | 'other';
 }
 
-/**
- * Tax deduction inputs. Indian fields (hra_*, sec_80*) only meaningful
- * for old-regime filers; US fields (state_marginal_rate_override,
- * mortgage_interest_annual, itemized_deductions_other) apply unconditionally
- * and feed an itemize-vs-standard helper.
- */
+/** Tax deduction inputs: IN hra_* / sec_80* for old-regime filers only; US fields always
+ *  apply and feed the itemize-vs-standard helper. */
 export interface DeductionsPayload {
   // India — old regime only
   /** Annual HRA claimed by user (already net of statutory cap). */
@@ -604,11 +529,8 @@ export interface GoalContributionRaw {
   /** Run-rate (remaining / months_until) for this month. Lets the UI
    *  show "₹X needed / ₹Y allocated" when funded partially. */
   run_rate: string;
-  /** null when funded; else 'past_date' | 'over_funded' |
-   *  'surplus_exhausted' | 'partial_fill' | 'deferred'. Drives the
-   *  queued-goals footer text. `deferred` is the user's explicit
-   *  choice to delay funding until a later sim month — distinct
-   *  from `surplus_exhausted` (which is involuntary). */
+  /** null when funded, else past_date | over_funded | surplus_exhausted | partial_fill |
+   *  deferred (the user's choice, unlike surplus_exhausted). Drives the queued-goals footer. */
   queued_reason: string | null;
   /** Snapshot-only — 0-based sim-month at which deferred funding
    *  starts. null when not deferred. Lets the SurplusWaterfall on
@@ -651,11 +573,8 @@ export interface GoalFinalRaw {
   /** True when the target month was within the simulated horizon. When
    *  False, the fill_rate is based on end-of-horizon saved so far. */
   target_reached: boolean;
-  /** True when the goal's target month is beyond the simulated horizon
-   *  (typically because the sim broke out at debt_free_month). Lets the
-   *  UI render an honest "deadline is past your debt-free month — fund
-   *  manually after that" instead of a misleading "not reached" tone.
-   *  Always False when target_reached is True. */
+  /** Target month beyond the horizon (the sim stopped at debt-free), so the UI says "fund
+   *  it after that" rather than "not reached". False when target_reached. */
   target_past_horizon?: boolean;
   /** True when saved_at_target ≥ required. Distinct from target_reached:
    *  `funded=true, target_reached=false` means the sim ended before
@@ -712,6 +631,8 @@ export interface SimulateResponse {
   owed_today?: string | null;
   owed_start_of_month?: string | null;
   owed_today_interest_in_paid?: string | null;
+  /** Owed-fix: card payments (and the plan's own extra) logged this month, off owed_today. */
+  owed_today_paid_off?: string | null;
   /** Round 2 (item 4): set when the profile has a seasonal pattern. */
   seasonal?: SeasonalOutRaw | null;
 }
@@ -1032,11 +953,8 @@ export interface RestructuringOpportunity {
    *  null for Tier-B/C indicative entries or non-card-sourced rates. UI
    *  surfaces this as a "rate as of" tag on the opportunity row. */
   target_rate_as_of?: string | null;
-  /** 0-based positions into user.loans this opportunity acts on. Drives
-   *  the "I took this — update terms" modal: refi/BT use [0] to mutate
-   *  one loan in place; consolidation lists every loan being merged so
-   *  the modal can mark them cleared and append a new consolidated
-   *  personal loan. */
+  /** 0-based loans this opportunity acts on: refi/BT [0] in place; consolidation lists
+   *  every loan merged into the new personal loan. */
   affected_loan_indices?: number[];
   /** The user's credit score against what the lender keeps its best rate
    *  for (`score_needed`); 'unknown' when Profile has no score. */
@@ -1449,12 +1367,6 @@ export class ApiFieldError extends Error {
   }
 }
 
-/**
- * Calls made by the Next.js server (the /plan render calls the API for
- * every user) identify themselves so the API does not rate-limit them
- * together. INTERNAL_API_TOKEN is not a NEXT_PUBLIC_ variable, so it is
- * never built into the browser bundle; in the browser this is empty.
- */
 /** Pure calculations, safe to send twice. Sign-in, account state and
  *  outcome reports change something and are never retried. */
 function retryable(path: string, method: string): boolean {
@@ -1465,12 +1377,8 @@ function retryable(path: string, method: string): boolean {
 export const WAKING_MESSAGE =
   "Couldn't reach the calculator. On the free plan it sleeps when nobody has used it for a while and takes up to a minute to wake. Try again in a moment.";
 
-/**
- * fetch, but a calculation made from the browser rides out the API waking
- * up: the hosting answers 502/503 (with no CORS headers, so the browser
- * says only "Failed to fetch") until it's up. Retries after 2, 4, 8 and
- * 16 seconds, then says what happened in words.
- */
+/** fetch that rides out the API waking (502/503, "Failed to fetch"): retries after
+ *  2, 4, 8 and 16 s from the browser, then says what happened in words. */
 async function apiFetch(path: string, init: RequestInit): Promise<Response> {
   const method = init.method ?? 'GET';
   const tries = typeof window !== 'undefined' && retryable(path, method) ? 5 : 1;
@@ -1589,15 +1497,8 @@ let meInFlight: Promise<AuthUser> | null = null;
 /** R11-2: wait before the one extra try of a GET (ms). */
 export const GET_RETRY_MS = 400;
 
-/**
- * R11-2: a GET reads and changes nothing, so the browser asks once more,
- * GET_RETRY_MS later, when the hosting edge answers 502/503/504 or the
- * network drops (a short Cloudflare/Render blip). apiFetch already rides
- * these out (4 retries) for the other GETs, such as rates/central; this
- * covers the ones it leaves alone: auth/me and user/state, whose blip
- * briefly showed a guest the signed-out state. Never a POST, never a
- * request its caller (or the page leaving) cancelled, never on the server.
- */
+/** R11-2: auth/me and user/state (which apiFetch doesn't retry) ask once more, GET_RETRY_MS
+ *  later, on a 502/503/504 or network blip. Never a POST, a cancelled request, or on the server. */
 async function getFetch(path: string, init: RequestInit): Promise<Response> {
   const again = typeof window !== 'undefined' && !retryable(path, 'GET');
   try {
@@ -2127,11 +2028,11 @@ export interface SimulateArgs {
   simulation_start_month?: number;
   /** UX fix 4: loans whose EMI this month is already paid (owed_today). */
   paid_emi_this_month?: number[];
-  /** Auto-reinvest events — month-indexed lump-sum injections in user
-   *  residence currency, routed to the highest-effective-APR active loan
-   *  at the matching month. Frontend pre-computes from projected annual
-   *  tax savings when the "Auto-reinvest tax savings" toggle is on.
-   *  Omit / empty array preserves baseline simulation behaviour. */
+  /** Owed-fix: money gone out this month the opening balance still holds
+   *  (lib/owed-now-core), loan's currency. */
+  paid_off_this_month?: { loan_index: number; amount: string }[];
+  /** Month-indexed lump sums (residence currency) to the dearest active loan, from projected
+   *  tax savings when "Auto-reinvest" is on. Empty = baseline. */
   reinvest_events?: { month: number; amount: string }[];
   /** When true, engine inflates fixed + variable expenses each month
    *  using user.inflation_rate. Drives the /plan inflation toggle. */
@@ -2147,7 +2048,8 @@ export interface SimulateArgs {
    *  legacy "100% surplus → debt" behaviour. */
   ef_top_up_rate?: string;
   /** The user's monthly total for debts (EMIs + minimums + extra), in
-   *  their currency. Omitted: all spare cash goes to debts. */
+   *  their currency. Omitted: all spare cash goes to debts; '0': EMIs and
+   *  minimums only (chosen, or not chosen yet: lib/debt-budget). */
   debt_budget?: string;
   /** Audit 80+ A4: the share of the extra the user chose to keep once only
    *  loans under 10% a year are left (lib/low-rate-choice). Omitted: prepay all. */
