@@ -112,3 +112,14 @@ test('item 5: payday snapshot sends catch-up and collections lines, not normal d
   assert.ok(s.rows.some((r) => r.kind === 'pot'));
   assert.ok(!s.rows.some((r) => r.kind === 'minimum' || r.kind === 'emi'));
 });
+
+test('integration-4: the pot row shows even when the collections loan has no payment row this month', () => {
+  const d = payThisMonth(plan([car, card], { 0: '10000' }, { 0: '10000' }, { catchUp: {}, pot: { 1: '30000' } }, { surplus: 30000, surplusAllocation: { efSlice: 0, goalSlice: 0, surplus: 30000 } }), '2026-10-17');
+  assert.ok(!d.rows.some((r) => r.loanIndex === 1), 'no payment row for the card');
+  const pot = d.rows.find((r) => r.kind === 'pot');
+  assert.ok(pot, 'the pot row is there');
+  assert.equal(pot.amount, 30000);
+  assert.equal(pot.potFor, 1);
+  assert.equal(pot.name, 'Settlement pot · SBI credit card');
+  assert.equal(pot.key, 'pot-card');
+});

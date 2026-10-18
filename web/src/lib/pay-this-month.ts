@@ -95,6 +95,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   const userCcy = userDefaultCurrency(country);
   const loanRows: PayRow[] = [];
   const salaryOnly: string[] = [];
+  const labelOf = (i: number) => loanNickname(named[i]) || (loans[i].bank ? `${loans[i].bank} ${LOAN_TYPE_NAME[loans[i].loan_type]}` : cap(LOAN_TYPE_NAME[loans[i].loan_type]));
   for (const [k, v] of Object.entries(first.perLoan)) {
     const index = Number(k);
     const loan = loans[index];
@@ -126,7 +127,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
     // first), so it is ticked like any other; only a collections loan is held.
     const held = status === 'collections' ? status : undefined;
     const catchUp = status === 'behind' ? Math.round(Number(plan.debtStatusMonth1?.catchUp[k] ?? 0)) : 0;
-    const label = loanNickname(named[index]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]));
+    const label = labelOf(index);
     if (fromSalary && !(extra >= 1)) {
       salaryOnly.push(label);
       continue;
@@ -170,8 +171,10 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   // A collections loan's share is kept back for a settlement, not paid to it.
   for (const [k, v] of Object.entries(plan.debtStatusMonth1?.pot ?? {})) {
     const add = Math.round(Number(v));     // month 1: the pot starts empty, so all of it is this month's
-    const held = loanRows.find((r) => r.loanIndex === Number(k));
-    if (held && add >= 1) setAside.push({ key: `pot-${held.key}`, loanIndex: null, name: `Settlement pot · ${held.name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: Number(k) });
+    // The loan may have no payment row this month (nothing due, or paid from salary): the pot still shows.
+    const i = Number(k);
+    const held = loanRows.find((r) => r.loanIndex === i) ?? (loans[i] ? { key: loans[i].id ?? `loan-${i}`, name: labelOf(i) } : null);
+    if (held && add >= 1) setAside.push({ key: `pot-${held.key}`, loanIndex: null, name: `Settlement pot · ${held.name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: i });
   }
   const pots = setAside.reduce((s, r) => s + (r.kind === 'pot' ? r.amount : 0), 0);
   const surplus = Math.round(a?.surplus ?? plan.surplus);
