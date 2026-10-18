@@ -23,3 +23,20 @@ export function ThemeToggle() {
     </LChipRow>
   );
 }
+
+/** Keeps a chosen Dark on <html> after React takes over the page: hydration
+ *  can drop the data-theme THEME_SCRIPT set before the first paint (seen
+ *  18 Oct 2026: dark for a moment, then light). Light needs nothing. */
+export function ThemeKeeper() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const keep = () => {
+      if (readTheme() === 'dark' && root.getAttribute('data-theme') !== 'dark') root.setAttribute('data-theme', 'dark');
+    };
+    keep();
+    const mo = new MutationObserver(keep);
+    mo.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => mo.disconnect();
+  }, []);
+  return null;
+}

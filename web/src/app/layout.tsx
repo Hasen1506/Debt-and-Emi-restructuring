@@ -19,6 +19,7 @@ import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 import { INTRO_HIDE_SCRIPT } from '@/lib/intro-seen';
 import { THEME_SCRIPT } from '@/lib/theme';
+import { ThemeKeeper } from '@/components/site/ThemeToggle';
 import { OfflineSupport } from '@/components/site/OfflineSupport';
 import { OtherTabSavedNotice } from '@/lib/tab-guard';
 
@@ -68,6 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to content
         </a>
         <SecureCookies />
+        <ThemeKeeper />
         <SessionHydrator />
         <FxAutoRefresh />
         <LMasthead
