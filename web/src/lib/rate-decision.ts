@@ -17,7 +17,7 @@
  */
 import type { Country, LoanPayload } from './api';
 import { emiNumber, monthsToClear } from './amortization';
-import { MONTH_NAMES_SHORT } from './today';
+import { formatIso } from './today';
 import { loanMarket } from './currency';
 
 /** One step of a central bank move: a quarter point. */
@@ -88,8 +88,7 @@ function addMonths(iso: string, k: number): string {
 }
 
 export function dayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${d} ${MONTH_NAMES_SHORT[m - 1]} ${y}`;
+  return formatIso(iso);
 }
 
 /** The next reset on file as 'YYYY-MM-DD' (an older 'YYYY-MM' is the

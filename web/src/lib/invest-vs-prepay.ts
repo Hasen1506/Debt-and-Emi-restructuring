@@ -22,6 +22,7 @@
 import MARKET from './market-data.json';
 import Decimal from 'decimal.js';
 import type { Country } from './api';
+import { formatIso } from './today';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -112,13 +113,9 @@ export const SAFE_RATES = {
   treasury_us: { ...quoted('treasury_us'), tax: { kind: 'income', share: 0.8 }, compounding: 'simple' },
 } satisfies Record<string, SafeRate>;
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "25 Sep 2026" for a day, "May 2026" for a month. */
+/** "25 Sep 2026" for a day, "May 2026" for a month. Shared short date. */
 export function formatAsOf(asOf: string): string {
-  const [y, m, d] = asOf.split('-');
-  const month = MONTHS[Number(m) - 1] ?? m;
-  return d ? `${Number(d)} ${month} ${y}` : `${month} ${y}`;
+  return formatIso(asOf);
 }
 
 /** Pre-tax effective annual yield of a safe rate. */

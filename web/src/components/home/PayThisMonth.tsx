@@ -24,7 +24,7 @@ import { commitActivity } from '@/lib/commit-activity';
 import { isMoneyPaid, paymentState } from '@/lib/payment-state';
 import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/user-store';
 import { alignToLoans } from '@/lib/loan-ids';
-import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
+import { formatIso, formatMonth, localIsoDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import { owedAfterLabel, type PayRow, type PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { owedNow } from '@/lib/owed-now';
@@ -356,7 +356,10 @@ export function PayThisMonth({
           </span>
         }
       >
-        <span id="home-pay">Pay this month · {monthLabel}</span>
+        <span id="home-pay">
+          Pay this month
+          <span style={{ textTransform: 'none', letterSpacing: '0.02em' }}> · {monthLabel}</span>
+        </span>
       </LSectionHeader>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
         What the plan pays this month. Mark each one once it has gone out; it&apos;s recorded in Activity.
@@ -440,7 +443,7 @@ export function PayThisMonth({
                 </div>
                 <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
                   {kindLine(row, fmt, owedNowFor(row), country)}
-                  {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
+                  {row.dueDay ? ` · DUE ${formatMonth(Number(month.slice(0, 4)), Number(month.slice(5)) - 1, 'short', row.dueDay)}` : ''}
                 </div>
                 {row.catchUp ? (
                   <div data-testid="pay-catch-up" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative, marginTop: 4, lineHeight: 1.5 }}>
@@ -520,7 +523,7 @@ export function PayThisMonth({
                         name={row.name}
                         amount={st ? row.amount - st.amount : row.amount}
                         currency={row.currency}
-                        monthLabel={`${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`}
+                        monthLabel={formatMonth(Number(month.slice(0, 4)), Number(month.slice(5)) - 1, 'short')}
                         onSaveVpa={(v) => saveVpa(row, v)}
                         rowKey={row.key}
                         month={month}
@@ -628,9 +631,15 @@ export function PayThisMonth({
 
 /** The section when there's nothing to tick: details missing, or no plan. */
 export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
+  const cut = title.indexOf(' · ');
+  const head = cut === -1 ? title : title.slice(0, cut);
+  const rest = cut === -1 ? '' : title.slice(cut);
   return (
     <section aria-label={title}>
-      <LSectionHeader>{title}</LSectionHeader>
+      <LSectionHeader>
+        {head}
+        {rest ? <span style={{ textTransform: 'none', letterSpacing: '0.02em' }}>{rest}</span> : null}
+      </LSectionHeader>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.7, color: L_T.ink }}>{children}</p>
     </section>
   );
@@ -665,6 +674,5 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
 }
 
 function dayLabel(iso: string): string {
-  const [, m, d] = iso.split('-').map(Number);
-  return `${d} ${MONTH_NAMES_SHORT[m - 1]?.toUpperCase() ?? ''}`;
+  return formatIso(iso);
 }

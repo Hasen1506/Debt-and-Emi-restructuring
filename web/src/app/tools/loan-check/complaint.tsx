@@ -25,6 +25,7 @@ import {
 } from '@/lib/api';
 import { EMPTY_BORROWER, fillLetter, missingDetails, type Borrower } from '@/lib/complaint-fill';
 import { parsePercentInput } from '@/lib/rate-input';
+import { formatIso } from '@/lib/today';
 import { ShareOutcome } from './outcome';
 // G7: follow-up reminders (calendar file; email when the server has them on).
 import { DeadlineReminders } from '@/components/home/DeadlineReminders';
@@ -93,12 +94,7 @@ function stateColor(s: ComplaintMilestone['state']): string {
 }
 
 function longDate(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  return formatIso(iso, 'long');
 }
 
 export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
@@ -566,12 +562,7 @@ export function RuleQuote({ c }: { c: LoanCheckCitation }) {
     return <span className="muted"> Source: {c.source}.</span>;
   }
   const checked = c.checked_on
-    ? new Date(`${c.checked_on}T00:00:00Z`).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
+    ? formatIso(c.checked_on)
     : '';
   return (
     <>

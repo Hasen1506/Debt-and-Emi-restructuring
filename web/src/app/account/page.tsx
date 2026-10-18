@@ -13,11 +13,15 @@ import { clearLocalData, deleteMyAccount, downloadMyData } from '@/lib/account';
 import { notifySessionChanged } from '@/lib/session-events';
 import { PRIVACY_PATH, RETENTION } from '@/lib/privacy-facts';
 import { listDevices, signOutDevice, signOutEverywhere, type DeviceSession } from '@/lib/consent';
+import { formatMonthDate } from '@/lib/today';
 
 function when(iso: string | null): string {
   if (!iso) return '';
-  try { return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-  catch { return iso; }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${formatMonthDate(d, 'short', true)}, ${hh}:${mm}`;
 }
 
 const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };

@@ -27,7 +27,7 @@
  * re-anchors to reality.
  */
 
-import { localIsoDate } from './today';
+import { formatIso, localIsoDate } from './today';
 import { syncSliceToServer } from './server-sync';
 
 /**
@@ -142,11 +142,9 @@ export function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Human-readable month label, e.g. "April 2026". */
+/** Long month, e.g. "April 2026". */
 export function monthLabel(monthKey: string): string {
-  const [y, m] = monthKey.split('-').map(Number);
-  const d = new Date(y, m - 1, 1);
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return formatIso(monthKey, 'long');
 }
 
 /**

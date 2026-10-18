@@ -18,7 +18,7 @@ import { staleExpenseCommits } from '@/lib/expense-commit';
 import { requiredMonthly } from '@/lib/min-payment';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
-import { localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
+import { formatMonth, localIsoDate } from '@/lib/today';
 import { LIFE_KIND_LABEL, lifeEventSummary } from '@/components/lifecycle/LifeEventForm';
 
 export type Tone = 'positive' | 'negative' | 'muted' | 'ink' | 'accent';
@@ -63,7 +63,7 @@ export interface HistoryRow {
 export interface MonthGroup {
   /** 'YYYY-MM' */
   month: string;
-  /** 'OCT 2026' */
+  /** 'Oct 2026' */
   label: string;
   current: boolean;
   rows: HistoryRow[];
@@ -72,9 +72,9 @@ export interface MonthGroup {
 /** "Personal loan", or "HDFC credit card" when the lender is on file. */
 export { loanLabel };
 
-/** "OCT 2026": a two-digit year ("OCT 26") read as the 26th. */
+/** "Oct 2026". A two-digit year ("Oct 26") read as the 26th. */
 export function monthLabel(month: string): string {
-  return `${MONTH_NAMES_SHORT[Number(month.slice(5, 7)) - 1].toUpperCase()} ${month.slice(0, 4)}`;
+  return formatMonth(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 'short');
 }
 
 /** Loans with a payment due this month: open now, not a planned loan. */

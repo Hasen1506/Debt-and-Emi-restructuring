@@ -448,7 +448,7 @@ export function NewDebtTool() {
             </LNote>
             <LKpi
               items={[
-                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(v.gst) >= 1 ? (Number(fee) > 0 ? 'a year, fee and GST included' : 'a year, GST included') : Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
+                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr), s: Number(v.gst) >= 1 ? (Number(fee) > 0 ? 'a year, fee and GST included' : 'a year, GST included') : Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
                 { l: country === 'US' ? 'PAYMENT' : 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
                 {
                   l: 'MORE THAN CASH',
@@ -527,7 +527,7 @@ export function NewDebtTool() {
                 note: localTerms('EMIs + fee − price in cash', country),
                 tone: Number(v.total_real_cost) > 0 ? ('neg' as const) : undefined,
               },
-              { k: 'it really costs', v: formatPct(v.effective_apr, 1), note: localTerms('the yearly rate that turns the cash price into these EMIs', country) },
+              { k: 'it really costs', v: formatPct(v.effective_apr), note: localTerms('the yearly rate that turns the cash price into these EMIs', country) },
               ...(monthlyRoom != null ? [{ k: 'room each month', v: fmt(monthlyRoom), note: 'income less costs and current payments' }] : []),
             ]}
           />

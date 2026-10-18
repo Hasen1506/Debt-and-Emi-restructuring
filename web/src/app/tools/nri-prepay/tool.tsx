@@ -16,6 +16,7 @@ import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/l
 import { LFieldGrid, LNote, LStep, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import { Term } from '@/components/Term';
 import { loanLabel } from '@/lib/loan-types';
+import { formatIso } from '@/lib/today';
 import {
   api,
   formatCurrency,
@@ -200,9 +201,7 @@ export function NriPrepayTool() {
       const d = new Decimal(r.rate);
       if (!d.isFinite() || d.lte(0)) throw new Error('no rate');
       if (n !== ask.current) return;
-      const day = r.as_of
-        ? new Date(`${r.as_of}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        : null;
+      const day = r.as_of ? formatIso(r.as_of) : null;
       showRate(d, day ? `Today’s rate, as of ${day}` : 'Today’s rate', day ? `today’s rate, as of ${day}` : 'today’s rate');
     } catch {
       if (n !== ask.current) return;

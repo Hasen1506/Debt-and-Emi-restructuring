@@ -24,7 +24,7 @@ import { projectionGaps } from '@/lib/loan-gaps';
 import { dueVsAffordable } from '@/lib/plan-gap';
 import { dec } from '@/lib/safe-decimal';
 import { userDefaultCurrency } from '@/lib/currency';
-import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
+import { formatMonth, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
 import type { StrategyName } from '@/lib/strategy';
 import {
   LShell,
@@ -184,7 +184,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
   const u = profile.user;
   const gross = Number(u.income_type === 'salaried' ? u.annual_gross_salary : u.annual_business_income);
   const parts = [
-    `PLAN FROM ${monthIndexToCountryLabel(1, u.country).toUpperCase()}`,
+    `PLAN FROM ${monthIndexToCountryLabel(1, u.country)}`,
     u.country === 'IN'
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
@@ -270,7 +270,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
     <section aria-labelledby="home-cash">
       <LSectionHeader>
         <span id="home-cash">
-          Cash flow · {MONTH_NAMES[today.getMonth()]} {today.getFullYear()}
+          Cash flow · <span style={{ textTransform: 'none', letterSpacing: '0.02em' }}>{formatMonth(today.getFullYear(), today.getMonth(), 'long')}</span>
         </span>
       </LSectionHeader>
       <div

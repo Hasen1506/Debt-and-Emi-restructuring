@@ -50,7 +50,7 @@ import {
 } from '@/lib/decision-log';
 import { readExpenseCommits, undoExpenseCommit } from '@/lib/expense-commit';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
-import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
+import { formatMonth, getCountryToday, localIsoDate } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
 import { LBracket, LSectionHeader, L_T, lPayBtn } from '@/components/ledger/primitives';
 import { buildHistory, loanLabel, monthLabel, type HistoryRow, type MonthGroup, type Tone } from './history';
@@ -471,7 +471,7 @@ const gridNarrow: CSSProperties = {
 };
 
 function DateCell({ date, pending }: { date: string; pending?: boolean }) {
-  const mon = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1].toUpperCase();
+  const mon = formatMonth(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, 'short').split(' ')[0];
   if (date.length < 10) {
     return <span style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted, fontWeight: 600 }}>{pending ? 'DUE' : mon}</span>;
   }

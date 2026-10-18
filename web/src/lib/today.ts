@@ -40,6 +40,39 @@ export const MONTH_NAMES_SHORT = [
 ] as const;
 
 /**
+ * The only two ways a month is written. Long is a sentence ("July 2029",
+ * "18 July 2029"). Short is a tile or a column ("Jul 2029", "18 Jul 2029").
+ * Neither is uppercased, and neither drops the century: "JUL 2029" and
+ * "Jul '29" were a third and a fourth way of saying the same month.
+ */
+export function formatMonth(
+  year: number,
+  monthIndex0: number,
+  style: 'long' | 'short',
+  day?: number,
+): string {
+  const name = style === 'long' ? MONTH_NAMES[monthIndex0] : MONTH_NAMES_SHORT[monthIndex0];
+  return day != null ? `${day} ${name} ${year}` : `${name} ${year}`;
+}
+
+export function formatMonthDate(d: Date, style: 'long' | 'short', withDay = false): string {
+  return formatMonth(d.getFullYear(), d.getMonth(), style, withDay ? d.getDate() : undefined);
+}
+
+/**
+ * "2026-10-09" → "9 Oct 2026" (short) or "9 October 2026" (long).
+ * "2026-10" → "Oct 2026" / "October 2026". Reads the digits, so a UTC
+ * midnight does not shift the day. Text with no date is returned as given.
+ */
+export function formatIso(iso: string, style: 'long' | 'short' = 'short'): string {
+  const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(iso.trim());
+  if (!m) return iso;
+  const month = Number(m[2]) - 1;
+  if (month < 0 || month > 11) return iso;
+  return formatMonth(Number(m[1]), month, style, m[3] ? Number(m[3]) : undefined);
+}
+
+/**
  * Today's wall-clock date in the user's country, as a Date object with
  * year/month/day matching the country's local calendar. The time component
  * is set to midday-local to avoid DST-boundary off-by-one when this Date is
@@ -85,17 +118,16 @@ export function monthIndexToDate(monthIndex: number, start: Date): Date {
 }
 
 /**
- * Convert a 1-based sim month index into a "Mon yyyy" label, anchored at
- * the country's today.
+ * A 1-based sim month as the short form ("Jul 2029"), anchored at the
+ * country's today. Sentences use formatMonthDate(..., 'long').
  */
 export function monthIndexToCountryLabel(
   monthIndex: number | null,
   country: Country,
+  style: 'long' | 'short' = 'short',
 ): string {
   if (monthIndex === null) return '—';
-  const d = monthIndexToDate(monthIndex, getCountryToday(country));
-  const locale = country === 'IN' ? 'en-IN' : 'en-US';
-  return d.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
+  return formatMonthDate(monthIndexToDate(monthIndex, getCountryToday(country)), style);
 }
 
 /** A count of months as years and months: "4 yrs 6 mo", "11 mo", "1 yr". */

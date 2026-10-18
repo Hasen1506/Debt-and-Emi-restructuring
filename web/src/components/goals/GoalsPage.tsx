@@ -261,7 +261,7 @@ export function GoalsPage({
               ? {
                   l: 'TO GOALS NOW',
                   v: 'NOT YET',
-                  s: `SAVING STARTS ${firstLaterLabel.toUpperCase()}, AFTER DEBTS`,
+                  s: `SAVING STARTS ${firstLaterLabel}, AFTER DEBTS`,
                   tone: L_T.ink,
                 }
               : {
@@ -497,7 +497,7 @@ function GoalRow({
           </span>
           {line.required > 0 && progress}
         </span>
-        <span role="cell">{monthLabel(goal.targetMonth).toUpperCase()}</span>
+        <span role="cell">{monthLabel(goal.targetMonth)}</span>
         <span role="cell" style={{ textAlign: 'right' }}>{monthly}</span>
         <span role="cell">{status}</span>
         <span role="cell" style={{ textAlign: 'right' }}>{actions}</span>

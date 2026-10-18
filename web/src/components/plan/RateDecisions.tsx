@@ -10,7 +10,7 @@
 import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
-import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
+import { api, formatCurrencyWhole, formatPct, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
 import { formatAsOf } from '@/lib/as-of';
 import { loanCurrency, loanMarket } from '@/lib/currency';
 import { loanLabel, loanName } from '@/lib/loan-types';
@@ -20,7 +20,7 @@ import { monthsSpan } from '@/lib/today';
 import { L_T } from '@/components/ledger/primitives';
 import { isAbortError } from '@/lib/engine-requests';
 
-const STEP = `${(RATE_STEP * 100).toFixed(2)}%`;
+const STEP = formatPct(RATE_STEP);
 
 export function RateDecisions({ plan }: { plan: PlanData }) {
   const country = plan.user.country;
@@ -69,8 +69,8 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
       <div id={`rate-decisions-${country}-h`} style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
         IF {bank} MOVES RATES
         <span style={{ fontWeight: 400, color: L_T.muted }}>
-          {slice && ` · ${rateName} ${(Number(slice.current_rate) * 100).toFixed(2)}% (AS OF ${formatAsOf(slice.as_of).toUpperCase()})`}
-          {decision && ` · NEXT DECISION ${dayLabel(decision).toUpperCase()}`}
+          {slice && ` · ${rateName} ${formatPct(slice.current_rate)} (AS OF ${formatAsOf(slice.as_of)})`}
+          {decision && ` · NEXT DECISION ${dayLabel(decision)}`}
           {days != null && days >= 0 && days <= 14 && (
             <span style={{ color: L_T.ink, fontWeight: 700 }}> · IN {days} DAY{days === 1 ? '' : 'S'}</span>
           )}

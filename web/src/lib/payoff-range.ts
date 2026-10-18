@@ -6,6 +6,8 @@
  * into words, so the UI shows the same reasons the engine used.
  */
 
+import { formatMonth } from './today';
+
 export interface RangeScenario {
   id: 'rate_down' | 'rate_up' | 'income_gap' | 'income_bonus' | string;
   label: string;
@@ -23,10 +25,10 @@ export interface PayoffRange {
   open_ended: boolean;
 }
 
-/** Month index (1 = the plan's first month) → "Mar 2031". */
+/** Month index (1 = the plan's first month) → "Mar 2031" (the short date). */
 export function monthLabel(index: number, start: Date): string {
   const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + index - 1, 1));
-  return d.toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return formatMonth(d.getUTCFullYear(), d.getUTCMonth(), 'short');
 }
 
 /** "Mar 2031" exact, "Jan–Apr 2031" or "Dec 2030 – Apr 2031" range. */

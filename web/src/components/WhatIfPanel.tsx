@@ -31,7 +31,7 @@ import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { owedNowLoans } from '@/lib/owed-now-core';
-import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
+import { countryMonthKey, formatMonthDate, monthIndexToCountryLabel } from '@/lib/today';
 import { addCommitment, readCommitmentsClient, removeCommitment, todayISO, writeCommitmentsClient, type CommitmentEntry } from '@/lib/commitments';
 import { isOpenGoal, readGoalsClient } from '@/lib/goals';
 import { readContributionsClient, totalsByGoal } from '@/lib/goal-contributions';
@@ -909,9 +909,7 @@ function StartMonthPicker({
   function labelForOffset(offset: number): string {
     if (offset <= 0) return 'now';
     const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-    return d
-      .toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
-      .replace(' ', " '");
+    return formatMonthDate(d, 'short');
   }
 
   const options = [

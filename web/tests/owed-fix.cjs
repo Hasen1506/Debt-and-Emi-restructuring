@@ -68,7 +68,7 @@ test('owed-fix: card ₹2,00,000 less ₹79,919 logged this month is ₹1,20,081
   const f = o.owedTodayOf({ owed_today: '120081', owed_start_of_month: '200000', owed_today_interest_in_paid: '0', owed_today_paid_off: '79919' });
   const line = o.owedTodayLine(f, 'October', inr);
   assert.match(line, /₹2,00,000 at the start of October; less ₹79,919 paid this month, you owe ₹1,20,081 now/);
-  assert.equal(o.shortDay('2026-10-09'), '9 Oct');
+  assert.equal(o.shortDay('2026-10-09'), '9 Oct 2026');
   // October's row: the plan's ₹98,646 is ₹79,919 paid and ₹18,727 to go.
   assert.equal(98646 - p.off[0].paid, 18727);
 });

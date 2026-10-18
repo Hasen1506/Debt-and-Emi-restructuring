@@ -13,11 +13,11 @@ import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { loanToUser } from '@/lib/currency';
 import { writeDebtBudgetClient } from '@/lib/debt-budget';
-import { MONTH_NAMES_SHORT, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { formatMonth, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { PACE_MIN_MONTHS } from '@/lib/pace';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 
-const monthLabel = (m: string) => MONTH_NAMES_SHORT[Number(m.slice(5, 7)) - 1].toUpperCase();
+const monthLabel = (m: string) => formatMonth(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 'short');
 
 export function PlanPace({ plan }: { plan: PlanData }) {
   const router = useRouter();

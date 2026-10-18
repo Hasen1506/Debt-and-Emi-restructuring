@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { AssetType, Country, UserPayload } from '@/lib/api';
+import { formatPct, type AssetType, type Country, type UserPayload } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { readEfSplitClient } from '@/lib/ef-split';
 import {
@@ -28,7 +28,7 @@ const TYPE_LABEL: Record<string, string> = {
   nps: 'NPS', other: 'Other',
 };
 const pct = (f: string | number | null | undefined) => (f == null || f === '' ? '' : String(Number((Number(f) * 100).toFixed(4))));
-const showPct = (f: number) => `${Number((f * 100).toFixed(2))}%`;
+const showPct = (f: number) => formatPct(f);
 
 export function AssumptionsClient() {
   const router = useRouter();

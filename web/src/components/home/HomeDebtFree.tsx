@@ -10,7 +10,7 @@ import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
 import Link from 'next/link';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
-import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { formatMonth, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
 import { HomeProgress } from './HomeProgress';
@@ -62,7 +62,7 @@ async function debtFreeValue() {
   // 0 = nothing owed now; null = not cleared within the horizon.
   if (plan.debtFreeMonth === 0) return <span style={DATE_TONE}>NOW</span>;
   if (!plan.debtFreeMonth) return <>NOT ON THIS PLAN</>;
-  return <span style={DATE_TONE}>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</span>;
+  return <span style={DATE_TONE}>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)}</span>;
 }
 
 export async function HomeDebtFreeCaption() {
@@ -72,16 +72,14 @@ export async function HomeDebtFreeCaption() {
     return (
       <Link href="/plan" className="l-hit" style={SHORT_TONE}>
         {/* Live re-test 7 R7-2: Plan's and Setup's words, as-is date included. */}
-        {(
-          shortGapLine({
+        {shortGapLine({
             shortfall: plan.shortfall,
             asIsMonth: plan.debtFreeMonth,
             closedMonth: plan.gap?.closed?.debtFreeMonth,
             infeasibleFrom: plan.infeasibleFrom,
             label: (m) => monthIndexToCountryLabel(m, plan.user.country),
             money: (v) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country)),
-          }) ?? ''
-        ).toUpperCase()}{' '}
+          }) ?? ''}{' '}
         · PLAN →
       </Link>
     );
@@ -89,8 +87,8 @@ export async function HomeDebtFreeCaption() {
   if (plan.futureShortfall && plan.infeasibleFrom != null)
     return (
       <Link href="/plan" className="l-hit">
-        FROM {monthIndexToCountryLabel(plan.futureShortfall.month, plan.user.country).toUpperCase()} ·{' '}
-        {notFundable(plan.infeasibleFrom, (m) => monthIndexToCountryLabel(m, plan.user.country)).toUpperCase()} · PLAN →
+        FROM {monthIndexToCountryLabel(plan.futureShortfall.month, plan.user.country)} ·{' '}
+        {notFundable(plan.infeasibleFrom, (m) => monthIndexToCountryLabel(m, plan.user.country))} · PLAN →
       </Link>
     );
   if (plan.futureShortfall) return <Link href="/plan" className="l-hit">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
@@ -108,7 +106,7 @@ export async function HomeDebtFreeCaption() {
   const pace = plan.pace;
   const atPace =
     pace?.differs && pace.average && pace.debtFreeMonth && pace.debtFreeMonth !== plan.debtFreeMonth
-      ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
+      ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country)}`
       : '';
   return (
     <Link href="/plan" className="l-hit" style={CAPTION_TONE}>
@@ -175,7 +173,7 @@ export async function HomePayThisMonth() {
   const plan = await loadPlanOnce();
   const country = plan.user.country;
   const today = getCountryToday(country);
-  const monthLabel = `${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}`;
+  const monthLabel = formatMonth(today.getFullYear(), today.getMonth(), 'long');
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(country));
   if (plan.gaps.length > 0) {
     const g = plan.gaps[0];

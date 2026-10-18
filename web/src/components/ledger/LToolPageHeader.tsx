@@ -14,6 +14,7 @@
  * top-of-page chrome so all six tools share the same masthead.
  */
 
+import { formatMonthDate } from '@/lib/today';
 import { TOOLS, toolInCountry } from '@/lib/tools';
 import { useStoredProfile } from '@/lib/use-profile';
 import { ToolStrip } from '@/components/goals/ToolsList';
@@ -31,11 +32,7 @@ export function LToolPageHeader({
 }) {
   const meta = TOOLS.find((t) => t.id === id);
   const { user } = useStoredProfile();
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const today = formatMonthDate(new Date(), 'short', true);
 
   if (!meta) {
     // Defensive — every route id should be in TOOLS. Render children

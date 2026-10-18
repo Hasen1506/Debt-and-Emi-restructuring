@@ -61,7 +61,7 @@ test('seeded balances and the EMI match on every screen that shows them', async 
   const plan = text.get('/plan') ?? '';
   const debtFree = plan.match(/Debt-free: ([A-Za-z]+ \d{4})/);
   expect(debtFree, plan.slice(0, 400)).not.toBeNull();
-  const month = debtFree![1].slice(0, 3).toUpperCase();
+  const month = debtFree![1].slice(0, 3);
   expect(text.get('/'), 'home debt-free month').toContain(month);
 
   // Pages that are not this household's loans stay clear of the total.

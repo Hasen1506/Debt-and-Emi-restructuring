@@ -878,16 +878,6 @@ export function QuickSetup() {
                   : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}{' '}
                 Not sure of a number? Tap I DON&apos;T KNOW beside it for a marked estimate.
               </p>
-              {country === 'IN' && (
-                <SetupImportCard
-                  loans={loans}
-                  blankLoan={blankLoan}
-                  todayIso={localIsoDate(getCountryToday(country))}
-                  // An untouched blank block gives way to the imported loans (UX50 D-04).
-                  onAdd={(added) => setLoans((cur) => [...cur.filter((l) => l.bank || Number(l.outstanding) > 0), ...added])}
-                  onUpdate={(i, patch) => setLoans((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)))}
-                />
-              )}
               {!prev && (
                 <p style={{ color: L_T.inkSoft, margin: '0 0 6px', fontSize: 12 }}>
                   One loan is enough to start: you&apos;ll see your plan next, and can add the rest from Plan with + LOAN.
@@ -947,6 +937,16 @@ export function QuickSetup() {
                   <LBracket onClick={skipLoans}>NO LOANS · SKIP</LBracket>
                 )}
               </div>
+              {country === 'IN' && (
+                <SetupImportCard
+                  loans={loans}
+                  blankLoan={blankLoan}
+                  todayIso={localIsoDate(getCountryToday(country))}
+                  // An untouched blank block gives way to the imported loans (UX50 D-04).
+                  onAdd={(added) => setLoans((cur) => [...cur.filter((l) => l.bank || Number(l.outstanding) > 0), ...added])}
+                  onUpdate={(i, patch) => setLoans((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)))}
+                />
+              )}
 
               {foreignCcys.map((c) => {
                 const q = fxQuotes[c];

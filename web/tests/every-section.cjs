@@ -1,8 +1,9 @@
 // Every screen, section, tab, modal and summary that shows a figure, rendered
 // from one seeded profile (the India demo: HDFC home loan ₹35,00,000 at
 // 8.50%, EMI ₹35,200; HDFC card ₹80,000 at 42%). Shared figures must match.
-// Skips unless PLAYWRIGHT_BASE_URL points at a running app (the dev server
-// or `next start`). Golden E2E covers the same routes signed-in.
+// Skips in `npm test` unless PLAYWRIGHT_BASE_URL points at a running app.
+// The Golden E2E job starts the app and runs this file, so CI does not skip it.
+// web/e2e/every-section.spec.ts is the same household on the Playwright path.
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -41,7 +42,7 @@ const DEMO = {
 const SECTIONS = [
   { id: 'home', route: '/', kind: 'screen', need: ['₹35,80,000', '₹35,00,000', '₹80,000', '₹35,200', '₹7,205', '₹42,405', '₹86,221', '₹1,50,000', '₹45,000', '8.50%', '8.84%', '42.00%', '60.31%', '30.0%'] },
   { id: 'home-cash-flow', route: '/', kind: 'section', need: ['₹1,50,000', '₹87,405', '₹62,595'] },
-  { id: 'home-where-you-stand', route: '/', kind: 'section', need: ['₹35,80,000', '₹86,221', 'JUL 2029'] },
+  { id: 'home-where-you-stand', route: '/', kind: 'section', need: ['₹35,80,000', '₹86,221', 'Jul 2029'] },
   { id: 'home-pay-this-month', route: '/', kind: 'section', need: ['₹35,200', '₹7,205', '₹43,816', '₹18,779', '₹1,05,000'] },
   { id: 'home-loans', route: '/', kind: 'card', need: ['₹35,00,000', '₹80,000', 'MINIMUM ₹7,205', '8.50%', '60.31%'] },
   { id: 'plan', route: '/plan', kind: 'screen', need: ['July 2029', '₹4,98,321', '₹86,221', '₹35,80,000', '₹35,00,000', '₹80,000', '₹35,200', '8.84%', '60.31%', '₹1,50,000', '₹45,000', '30.0%'] },
@@ -137,7 +138,14 @@ test('every section renders the same seeded figures', { skip: !BASE, timeout: 30
         const amount = page.getByLabel('Amount, after tax');
         if (await amount.count()) {
           await amount.fill('100000');
-          await page.waitForTimeout(1500);
+          await page.waitForFunction(
+            () => {
+              const t = document.body.innerText;
+              return t.includes('60.31%') || t.includes('HDFC');
+            },
+            undefined,
+            { timeout: 15000 },
+          ).catch(() => {});
           const windfall = await textOf(page);
           assert.ok(!windfall.includes(STALE_MINIMUM), 'windfall result uses the stale minimum');
           assert.ok(windfall.includes('60.31%') || windfall.includes('HDFC'), 'windfall result does not name the seeded card');

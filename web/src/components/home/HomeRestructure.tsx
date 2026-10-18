@@ -63,7 +63,7 @@ function targetText(o: RestructuringOpportunity): string {
   if (o.kind === 'balance_transfer' && d.promo_months) {
     const fee = Number(d.fee_pct ?? 0);
     // "0%", "1.5%": as a bank prints it.
-    const pct = (v: string | number) => formatPct(v).replace(/\.?0+%$/, '%');
+    const pct = (v: string | number) => formatPct(v);
     return `${pct(d.promo_rate ?? '0')} FOR ${d.promo_months} MO${fee > 0 ? ` + ${pct(fee)} FEE` : ''}`;
   }
   return formatPct(o.target_rate);

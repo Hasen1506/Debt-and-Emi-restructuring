@@ -13,13 +13,13 @@ import { LFieldGrid, LNote, LStep, LSteps } from '@/components/ledger/LToolSteps
 import { api, formatCurrency, formatPct, type RbiDecisionResponse } from '@/lib/api';
 import { PLAN_HREF_MPC, impactRows, moveWords, shareText, whatsappHref } from '@/lib/loan-check-hike';
 import { parsePercentInput } from '@/lib/rate-input';
+import { formatIso } from '@/lib/today';
 import { useFormErrors } from '@/lib/form-errors';
 
 type Latest = Pick<RbiDecisionResponse, 'decision' | 'next_meeting' | 'rates_as_of' | 'rates_source'>;
 
 const inr = (v: string) => formatCurrency(v, 'INR');
-const day = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const day = (iso: string) => formatIso(iso);
 
 const FIELDS: Record<string, string> = {
   outstanding: 'outstanding',

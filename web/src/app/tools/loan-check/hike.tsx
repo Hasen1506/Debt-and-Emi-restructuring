@@ -35,10 +35,10 @@ import {
   type HistoryRow,
 } from '@/lib/loan-check-hike';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import { formatIso } from '@/lib/today';
 
 const inr = (v: string) => formatCurrency(v, 'INR');
-const day = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const day = (iso: string) => formatIso(iso);
 
 // ── form pieces ────────────────────────────────────────────────────────────
 

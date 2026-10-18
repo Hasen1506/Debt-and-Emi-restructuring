@@ -7,7 +7,7 @@ import { Field } from '@/components/ToolPrimitives';
 import type { Country, LoanPayload } from '@/lib/api';
 import { loanCurrency } from '@/lib/currency';
 import { explainMinPayment, minimumDueThisMonth } from '@/lib/min-payment';
-import { formatCurrencyWhole } from '@/lib/api';
+import { formatCurrencyWhole, formatPct } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
 import { emiBelowInterest } from '@/lib/loan-gaps';
 
@@ -217,7 +217,7 @@ export function HikeScheduleEditor({
               ? issues[i]
               : `years ${p.from || '?'}–${
                   Number(p.to) > 0 ? Number(p.to) - 1 : '?'
-                } @ ${p.rate ? `${(Number(p.rate) * 100).toFixed(1)}%` : '?'}`}
+                } @ ${p.rate ? formatPct(p.rate) : '?'}`}
           </span>
           <button
             type="button"

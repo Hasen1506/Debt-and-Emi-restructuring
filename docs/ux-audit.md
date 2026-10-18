@@ -75,7 +75,7 @@ this household’s ₹35,80,000.
 | --- | --- | --- |
 | `/` Home | screen | Same: owed, EMI, minimum, dues, all-in rates, cash flow |
 | Home · cash flow | section | Take-home, costs ₹87,405, left ₹62,595 |
-| Home · where you stand | section | ₹35,80,000, JUL 2029, ₹86,221/mo |
+| Home · where you stand | section | ₹35,80,000, Jul 2029, ₹86,221/mo |
 | Home · pay this month | section | EMI, minimum, extra, emergency fund, total ₹1,05,000 |
 | Home · your loans and cards | card | Balance, 8.50%, 8.84%, 42.00%, 60.31%, minimum ₹7,205 |
 | Home · your progress | section | Debt-free month, same as Plan |
@@ -139,9 +139,11 @@ this household’s ₹35,80,000.
    “minimums” broke that. Fixed.
 3. **Control.** Debt budget, what-if, and edit links are on the page that
    uses them. The plan does not change the EMI you typed.
-4. **Consistency.** Rates now agree at two decimals. The debt-free month is
-   still set three ways: “July 2029” (Plan), “JUL 2029” (Home), “Jul 2029”
-   (Profile). Same month. Left as each surface’s density, not a second date.
+4. **Consistency.** Rates agree at two decimals (8.50%). Dates use one
+   formatter: long in a sentence (“July 2029”, “18 July 2029”) and short on
+   a tile (“Jul 2029”, “18 Jul 2029”). A section heading no longer shouts
+   the month. Tax slabs stay one decimal (30.0%) because they are a slab,
+   not a loan rate.
 5. **Error prevention.** Loan check, new-debt and sell-to-repay are checks
    before a decision. They read this household’s rate rather than a sample.
 6. **Recognition.** Four tabs, and More grouped as Money, Tools, Help.
@@ -181,7 +183,7 @@ is clearer than a zero that looks like a calculated balance.
 
 ## Signed-out pages, checked after the walk
 
-A pass over the public pages reported the India plan chart ending at “$0 · NOV ’35”. That string is the US example, in the block marked for the US (`data-c="US"`). The India chart in the same file ends at “₹0 · MAY ’32”. The page hides the other country’s block. The two examples are not one chart with a mixed currency.
+A pass over the public pages reported the India plan chart ending at “$0 · Nov 2035”. That string is the US example, in the block marked for the US (`data-c="US"`). The India chart in the same file ends at “₹0 · May 2032”. The page hides the other country’s block. The two examples are not one chart with a mixed currency.
 
 The same pass could not open Plan, Activity, Profile or the tools behind sign-in, so it could not compare those figures. That comparison is the seeded render above.
 
@@ -190,4 +192,52 @@ What it read as separate bugs, and why they stay:
 - Home, Plan, Activity and Profile in the public masthead send a signed-out visitor to sign-in. That is the gate. Glossary, Loan check, Can’t pay, the RBI page, privacy, terms and Your data stay open.
 - The landing’s India/USA switch, Can’t pay’s India/USA buttons, and the glossary’s country note do different jobs. They are not one control drawn three ways.
 - “MARK PAID” on the India example and “PAID” on the US example are the two countries’ words for the same action.
-- Date style on the landing (MAY 2032, OCT–NOV ’27) matches the density already noted inside the app.
+- The landing uses the same two date forms as the app: long in a sentence, short on a tile (“May 2032”, “Oct–Nov 2027”). It does not shout the month or drop the century.
+
+## One format for dates, money and rates
+
+`formatMonth` in `web/src/lib/today.ts` is the only way a month is written.
+
+- Long, in a sentence or a heading: “July 2029”, “18 July 2026”.
+- Short, on a tile or in a column: “Jul 2029”, “18 Jul 2026”.
+
+Neither is uppercased, and neither drops the century. “JUL 2029” and “Oct ’26” are gone, including on the signed-out landing. A section heading still uses small caps for the words around the date; the month itself is left in its own case, so Home reads “CASH FLOW · October 2026” and “PAY THIS MONTH · October 2026”.
+
+Money stays on `formatCurrency` / `formatCurrencyWhole`. A loan or return rate stays on `formatPct`, two decimals (“8.50%”, “42.00%”, “60.31%”). A tax slab stays one decimal (“30.0%”) because it is a slab, not a loan rate, and the assumptions page’s “30%” is the share of surplus that goes to the emergency fund.
+
+## Signed-in walk, 390px and 1280px
+
+The seeded profile (HDFC home loan ₹35,00,000 at 8.50%, EMI ₹35,200; HDFC card ₹80,000 at 42%) was opened signed in and used, not only screenshotted.
+
+- Home, Plan, Activity, Profile, Goals, Portfolio, Tax and Can’t pay render at both widths with no horizontal overflow.
+- Mark paid records the row at both widths.
+- Plan’s “spend less each month” accepts 5,000 and keeps the assumptions on the page (no Sec 24(b) on the self-occupied home loan, so 8.84% all-in; the card at 60.31%).
+- Profile can add a loan and remove it.
+- An empty onboarding (session, no profile) goes from take-home to the loan step. The credit-report upload sits under the loan fields, titled “Credit report PDF, optional”. Typing a loan comes first.
+
+## Accessibility and speed
+
+axe-core (WCAG 2 A and AA) on `/`, `/plan`, `/activity`, `/profile`, `/cant-pay`, `/tools/loan-check`, `/onboarding` and `/goals`, at 390px, signed in: 0 violations before these edits and 0 after.
+
+Lighthouse mobile, production build, simulated throttling. The dev server’s scores (unminified, and a cold compile that put Plan’s LCP at 33s) are not the comparison.
+
+| Route | Performance | Accessibility | LCP | TBT | CLS |
+| --- | --- | --- | --- | --- | --- |
+| `/` | 90 | 100 | 3.5 s | 60 ms | 0.013 |
+| `/plan` | 91 | 100 | 3.5 s | 80 ms | 0 |
+| `/cant-pay` | 89 | 100 | 3.7 s | 60 ms | 0 |
+| `/tools/loan-check` | 90 | 100 | 3.3 s | 40 ms | 0.089 |
+| `/profile` before | 76 | 100 | 4.0 s | 100 ms | 0.217 |
+| `/profile` after | 93 | 100 | 3.1 s | 110 ms | 0 |
+
+Profile was the only regression. The summary waited for a client effect, so the first paint was one line and the footer then jumped. The server already had the profile. The first HTML now contains the figures (₹1,50,000, ₹35,00,000, 8.50%, Jul 2029). The other routes were not rebuilt between the two Lighthouse passes; their scores are the production measurement.
+
+First-load JS stayed inside the route budget (a route fails at +10 kB or over 300 kB). Plan is the largest move, 277.7 kB to 281 kB. fast-check is a dev dependency, so it is not in that bundle.
+
+## Decisions that need the owner
+
+1. Home’s order. The walk recommended pay-this-month first. On 18 Oct 2026 Home was put back to status first: cash flow and where-you-stand, then the pay list. It is still that way. Changing it is a product call, not a bug.
+2. A first sitting, if the owner wants it written down as the path: Setup, then Home’s pay line, then the loan list, then Plan (date, schedule, what-if), Profile only to correct a number, one tool for the question in hand, and Can’t pay only in a short month. Portfolio and Goals stay empty until there is something to put there.
+3. The credit-report PDF stays in Setup, under the loan fields, and again under Profile → Loans. Whether Setup should keep it is a call.
+4. Cash flow’s “left” is ₹62,595. Pay this month is ₹1,05,000. The note says the left figure is for extra payments and savings (₹43,816 + ₹18,779). The two lines are easy to read as two answers. They are one answer split. Wording is the owner’s if they want them to share a phrase.
+5. The empty loan block opens as a credit card. A person whose first debt is a home loan changes the kind. Left as it is.

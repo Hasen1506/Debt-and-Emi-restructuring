@@ -37,6 +37,7 @@ import {
 import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
+import { formatIso } from '@/lib/today';
 import { TOL, gapWords, parseSpreadChange } from '@/lib/loan-check';
 import { useFormErrors } from '@/lib/form-errors';
 
@@ -597,7 +598,7 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
                     return (
                       <tr key={c.date}>
                         <td style={td}>
-                          {new Date(c.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatIso(c.date)}
                         </td>
                         <td className="num" style={td}>{formatPct(c.old_rate, 2)}</td>
                         <td className="num" style={td}>{formatPct(c.new_rate, 2)}</td>

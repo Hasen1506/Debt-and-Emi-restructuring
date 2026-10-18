@@ -256,7 +256,7 @@ test('fix 4: one "owed today": the add-back and the paid EMI cancel, tools and t
 
 test('fix 14: an NRI plan explains the principal gap by the rupee slide, not "a balance the plan doesn’t clear"', () => {
   const { scheduleGapReason } = comp('plan/PlanSchedule.tsx');
-  assert.match(scheduleGapReason({ INR: '0.035' }), /rupee loan’?'?s balance falls as the plan assumes the rupee weakens 3\.5% a year/);
+  assert.match(scheduleGapReason({ INR: '0.035' }), /rupee loan’?'?s balance falls as the plan assumes the rupee weakens 3\.50% a year/);
   assert.match(scheduleGapReason(undefined), /loans that start later/);
 });
 

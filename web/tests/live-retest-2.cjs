@@ -90,11 +90,11 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
     return { t: m / N, av, min: 1 - m * 0.0045 };
   });
   const ms = [
-    { t: 4 / N, v: pts[4].av, label: "CARD · JAN '27" },
-    { t: 11 / N, v: pts[11].av, label: "PERSONAL LOAN · AUG '27" },
-    { t: 1, v: 0, label: "HOME LOAN · JUL '30" },
+    { t: 4 / N, v: pts[4].av, label: 'CARD · Jan 2027' },
+    { t: 11 / N, v: pts[11].av, label: 'PERSONAL LOAN · Aug 2027' },
+    { t: 1, v: 0, label: 'HOME LOAN · Jul 2030' },
   ];
-  const note = "MINIMUMS: CLEAR MAR '62 →";
+  const note = 'MINIMUMS: CLEAR Mar 2062 →';
   for (const w of [340, 358, 390, 480, 768, 1232, 1880]) {
     const narrow = w < 480;
     const h = narrow ? 220 : 260, left = narrow ? 58 : 76, right = 14, top = 34, bottom = 26;

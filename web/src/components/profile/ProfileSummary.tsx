@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import Decimal from 'decimal.js';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
-import { formatCurrency } from '@/lib/api';
+import { formatCurrency, formatPct } from '@/lib/api';
 import type { AgeBracket, AssetPayload, UserPayload } from '@/lib/api';
 import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
@@ -178,7 +178,7 @@ export function ProfileSummary({
                       {loanLabel(l)}
                     </th>
                     <td style={cell}>{formatLoanAmount(Number(l.outstanding), l, user.country, user.fx_to_user_currency)}</td>
-                    <td style={cell}>{(Number(l.nominal_rate) * 100).toFixed(2)}%</td>
+                    <td style={cell}>{formatPct(l.nominal_rate)}</td>
                     <td style={cell}>
                       {l.loan_type === 'credit_card' ? (
                         // UX50 B-07: the card's minimum, in figures, as on Home and Plan.

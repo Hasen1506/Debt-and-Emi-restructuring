@@ -46,8 +46,8 @@ test('C11: capped plans never headline a debt-free date', () => {
           assert.match(h.value, /\/MO SHORT$/, all);
           // "not fundable as it stands from <m>" on its own; after "as things
           // stand:" just "not fundable from <m>" (the phrase said once).
-          assert.ok(all.includes(`NOT FUNDABLE AS IT STANDS FROM ${label(infeasibleFrom)}`) || all.includes(`AS THINGS STAND: NOT FUNDABLE FROM ${label(infeasibleFrom)}`), all);
-          assert.ok(!/AS THINGS STAND: NOT FUNDABLE AS IT STANDS/.test(all), all);
+          assert.ok(all.includes(`not fundable as it stands from ${label(infeasibleFrom)}`) || all.includes(`as things stand: not fundable from ${label(infeasibleFrom)}`), all);
+          assert.ok(!/as things stand: not fundable as it stands/i.test(all), all);
           const line = gap.shortGapLine(args);
           if (shortfall > 0) {
             assert.ok(!line.includes(label(asIs)), line);
@@ -174,9 +174,8 @@ test('C11: a capped plan renders no debt-free date on Plan (chart, schedule, hea
     const { planHeadline } = require(path.join(root, 'lib/plan-headline.ts'));
     const today = require(path.join(root, 'lib/today.ts'));
     const now = today.getCountryToday('IN');
-    const longLabel = (m) => today.monthIndexToCountryLabel(m, 'IN');
-    const shortCap = (m) => { const d = today.monthIndexToDate(m, now); return `${today.MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`; };
-    const chartCap = (m) => { const d = today.monthIndexToDate(m, now); return `${today.MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`; };
+    const shortLabel = (m) => today.formatMonthDate(today.monthIndexToDate(m, now), 'short');
+    const longLabel = (m) => today.formatMonthDate(today.monthIndexToDate(m, now), 'long');
     const loans = [
       { id: 'p', bank: 'SBI', loan_type: 'personal_loan', outstanding: '200000', nominal_rate: '0.14', scheduled_emi: '10000', tenure_months_remaining: 24 },
       { id: 'c', bank: 'HDFC', loan_type: 'credit_card', outstanding: '100000', nominal_rate: '0.42', scheduled_emi: '0' },
@@ -227,14 +226,13 @@ test('C11: a capped plan renders no debt-free date on Plan (chart, schedule, hea
           ].join('\n');
           const words = (s) => s.replace(/<[^>]+>/g, ' ');
           const text = words(html);
-          for (const bad of [shortCap(dfm), chartCap(dfm), longLabel(dfm)]) assert.ok(!text.includes(bad), `paper date ${bad} shown (dfm ${dfm}, infeasible ${infeasible})`);
+          for (const bad of [shortLabel(dfm), longLabel(dfm)]) assert.ok(!text.includes(bad), `paper date ${bad} shown (dfm ${dfm}, infeasible ${infeasible})`);
           assert.ok(!/DEBT-FREE AS THINGS STAND|★ DEBT-FREE|debt-free in /.test(text), 'debt-free milestone/row shown');
-          assert.ok(text.includes(`NOT FUNDABLE FROM ${shortCap(infeasible)}`), 'schedule heading/stop says not fundable');
+          assert.ok(text.includes(`NOT FUNDABLE FROM ${shortLabel(infeasible)}`), 'schedule and chart say not fundable');
           assert.ok(!text.includes('NEVER CLEARS ·') && !/DOESN’T CLEAR IN 30 YEARS/.test(text), 'the capped stop, not the 30-year one');
           assert.match(html, /data-testid="schedule-stop"/);
-          assert.ok(text.includes(`NOT FUNDABLE FROM ${chartCap(infeasible)}`), 'chart note says not fundable');
           // Headline: the words Plan, Home and Setup use.
-          const label = (m) => longLabel(m).toUpperCase();
+          const label = (m) => shortLabel(m);
           const h = gap.shortHeadline({ shortfall: plan.shortfall, asIsMonth: plan.debtFreeMonth, closedMonth: plan.gap?.closed?.debtFreeMonth, label, money: (v) => `₹${v}`, infeasibleFrom: plan.infeasibleFrom, laterGap: plan.futureShortfall });
           assert.ok(!`${h.value} ${h.sub}`.includes(label(dfm)));
           assert.doesNotMatch(planHeadline({ debtFreeMonth: plan.debtFreeMonth, short, country: 'IN' }), /^Debt-free:/);

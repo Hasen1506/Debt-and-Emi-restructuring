@@ -772,12 +772,12 @@ export function WindfallTool({
                 {
                   l: `${kpiPrefix(logged)}DEBT-FREE`,
                   v: after?.month != null
-                    ? monthIndexToCountryLabel(after.month, country).toUpperCase()
+                    ? monthIndexToCountryLabel(after.month, country)
                     : after?.infeasibleFrom != null ? 'NOT FUNDABLE' : runArgs ? '—' : 'NO LOANS',
                   s: dm != null
                     ? (dm < 0 ? `${-dm} MO SOONER` : dm === 0 ? 'SAME MONTH' : `${dm} MO LATER`)
                     : after?.infeasibleFrom != null && !running
-                      ? `SHORT FROM ${monthIndexToCountryLabel(after.infeasibleFrom, country).toUpperCase()}`
+                      ? `SHORT FROM ${monthIndexToCountryLabel(after.infeasibleFrom, country)}`
                       : running ? 'WORKING…' : '',
                   tone: dm != null && dm < 0 ? L_T.positive : L_T.ink,
                 },

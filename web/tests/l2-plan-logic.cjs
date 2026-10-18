@@ -73,11 +73,11 @@ test('#16: a short plan names both dates, so headline and table tell one story',
   // Audit 80+ A5 (golden updated on purpose): the big figure is the gap; the
   // gap-closed date moved into the line.
   assert.equal(h.value, '₹11138/MO SHORT');
-  assert.match(h.sub, /IF THE ₹11138\/MO GAP CLOSES: M92/);
-  assert.match(h.sub, /AS THINGS STAND: M104/);
+  assert.match(h.sub, /if the ₹11138\/mo gap closes: M92/);
+  assert.match(h.sub, /as things stand: M104/);
   const never = gap.shortHeadline({ shortfall: 11138, asIsMonth: null, closedMonth: null, label, money });
   assert.equal(never.value, '₹11138/MO SHORT');
-  assert.match(never.sub, /AS THINGS STAND: NOT IN 30 YEARS/);
+  assert.match(never.sub, /as things stand: not in 30 years/);
 });
 
 test('#17 (founder 18 Oct 2026): the axis runs to where the minimums-only line clears, so both lines show whole', () => {

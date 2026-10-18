@@ -36,7 +36,7 @@ import {
 } from '@/lib/income-streams';
 import { deriveMarginalRate } from '@/lib/deductions';
 import { newLoanId, withLoanIds } from '@/lib/loan-ids';
-import { loadProfileClient } from '@/lib/user-store';
+import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';
@@ -215,7 +215,7 @@ function blankLoan(): LoanPayload {
  * STEP_ALIASES) opens that section. Cancel and Save start the form again
  * from the saved profile, so nothing half-edited lingers.
  */
-export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
+export function ProfileClient({ payoffOrder, initial }: { payoffOrder: ReactNode; initial: StoredProfile }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState(() => ({
@@ -247,6 +247,7 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
   return (
     <ProfileEditor
       key={view.key}
+      initial={initial}
       section={view.section}
       saved={view.saved}
       onOpen={(n) => {
@@ -261,6 +262,7 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
 }
 
 function ProfileEditor({
+  initial,
   section,
   saved: justSaved,
   onOpen,
@@ -268,6 +270,8 @@ function ProfileEditor({
   payoffOrder,
   focus,
 }: {
+  /** The profile the server already read, so the summary is in the first HTML. */
+  initial: StoredProfile;
   section: number | null;
   saved: boolean;
   onOpen: (n: number) => void;
@@ -278,7 +282,10 @@ function ProfileEditor({
 }) {
   // -1 while the summary shows: no form section is open.
   const step = section ?? -1;
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(initial.isLive);
+  // Form state starts empty. Until the effect copies the saved profile into
+  // it, the summary must show that profile, not the empty fields on top of it.
+  const [filled, setFilled] = useState(false);
   // The page the user came from ("Plan"), for a way back to it.
   const [back, setBack] = useState<{ href: string; name: string } | null>(null);
   useEffect(() => setBack(previousPage('/profile')), []);
@@ -422,7 +429,7 @@ function ProfileEditor({
   useEffect(() => {
     const stored = loadProfileClient();
     setReady(true);
-    if (!stored.isLive) return;
+    if (!stored.isLive) { setFilled(true); return; }
     const u = stored.user;
     if (u.display_name) setDisplayName(u.display_name);
     if (u.age_bracket) setAgeBracket(u.age_bracket);
@@ -509,6 +516,7 @@ function ProfileEditor({
     setMarginalRate(stored.marginalRate ?? '');
     loadedMarginalRate.current = stored.marginalRate ?? '';
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
+    setFilled(true);
   }, []);
 
   // Fetch True-APR suggestions whenever the bank / loan_type / rate_type
@@ -1035,7 +1043,10 @@ function ProfileEditor({
   }
 
   if (section === null) {
-    const stored = loadProfileClient();
+    // The server has no document.cookie, so it uses the profile it already
+    // read. The browser reads the cookie, which is the same profile, including
+    // a save that happened after this page was rendered.
+    const stored = typeof document === 'undefined' ? initial : loadProfileClient();
     return (
       <LShell>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>
@@ -1050,8 +1061,8 @@ function ProfileEditor({
             </p>
           )}
           <ProfileSummary
-            user={{ ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload}
-            creditScore={creditScore}
+            user={(filled ? { ...(stored.isLive ? stored.user : {}), ...buildUser() } : stored.user) as UserPayload}
+            creditScore={filled ? creditScore : (stored.creditScore != null ? String(stored.creditScore) : '')}
             assets={stored.user.assets ?? []}
             marginalRate={stored.marginalRate}
             payoffOrder={payoffOrder}

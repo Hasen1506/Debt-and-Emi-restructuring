@@ -209,7 +209,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine
@@ -253,6 +253,31 @@ jobs:
       - name: Golden journeys
         run: npx playwright test --project=chromium
         working-directory: web
+      - name: Every section, one seeded profile, both widths
+        working-directory: web
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3210
+          API_BASE_URL: http://127.0.0.1:8100
+          WEB_ORIGIN: http://localhost:3210
+          NEXT_TELEMETRY_DISABLED: "1"
+          E2E_FROZEN_NOW: "2026-10-07T04:30:00.000Z"
+          NODE_OPTIONS: --require ./e2e/freeze-time.cjs
+          E2E_DATABASE_URL: postgresql://rightdue_e2e:e2e-fixture-password@127.0.0.1:5432/rightdue_e2e
+        run: |
+          # Playwright's webServer has just exited; give 8100 a moment to release.
+          sleep 2
+          python ../e2e/api_server.py --port 8100 &
+          npx next start -p 3210 &
+          ok=0
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8100/api/health >/dev/null && curl -sf http://localhost:3210/login >/dev/null; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+          node --test tests/every-section.cjs
       - name: Show what each failed test saw
         if: failure()
         working-directory: web

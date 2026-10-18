@@ -582,7 +582,7 @@ export function LiquidateTool() {
               <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
                 {assetReturn.trim() === ''
                   ? 'Enter how much it grows a year if you keep it'
-                  : `Your assumptions: it grows ${formatPct(assetReturn, 1)} a year · ${holdYears} years · spare cash earns ${formatPct(leftoverYield, 1)}`}
+                  : `Your assumptions: it grows ${formatPct(assetReturn)} a year · ${holdYears} years · spare cash earns ${formatPct(leftoverYield)}`}
               </span>
             )}
             {at('assetReturn') && !more && (
@@ -655,7 +655,7 @@ export function LiquidateTool() {
 
             {v.wealth_edge != null && (
               <div style={{ marginTop: 18 }}>
-                <LStepSub right={`SPARE CASH AT ${formatPct(leftoverYield, 1).toUpperCase()}`}>{`On your assumptions, in ${v.horizon_years ?? holdYears} years`}</LStepSub>
+                <LStepSub right={`SPARE CASH AT ${formatPct(leftoverYield)}`}>{`On your assumptions, in ${v.horizon_years ?? holdYears} years`}</LStepSub>
                 <div style={{ marginTop: 10 }}>
                   <LKpi
                     items={[
@@ -675,7 +675,7 @@ export function LiquidateTool() {
                 </div>
                 <LNote style={{ margin: '10px 0 0' }}>
                   {v.wealth_basis === 'amortising'
-                    ? `Both ways pay ${fmt(debtPayment)} a month: to the loan until it's gone, then into savings. Kept, it grows ${formatPct(assetReturn, 1)} a year: that's your estimate, and the answer moves with it.`
+                    ? `Both ways pay ${fmt(debtPayment)} a month: to the loan until it's gone, then into savings. Kept, it grows ${formatPct(assetReturn)} a year: that's your estimate, and the answer moves with it.`
                     : 'With no monthly payment, keeping it lets the loan grow unpaid. Enter the payment for the usual case.'}
                 </LNote>
               </div>
@@ -765,7 +765,7 @@ export function LiquidateTool() {
                 note: 'less its interest while selling',
                 tone: Number(v.net_benefit) > 0 ? ('pos' as const) : ('neg' as const),
               },
-              { k: 'it really earns', v: formatPct(v.asset_real_return_net, 2), note: `${formatPct(assetReturn, 1)} less prices, upkeep and selling, a year` },
+              { k: 'it really earns', v: formatPct(v.asset_real_return_net), note: `${formatPct(assetReturn)} less prices, upkeep and selling, a year` },
               ...(v.wealth_edge != null
                 ? [
                     {

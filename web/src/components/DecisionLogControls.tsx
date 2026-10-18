@@ -37,7 +37,7 @@ import {
   type DecisionKind,
 } from '@/lib/decision-log';
 import { undoExpenseCommit } from '@/lib/expense-commit';
-import { localIsoDate } from '@/lib/today';
+import { formatIso, localIsoDate } from '@/lib/today';
 
 interface Props {
   kind: DecisionKind;
@@ -279,7 +279,7 @@ export function DecisionLogControls({
             }}
           >
             <div style={{ fontWeight: 600 }}>
-              Done · {new Date(`${entry.outcome.actualDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              Done · {formatIso(entry.outcome.actualDate)}
             </div>
             <button
               type="button"

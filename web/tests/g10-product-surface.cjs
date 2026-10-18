@@ -55,7 +55,7 @@ test('welcome.html carries the figures in landing-example.json, for both countri
     const money = c === 'IN' ? inr : usd;
     const kpis = block('kpis', c);
     assert.ok(kpis.includes(money(x.outstanding)), `${c} outstanding`);
-    assert.ok(kpis.includes(x.plan.debt_free.toUpperCase()), `${c} debt-free month`);
+    assert.ok(kpis.includes(x.plan.debt_free), `${c} debt-free month`);
     assert.ok(kpis.includes(money(x.vs_smallest_first.interest_saved)), `${c} interest saved`);
     assert.ok(kpis.includes(`${money(x.budget)}/MO`), `${c} budget`);
     assert.match(kpis, /VS SMALLEST FIRST/);

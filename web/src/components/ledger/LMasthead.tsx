@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { LRule, LBracket, L_T, L_MONO } from './primitives';
-import { getCountryToday } from '@/lib/today';
+import { formatMonthDate, getCountryToday } from '@/lib/today';
 import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import { PayoffOrderSwitch } from '@/components/chrome/PayoffOrderSwitch';
 import type { Country } from '@/lib/api';
@@ -45,14 +45,8 @@ export function isPublicHelpPage(path: string): boolean {
 
 function stamp(country: Country): string {
   const d = getCountryToday(country);
-  return d
-    .toLocaleDateString('en-GB', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })
-    .toUpperCase();
+  const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(d);
+  return `${weekday}, ${formatMonthDate(d, 'short', true)}`;
 }
 
 function tzLabel(country: Country): string {

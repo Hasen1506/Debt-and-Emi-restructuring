@@ -11,7 +11,7 @@
 import { useMemo } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyCompact, formatCurrencyWhole } from '@/lib/api';
-import { getCountryToday, monthIndexToCountryLabel, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
+import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate } from '@/lib/today';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
@@ -42,11 +42,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   const view = useMemo(() => {
     if (traj.length === 0) return null;
     const today = getCountryToday(country);
-    const shortDate = (month: number) => {
-      const d = monthIndexToDate(month, today);
-      // "OCT ’26", not "OCT 26", which reads as a day.
-      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`;
-    };
+    const shortDate = (month: number) => formatMonthDate(monthIndexToDate(month, today), 'short');
     // The line starts at what's owed now (Home's OUTSTANDING, after what's
     // already paid this month; owed-fix), not after this month's payments.
     const start = traj[0].month === 1 ? owedNowAtStart(plan) : 0;

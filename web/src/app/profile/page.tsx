@@ -17,6 +17,7 @@ export default async function ProfilePage() {
   const hasDebt = profile.isLive && profile.user.loans.some((l) => Number(l.outstanding) > 0);
   return (
     <ProfileClient
+      initial={profile}
       payoffOrder={
         hasDebt ? (
           <Suspense fallback={<StrategyCompareLoading />}>

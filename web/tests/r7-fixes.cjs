@@ -38,9 +38,9 @@ test('R7-2: one phrase for the short-month date, used by Setup, Plan and Home', 
   assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: null, closedMonth: null, label, money }), 'short ₹24,000/mo · as things stand: not in 30 years · no date even if this month’s gap closes');
   assert.equal(g.shortGapLine({ shortfall: 0, asIsMonth: 4, closedMonth: 3, label, money }), null);
   assert.equal(g.AS_IS_NEVER, 'not in 30 years');
-  // Plan's headline is the same line in capitals.
+  // The headline uses the same line. The month stays the short date, not capitals.
   const h = g.shortHeadline({ shortfall: 24000, asIsMonth: null, closedMonth: 3, label, money });
-  assert.equal(h.sub, 'IF THE ₹24,000/MO GAP CLOSES: MAR 2029 · AS THINGS STAND: NOT IN 30 YEARS');
+  assert.equal(h.sub, 'if the ₹24,000/mo gap closes: Mar 2029 · as things stand: not in 30 years');
   assert.equal(h.value, '₹24,000/MO SHORT');
   // Each surface calls the helper; nobody keeps its own wording.
   const qs = src('components/setup/QuickSetup.tsx');
