@@ -15,14 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'reac
 import { parseWhatIfBox } from '@/lib/r6b-inputs';
 import Decimal from 'decimal.js';
 import { useRouter } from 'next/navigation';
-import {
-  api,
-  formatCurrency,
-  type CompareResponse,
-  type Strategy,
-  type PlanRunArgs,
-  type UserPayload,
-} from '@/lib/api';
+import { api, formatCurrency, type CompareResponse, type Strategy, type PlanRunArgs, type UserPayload } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resolveLoanIndex, type LoanRef } from '@/lib/loan-ids';
@@ -39,19 +32,9 @@ import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { owedNowLoans } from '@/lib/owed-now-core';
 import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
-import {
-  addCommitment,
-  readCommitmentsClient,
-  removeCommitment,
-  todayISO,
-  writeCommitmentsClient,
-  type CommitmentEntry,
-} from '@/lib/commitments';
+import { addCommitment, readCommitmentsClient, removeCommitment, todayISO, writeCommitmentsClient, type CommitmentEntry } from '@/lib/commitments';
 import { isOpenGoal, readGoalsClient } from '@/lib/goals';
-import {
-  readContributionsClient,
-  totalsByGoal,
-} from '@/lib/goal-contributions';
+import { readContributionsClient, totalsByGoal } from '@/lib/goal-contributions';
 import { computeGoalSlip, materialPullForwards } from '@/lib/goal-slip';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
@@ -93,23 +76,15 @@ export function WhatIfPanel({
   );
   // An assumption/profile/event change invalidates every active comparison.
   const baseKey = JSON.stringify(base);
-  // The user's residence currency drives surplus + aggregate displays
-  // (interest saved is summed across loans in the engine; for hybrid
-  // NRI-US users that mixes ccy, but user-default is the least-wrong
-  // choice without restructuring the engine return shape).
+  // Residence currency for surplus and totals (least-wrong for mixed NRI-US loans).
   const userCcy = useMemo(() => userDefaultCurrency(user.country), [user.country]);
   const fmtUser = useMemo(
     () => (v: string | number) => formatCurrency(v, userCcy),
     [userCcy],
   );
 
-  // Derive realistic slider ceilings + the default "Applied to" loan from
-  // the live profile. The user complained about a hardcoded 50k cap and a
-  // random lump-sum default; both come from these.
-  // UX fix 4: the box shows and caps what's owed today (after the EMIs
-  // already paid this month), the balance Home and Loan Check show.
-  // Owed-fix: card payments logged this month come off too (the cookie's
-  // paidNow.off, sent as paid_off_this_month), the figure Home shows.
+  // Slider ceilings and the default loan come from the live profile. The box
+  // caps at what's owed now (EMIs paid and card payments logged this month off), as Home.
   const owedLoans = useMemo(() => owedNowLoans(user.loans, {
     emis: runArgs?.paid_emi_this_month ?? [],
     off: (runArgs?.paid_off_this_month ?? []).map((o) => ({ index: o.loan_index, amount: Number(o.amount) })),
@@ -176,9 +151,7 @@ export function WhatIfPanel({
   useEffect(() => { setLumpMode(null); setLumpModeTried(false); }, [lumpAmount, lumpTarget]);
   const lumpAsks = lumpAmount > 0 && lumpAmount < lumpTargetCap && asksPrepayChoice(user.loans[lumpTarget]);
 
-  // Currency of the loan the lump-sum is being applied to. A USD card
-  // lump-sum should show "$" everywhere; an INR home-loan lump-sum
-  // should show "₹". Recomputes when the user changes the dropdown.
+  // A lump sum shows in its target loan's currency.
   const lumpTargetCcy = useMemo(() => {
     const target = user.loans[lumpTarget];
     return target ? loanCurrency(target, user.country) : userCcy;
@@ -317,10 +290,7 @@ export function WhatIfPanel({
       }
       return;
     }
-    // Note: this only removes the log entry. The underlying profile edit /
-    // activity entry has already shaped /plan and isn't reverted from here.
-    // The user can edit profile / delete the activity entry directly if they
-    // want a true undo.
+    // Only the log entry; the card's UNDO reverts the latest change itself.
     const next = removeCommitment(commitments, id);
     writeCommitmentsClient(next);
     setCommitments(next);
@@ -953,12 +923,7 @@ function StartMonthPicker({
 
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 12,
-      }}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}
     >
       <span style={{ color: L_T.muted }}>From</span>
       <select
@@ -1053,13 +1018,7 @@ function TypableAmountInput({
 
   return (
     <span
-      style={{
-        display: 'inline-flex',
-        flexWrap: 'wrap',
-        alignItems: 'baseline',
-        gap: 2,
-        fontFamily: 'inherit',
-      }}
+      style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 2, fontFamily: 'inherit' }}
     >
       {mode === 'integer' && (
         <span style={{ fontSize: 12, color: L_T.muted }}>

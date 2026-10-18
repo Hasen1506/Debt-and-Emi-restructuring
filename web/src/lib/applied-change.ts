@@ -1,10 +1,5 @@
-/**
- * Apply flow (founder, 18 Oct 2026): what a "DO IT" / "APPLY TO MY PLAN"
- * tap saved, the plan's figures before and after it, and how to undo it
- * exactly. One record (the latest change) in localStorage; What If, the
- * tenure what-if and the Plan banner read it until it is dismissed.
- * Saved only after the user's own tap; a preview never writes here.
- */
+/** Apply flow (founder, 18 Oct 2026): the latest change a tap saved, the plan
+ *  before → after, and its exact undo. Shown until dismissed; previews never write it. */
 import Decimal from 'decimal.js';
 import { readActivityClient, removeActivityEntry } from './activity';
 import type { CompareResponse, Country } from './api';
@@ -25,23 +20,12 @@ export type AppliedUndo =
   | { kind: 'spending_cut'; commitmentId: string }
   | { kind: 'tenure'; loanId?: string; loanIndex: number; before: { tenure: number; emi: string }; after: { tenure: number; emi: string } };
 
+/** `what` "₹50,000 paid to HDFC"; `from` when it takes effect; `budgetHolds`: a cut
+ *  the debt budget won't pass on; `bankNote`: tenure, the bank must confirm. */
 export interface AppliedChange {
-  id: string;
-  country: Country;
-  currency: 'INR' | 'USD';
-  /** "₹50,000 paid to HDFC". */
-  what: string;
-  /** When it takes effect, in words with the month. */
-  from: string;
-  before: PlanFigures;
-  after: PlanFigures;
-  /** A spending cut while the debt budget is not chosen / EMIs and minimums only. */
-  budgetHolds?: 'unset' | 'min';
-  /** Tenure: the bank has to agree and confirm the new EMI. */
-  bankNote?: boolean;
-  undo: AppliedUndo;
-  /** Set once undone: the card says so until dismissed. */
-  undone?: boolean;
+  id: string; country: Country; currency: 'INR' | 'USD'; what: string; from: string;
+  before: PlanFigures; after: PlanFigures; budgetHolds?: 'unset' | 'min'; bankNote?: boolean;
+  undo: AppliedUndo; undone?: boolean;
 }
 
 /** The plan's own figures (baseline_*) or the plan with the change (scenario_*). */
@@ -54,12 +38,7 @@ export function planFigures(r: CompareResponse | null | undefined, side: 'baseli
 
 export function readAppliedChange(): AppliedChange | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null');
-    return v && typeof v === 'object' && v.undo ? (v as AppliedChange) : null;
-  } catch {
-    return null;
-  }
+  try { const v = JSON.parse(window.localStorage.getItem(KEY) ?? 'null'); return v?.undo ? (v as AppliedChange) : null; } catch { return null; }
 }
 
 function publish(c: AppliedChange | null) {
@@ -74,9 +53,7 @@ export function recordAppliedChange(c: Omit<AppliedChange, 'id'>): AppliedChange
   return full;
 }
 
-export function dismissAppliedChange(): void {
-  publish(null);
-}
+export const dismissAppliedChange = (): void => publish(null);
 
 /** Undo the change exactly: remove what it logged, put back what it overwrote.
  *  Refuses (changing nothing) when a later edit touched the same values. */

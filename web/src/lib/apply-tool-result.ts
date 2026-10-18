@@ -4,12 +4,7 @@
  * stay in sync — so /plan re-prices using the new outstanding on the next
  * render.
  */
-import {
-  addActivityEntry,
-  readActivityClient,
-  type ActivityEntry,
-  type ActivityKind,
-} from './activity';
+import { addActivityEntry, readActivityClient, type ActivityEntry, type ActivityKind } from './activity';
 import type { Country, LoanPayload } from './api';
 import { loadProfileClient } from './user-store';
 import { resolveLoanIndex } from './loan-ids';

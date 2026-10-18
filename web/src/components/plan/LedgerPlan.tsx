@@ -25,21 +25,9 @@ import type { CompareResponse } from '@/lib/api';
 import { planWithWhatIf } from '@/lib/trajectory';
 import { loanLabel } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
-import {
-  monthIndexToCountryLabel,
-  monthsSpan,
-} from '@/lib/today';
+import { monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { planHeadline } from '@/lib/plan-headline';
-import {
-  LShell,
-  LSectionHeader,
-  LCli,
-  LKpi,
-  LBracket,
-  LRule,
-  L_T,
-  L_MONO,
-} from '@/components/ledger/primitives';
+import { LShell, LSectionHeader, LCli, LKpi, LBracket, LRule, L_T, L_MONO } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { dec } from '@/lib/safe-decimal';
@@ -151,14 +139,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   return (
     <LShell>
       <div
-        style={{
-          flex: 1,
-          padding: '4px 0 0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 22,
-          fontFamily: L_MONO,
-        }}
+        style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22, fontFamily: L_MONO }}
       >
         {plan.activityImpact && (
           <ActivityImpactBanner

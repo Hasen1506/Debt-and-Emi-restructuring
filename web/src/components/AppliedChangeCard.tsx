@@ -1,10 +1,7 @@
 'use client';
 
-/**
- * Apply flow (founder, 18 Oct 2026): after a "DO IT" or "APPLY TO MY PLAN"
- * tap, what changed, from when, the debt-free date and interest before →
- * after, and UNDO. Stays until dismissed. `banner` is Plan's one-line copy.
- */
+/** Apply flow (founder, 18 Oct 2026): what a tap saved, from when, before → after,
+ *  and UNDO, until dismissed. `banner` is Plan's one line. */
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -20,12 +17,8 @@ function useAppliedChange(): AppliedChange | null {
   useEffect(() => {
     const read = () => setC(readAppliedChange());
     read();
-    window.addEventListener(APPLIED_CHANGE_EVENT, read);
-    window.addEventListener('storage', read);
-    return () => {
-      window.removeEventListener(APPLIED_CHANGE_EVENT, read);
-      window.removeEventListener('storage', read);
-    };
+    for (const e of [APPLIED_CHANGE_EVENT, 'storage']) window.addEventListener(e, read);
+    return () => { for (const e of [APPLIED_CHANGE_EVENT, 'storage']) window.removeEventListener(e, read); };
   }, []);
   return c;
 }
@@ -54,22 +47,11 @@ export function AppliedChangeCard({ kinds, banner = false }: { kinds?: AppliedUn
   }
 
   function undo() {
-    try {
-      undoAppliedChange(c!);
-      setError(null);
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    try { undoAppliedChange(c!); setError(null); startTransition(() => router.refresh()); } catch (e) { setError((e as Error).message); }
   }
 
   const row = (label: string, a: string, b: string) => (
-    <>
-      <dt style={{ color: L_T.muted }}>{label}</dt>
-      <dd style={{ margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-        {a} → <strong>{b}</strong>
-      </dd>
-    </>
+    <><dt style={{ color: L_T.muted }}>{label}</dt><dd style={{ margin: 0, fontVariantNumeric: 'tabular-nums' }}>{a} → <strong>{b}</strong></dd></>
   );
   return (
     <section role="status" aria-label="Change saved to your plan" data-testid="applied-change-card"
