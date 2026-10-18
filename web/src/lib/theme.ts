@@ -9,9 +9,16 @@
 export type ThemePref = 'light' | 'dark';
 export const THEME_KEY = 'rightdue_theme';
 
+// When Dark is chosen the script also watches <html> until the page has
+// loaded: hydration can drop data-theme before ThemeKeeper mounts, and the
+// observer puts it back in the same frame, so there is no light flash.
 export const THEME_SCRIPT =
-  `try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)});` +
-  `if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}`;
+  `try{var k=${JSON.stringify(THEME_KEY)},r=document.documentElement;` +
+  `if(localStorage.getItem(k)==='dark'){r.setAttribute('data-theme','dark');` +
+  `if(typeof MutationObserver!=='undefined'){var o=new MutationObserver(function(){` +
+  `if(localStorage.getItem(k)==='dark'&&r.getAttribute('data-theme')!=='dark')r.setAttribute('data-theme','dark')});` +
+  `o.observe(r,{attributes:true,attributeFilter:['data-theme']});` +
+  `addEventListener('load',function(){setTimeout(function(){o.disconnect()},1000)})}}}catch(e){}`;
 
 export function readTheme(): ThemePref {
   try {

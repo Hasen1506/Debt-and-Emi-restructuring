@@ -207,8 +207,13 @@ test('A3/A10/B9/B10/B11/B23: landing copy', () => {
   const steps = [...WELCOME.matchAll(/<div class="step[^"]*"><h3>([^<]+)<\/h3>/g)].map((m) => m[1]);
   assert.deepEqual(steps, ['Confirm your email', 'Say what comes in and goes out', 'Add a loan or card', 'Pay, mark it, repeat']);
   assert.match(WELCOME, /\.steps\{[^}]*counter-reset:s -1\}/);
-  // Example stamps aren't styled as filled buttons.
-  assert.doesNotMatch(WELCOME, /\.stamp\.paid\{background:var\(--pos\)/);
+  // Example stamps are not controls (aria-hidden, no pointer events). UI revert
+  // 18 Oct 2026: PAID is the original 4bc3dc8 stamp again, solid green and
+  // straight, not the tilted outline.
+  assert.match(WELCOME, /\.stamp\{[^}]*pointer-events:none/);
+  assert.doesNotMatch(WELCOME, /<button[^>]*data-stamp/);
+  assert.match(WELCOME, /\.stamp\.paid\{background:var\(--pos\);border-color:var\(--pos\);color:#fff\}/);
+  assert.doesNotMatch(WELCOME, /\.stamp\.paid\{[^}]*rotate/);
   assert.match(src('lib/report-problem.ts'), /SUPPORT_EMAIL = 'support@rightdue\.app'/);
 });
 
