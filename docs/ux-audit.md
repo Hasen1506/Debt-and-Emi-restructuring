@@ -219,20 +219,33 @@ The seeded profile (HDFC home loan ₹35,00,000 at 8.50%, EMI ₹35,200; HDFC ca
 
 axe-core (WCAG 2 A and AA) on `/`, `/plan`, `/activity`, `/profile`, `/cant-pay`, `/tools/loan-check`, `/onboarding` and `/goals`, at 390px, signed in: 0 violations before these edits and 0 after.
 
-Lighthouse mobile, production build, simulated throttling. The dev server’s scores (unminified, and a cold compile that put Plan’s LCP at 33s) are not the comparison.
+Lighthouse mobile, production build, simulated throttling (slow 4G, 4× CPU). The dev server’s scores are not the comparison.
+
+Before, the same four routes the owner asked to speed up:
 
 | Route | Performance | Accessibility | LCP | TBT | CLS |
 | --- | --- | --- | --- | --- | --- |
 | `/` | 90 | 100 | 3.5 s | 60 ms | 0.013 |
 | `/plan` | 91 | 100 | 3.5 s | 80 ms | 0 |
 | `/cant-pay` | 89 | 100 | 3.7 s | 60 ms | 0 |
-| `/tools/loan-check` | 90 | 100 | 3.3 s | 40 ms | 0.089 |
-| `/profile` before | 76 | 100 | 4.0 s | 100 ms | 0.217 |
-| `/profile` after | 93 | 100 | 3.1 s | 110 ms | 0 |
+| `/profile` | 93 | 100 | 3.1 s | 110 ms | 0 |
 
-Profile was the only regression. The summary waited for a client effect, so the first paint was one line and the footer then jumped. The server already had the profile. The first HTML now contains the figures (₹1,50,000, ₹35,00,000, 8.50%, Jul 2029). The other routes were not rebuilt between the two Lighthouse passes; their scores are the production measurement.
+Profile had been 76 / 4.0 s / CLS 0.217 when the summary waited for a client effect. The first HTML now contains the figures (₹1,50,000, ₹35,00,000, 8.50%, Jul 2029).
 
-First-load JS stayed inside the route budget (a route fails at +10 kB or over 300 kB). Plan is the largest move, 277.7 kB to 281 kB. fast-check is a dev dependency, so it is not in that bundle.
+After, measured again on the production build with the seeded profile. The chunk scripts start after the first paint, so a slow phone does not have to download them before the figures. The header date no longer disagrees with the browser’s clock in a way that threw the page away and painted it a second time.
+
+| Route | Performance | Accessibility | LCP | TBT | CLS |
+| --- | --- | --- | --- | --- | --- |
+| `/` | 100 | 100 | 1.4 s | 70 ms | 0 |
+| `/plan` | 98 | 100 | 1.4 s | 170 ms | 0 |
+| `/cant-pay` | 98 | 100 | 1.5 s | 140 ms | 0.006 |
+| `/profile` | 99 | 100 | 1.2 s | 140 ms | 0 |
+
+Home’s order is unchanged: status first, then the pay list.
+
+First-load JS stayed inside the route budget (a route fails at +10 kB or over 300 kB). Plan is the largest move, 277.7 kB to 280.5 kB. fast-check is a dev dependency, so it is not in that bundle.
+
+Played against a local Postgres the e2e API migrates and seeds. Playwright Chromium: 103 passed, 10 skipped, 0 failed. The every-section inventory (both widths, the full figure list): 1 passed. The web unit suite: 757 passed, 1 skipped.
 
 ## Decisions that need the owner
 

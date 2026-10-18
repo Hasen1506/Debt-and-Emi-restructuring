@@ -6,7 +6,6 @@ import { loadStrategyServer } from '@/lib/strategy';
 import { CashFlow, LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
 import { HomeDebtHelp } from '@/components/home/HomeDebtHelp';
-import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
@@ -75,12 +74,10 @@ export default async function HomePage() {
           </Suspense>
         }
         thisMonth={
-          // Audit 80+ E10: the strip's place is held while the plan streams
-          // in (it shows whenever there's a loan to pay), so the sections
-          // under it don't jump down.
-          <Suspense fallback={hasOpenLoans ? <HomeThisMonthPlaceholder /> : null}>
-            <HomeThisMonthStrip />
-          </Suspense>
+          // The sentence is the largest thing on the first screen. It is
+          // rendered with the page, not streamed in afterwards, so the first
+          // paint already has the figure.
+          <HomeThisMonthStrip />
         }
         cheaper={
           <Suspense fallback={null}>

@@ -163,7 +163,12 @@ export function LMasthead({
         >
           RightDue
         </div>
-        <div className="rd-mh-stamp" style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
+        {/* The date is the server's clock in the first HTML and the browser's
+            clock after hydration. Those differ in a test that freezes the
+            server, and around midnight. The mismatch is only this text;
+            recovering from it used to throw the whole page away and paint
+            the figures again. */}
+        <div className="rd-mh-stamp" style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }} suppressHydrationWarning>
           {stamp(country)} · {time || '--:--'} {tzLabel(country)}
         </div>
         {hasMenu && (
@@ -235,7 +240,7 @@ export function LMasthead({
         {path === '/login' && <LBracket href="/" prefetch={false}>← RIGHTDUE.APP</LBracket>}
         {!signedOutPage &&
           CORE_TABS.map((t) => (
-            <LBracket key={t.key} active={section === t.key} current={section === t.key} href={t.href} style={TAB_STYLE}>
+            <LBracket key={t.key} active={section === t.key} current={section === t.key} href={t.href} prefetch={false} style={TAB_STYLE}>
               {t.label}
             </LBracket>
           ))}
@@ -279,7 +284,7 @@ export function LMasthead({
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                     {g.links.map((l) => (
                       <li key={l.href + l.label}>
-                        <Link href={l.href} aria-current={path === l.href.split('#')[0] ? 'page' : undefined}>
+                        <Link href={l.href} prefetch={false} aria-current={path === l.href.split('#')[0] ? 'page' : undefined}>
                           <span className="rd-more-name" style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
                             {l.label}
                           </span>

@@ -216,8 +216,13 @@ test('Colours: interest and the dearest loan in red, the plan extra in accent, a
 });
 
 // ── E10 / E11 ─────────────────────────────────────────────────────────────
-test('E10: streamed Home strip and Setup hold their space; E11 marks time-to-useful once', () => {
-  assert.match(src('app/page.tsx'), /fallback=\{hasOpenLoans \? <HomeThisMonthPlaceholder \/> : null\}/);
+test('E10: Home this-month sentence is in the first render; the pay list and Setup hold their space; E11 marks time-to-useful once', () => {
+  const home = src('app/page.tsx');
+  // The sentence is the largest paint on the first screen, so it is part of
+  // the page rather than a streamed placeholder that arrives later.
+  assert.match(home, /<HomeThisMonthStrip \/>/);
+  assert.doesNotMatch(home, /HomeThisMonthPlaceholder/);
+  assert.match(home, /WORKING OUT THIS MONTH&apos;S PAYMENTS/);
   const css = src('styles/globals.css');
   assert.match(css, /\.rd-this-month\s*\{[^}]*min-height/);
   assert.match(css, /\.rd-setup-shell\s*\{[^}]*min-height/);

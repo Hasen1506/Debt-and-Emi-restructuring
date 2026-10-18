@@ -101,7 +101,9 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
     const toX = (t) => left + t * (w - left - right);
     const toY = (v) => h - bottom - v * (h - top - bottom);
     const { note: n, labels } = layoutTrajectoryLabels({ points: pts, milestones: ms, minimumsNote: note, w, left, right, top, toX, toY });
-    // Original look (4bc3dc8): labels are 9-10px mono (≈5.9px a glyph).
+    // The placed boxes come from the layout. This check uses the real
+    // 9.5px advance (5.7px, called 5.9 here) so a box the layout made
+    // wider still has to clear the ink.
     const CW = 5.9;
     const box = (x0, x1, y) => ({ x0, x1, y0: y - 9, y1: y + 2 });
     const lineAt = (key, x) => {

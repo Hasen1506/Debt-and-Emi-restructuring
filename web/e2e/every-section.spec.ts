@@ -1,8 +1,9 @@
 /**
  * One seeded household, every screen that shows a figure. The balance, the
- * EMI and the card balance typed in setup must read the same on Home, Plan,
- * Profile, Activity, Can't pay and Loan check. A page that does not show
- * the household's loans must not invent their total.
+ * EMI and the card balance typed in setup must read the same on Home, Plan
+ * and Profile. Loan check is one loan, the home loan, so it shows that
+ * balance and not the card. A page that does not show the household's
+ * loans must not invent their total.
  */
 import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
 
@@ -27,7 +28,7 @@ const ROUTES = [
   '/account',
 ];
 
-const SHOWS_LOAN = ['/', '/plan', '/profile', '/tools/loan-check'];
+const SHOWS_LOAN = ['/', '/plan', '/profile'];
 const SHOWS_EMI = ['/', '/plan', '/profile', '/activity', '/cant-pay'];
 
 test('seeded balances and the EMI match on every screen that shows them', async ({ page }) => {
@@ -54,6 +55,7 @@ test('seeded balances and the EMI match on every screen that shows them', async 
     expect(text.get(route), route).toContain('₹35,00,000');
     expect(text.get(route), route).toContain('₹80,000');
   }
+  expect(text.get('/tools/loan-check'), '/tools/loan-check').toContain('₹35,00,000');
   for (const route of SHOWS_EMI) {
     expect(text.get(route), route).toContain('₹35,200');
   }

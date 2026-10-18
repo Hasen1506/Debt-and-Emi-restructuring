@@ -36,7 +36,7 @@ import {
 } from '@/lib/income-streams';
 import { deriveMarginalRate } from '@/lib/deductions';
 import { newLoanId, withLoanIds } from '@/lib/loan-ids';
-import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
+import { loadProfileClient, summaryProfile, type StoredProfile } from '@/lib/user-store';
 import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';
@@ -429,7 +429,13 @@ function ProfileEditor({
   useEffect(() => {
     const stored = loadProfileClient();
     setReady(true);
-    if (!stored.isLive) { setFilled(true); return; }
+    // No saved cookie in this browser: a signed-out page opens the empty
+    // form. A page the server already painted from the request cookie keeps
+    // those figures (the cookie was not in document.cookie).
+    if (!stored.isLive) {
+      if (!initial.isLive) setFilled(true);
+      return;
+    }
     const u = stored.user;
     if (u.display_name) setDisplayName(u.display_name);
     if (u.age_bracket) setAgeBracket(u.age_bracket);
@@ -517,7 +523,7 @@ function ProfileEditor({
     loadedMarginalRate.current = stored.marginalRate ?? '';
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
     setFilled(true);
-  }, []);
+  }, [initial.isLive]);
 
   // Fetch True-APR suggestions whenever the bank / loan_type / rate_type
   // triplet of any loan changes. Keyed by JSON.stringify of the relevant
@@ -1046,7 +1052,7 @@ function ProfileEditor({
     // The server has no document.cookie, so it uses the profile it already
     // read. The browser reads the cookie, which is the same profile, including
     // a save that happened after this page was rendered.
-    const stored = typeof document === 'undefined' ? initial : loadProfileClient();
+    const stored = summaryProfile(initial);
     return (
       <LShell>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>

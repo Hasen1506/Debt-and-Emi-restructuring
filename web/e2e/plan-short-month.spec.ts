@@ -57,7 +57,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     // #main first, both are in the DOM for a moment (CI run 38337335511:
     // strict-mode "2 elements", the second outside #main and hidden).
     const main = page.locator('#main');
-    await expect(main.getByText(/GAP CLOSES: [A-Z]{3} \d{4} · AS THINGS STAND/)).toBeVisible();
+    await expect(main.getByText(/gap closes: [A-Za-z]{3} \d{4} · as things stand/)).toBeVisible();
     await expect(main.getByText('₹34,515/MO SHORT').first()).toBeVisible();
     await expect(main.getByText('DUE THIS MONTH', { exact: true })).toBeVisible();
     await expect(main.getByText(/YOU CAN COVER ₹40,000 · SHORT ₹34,515/)).toBeVisible();
@@ -92,7 +92,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     await expect(main.getByText(/Due this month: ₹74,515 in EMIs and minimums\. After your costs you have ₹40,000 for them, so you're ₹34,515 short\./)).toBeVisible();
     // Live re-test 7 R7-2 (golden updated on purpose): Home now names the
     // as-is date too, in the same words as Plan and Setup (answers L2 #16).
-    await expect(main.getByText(/IF THE ₹34,515\/MO GAP CLOSES: [A-Z]{3} \d{4} · AS THINGS STAND: (?:[A-Z]{3} \d{4}|NOT IN 30 YEARS|NOT FUNDABLE FROM [A-Z]{3} \d{4}) · PLAN →/)).toBeVisible();
+    await expect(main.getByText(/if the ₹34,515\/mo gap closes: [A-Za-z]{3} \d{4} · as things stand: (?:[A-Za-z]{3} \d{4}|not in 30 years|not fundable from [A-Za-z]{3} \d{4})\s*· PLAN →/)).toBeVisible();
     // Audit 80+ A5: Home's big figure is the gap, not a conditional date.
     await expect(main.getByText('₹34,515/MO SHORT').first()).toBeVisible();
   });

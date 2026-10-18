@@ -52,19 +52,19 @@ test('short month: schedule stops, what-if redraws the chart and table', async (
     // the card limit (a capped plan, infeasible_from_month), so the schedule
     // stops at that month: "not fundable from <month>", never a debt-free
     // date on paper ("DEBT-FREE AS THINGS STAND · Mar 2047").
-    const heading = page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND · NOT FUNDABLE FROM [A-Z]{3} \d{4}/ });
+    const heading = page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND · NOT FUNDABLE FROM [A-Za-z]{3} \d{4}/ });
     await expect(heading).toBeVisible();
-    const from = (await heading.textContent())!.match(/NOT FUNDABLE FROM ([A-Z]{3} \d{4})/)![1];
+    const from = (await heading.textContent())!.match(/NOT FUNDABLE FROM ([A-Za-z]{3} \d{4})/)![1];
     await expect(main.getByTestId('schedule-stop')).toContainText(`NOT FUNDABLE FROM ${from} AS THINGS STAND`);
     // The headline, chart and schedule tell one story: no debt-free date.
     const chartSection = main.locator('section', { has: page.getByText('TRAJECTORY · TOTAL DEBT OVER TIME') });
-    await expect(chartSection.locator('svg[role=img]')).toContainText(/NOT FUNDABLE FROM [A-Z]{3} ’\d{2}/);
+    await expect(chartSection.locator('svg[role=img]')).toContainText(/NOT FUNDABLE FROM [A-Za-z]{3} \d{4}/);
     // (The stop line itself says "THERE IS NO DEBT-FREE DATE".)
     const dated = /DEBT-FREE( AS THINGS STAND)? ·|★ DEBT-FREE/;
     await expect(chartSection).not.toContainText(dated);
     await expect(main.locator('#schedule')).not.toContainText(dated);
     await expect(main.getByRole('heading', { level: 2 }).first()).not.toContainText(/^Debt-free:/);
-    await expect(main).toContainText(/NOT FUNDABLE( AS IT STANDS)? FROM [A-Z]{3} \d{4}/);
+    await expect(main).toContainText(/NOT FUNDABLE( AS IT STANDS)? FROM [A-Za-z]{3} \d{4}/);
     const all = main.getByRole('button', { name: /ALL \d+ MONTHS/ });
     const n = Number((await all.textContent())!.match(/ALL (\d+) MONTHS/)![1]);
     expect(n).toBeLessThanOrEqual(360);

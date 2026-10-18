@@ -24,6 +24,9 @@ const nextConfig = {
     // Proxied API calls (a KFS PDF read, a first plan on a cold CPU) may take
     // longer than the 30 s default; matches the /api/session proxy's 60 s.
     proxyTimeout: 60000,
+    // The stylesheet travels in the document, so the first paint is not
+    // blocked on a second request for the CSS file.
+    inlineCss: true,
   },
   // `fallback` rewrites run only after every page, route handler and public
   // file has been checked, so Next's own /api/session/* and

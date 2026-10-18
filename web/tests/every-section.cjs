@@ -106,9 +106,10 @@ test('every section renders the same seeded figures', { skip: !BASE, timeout: 30
       for (const section of SECTIONS) {
         if (seen.has(section.route)) continue;
         const res = await page.goto(BASE + section.route, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000);
-        if (section.need?.some((s) => s.startsWith('₹'))) {
-          await page.waitForFunction((needle) => document.body.innerText.includes(needle), section.need.find((s) => s.startsWith('₹')), { timeout: 8000 }).catch(() => {});
+        // Scripts start after the first paint, so a figure the server did not
+        // write (the RBI decision, a tool result) arrives a moment later.
+        for (const s of section.need || []) {
+          await page.waitForFunction((needle) => document.body.innerText.includes(needle), s, { timeout: 15000 }).catch(() => {});
         }
         assert.ok(res, section.route);
         assert.ok(res.status() < 400, `${section.route} status ${res.status()}`);
@@ -133,8 +134,7 @@ test('every section renders the same seeded figures', { skip: !BASE, timeout: 30
       }
 
       if (viewport.width > 500) {
-        await page.goto(BASE + '/tools/windfall', { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(800);
+        await page.goto(BASE + '/tools/windfall', { waitUntil: 'load', timeout: 30000 });
         const amount = page.getByLabel('Amount, after tax');
         if (await amount.count()) {
           await amount.fill('100000');
@@ -150,8 +150,7 @@ test('every section renders the same seeded figures', { skip: !BASE, timeout: 30
           assert.ok(!windfall.includes(STALE_MINIMUM), 'windfall result uses the stale minimum');
           assert.ok(windfall.includes('60.31%') || windfall.includes('HDFC'), 'windfall result does not name the seeded card');
         }
-        await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(1200);
+        await page.goto(BASE + '/', { waitUntil: 'load', timeout: 30000 });
         const why = page.getByRole('button', { name: /WHY 60\.31/ }).first();
         if (await why.count()) await why.click();
         const home = await textOf(page);

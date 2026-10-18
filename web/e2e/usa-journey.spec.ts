@@ -70,7 +70,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     // Whitespace dropped: innerText's line breaks depend on whether the
     // stylesheet has applied yet, which made a cold first run differ.
     debtFree = (await page.getByText(/^DEBT-FREE$/).first().locator('xpath=..').innerText()).replace(/\s+/g, '');
-    expect(debtFree).toMatch(/^DEBT-FREE[A-Z]{3}\d{4}/);
+    expect(debtFree).toMatch(/^DEBT-FREE[A-Z][a-z]{2}\d{4}/);
     await page.getByRole('button', { name: /SIGN OUT/ }).click();
     await page.waitForURL('**/login');
     await expect.poll(async () => (await context.cookies()).length).toBe(0);

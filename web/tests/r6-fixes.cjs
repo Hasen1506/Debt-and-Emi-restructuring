@@ -163,7 +163,9 @@ test("R6-5: Activity's planned amount for a plan extra is the plan's whole payme
 test('UX50 A-12: IBM Plex Mono is self-hosted in three weights; no Google Fonts request on the app or the landing', () => {
   const layout = src('app/layout.tsx');
   assert.doesNotMatch(layout, /fonts\.googleapis|fonts\.gstatic/);
-  assert.match(layout, /rel="preload" href="\/fonts\/ibm-plex-mono-400-latin\.woff2" as="font" type="font\/woff2" crossOrigin=""/);
+  // No preload of the font files: they are discovered from the inlined
+  // stylesheet, which is already in this document.
+  assert.doesNotMatch(layout, /rel="preload" href="\/fonts\//);
   const css = src('styles/globals.css');
   // Audit 80+ B5: IBM Plex Sans (body) has its own faces; these are the mono's.
   const faces = (css.match(/@font-face \{[^}]*\}/g) || []).filter((f) => /IBM Plex Mono/.test(f));
