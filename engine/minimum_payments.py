@@ -14,10 +14,15 @@ D = Decimal
 
 INDIA_MIN_PAYMENT_FORMULAS = {
     # Simple 5% / ₹200 banks
-    "SBI Card":      {"type": "greater_of_pct_floor_plus_interest_fees",
-                      "pct": D("0.05"), "floor": D("200")},
-    "Axis Bank":     {"type": "greater_of_pct_floor",
-                      "pct": D("0.05"), "floor": D("200")},
+    # C14 (audit 80): sourced from the issuer's current MITC (FORMULA_SOURCE).
+    # SBI Card: 100% of GST, EMI, fees, finance charges + over-limit + 2% of
+    # the remaining balance; ₹200 a month at least (MITC illustration).
+    "SBI Card":      {"type": "interest_fees_plus_pct",
+                      "pct": D("0.02"), "floor": D("200")},
+    # Axis: all instalments, fees, interest, taxes + over-limit + 2% of the
+    # remaining balance, at least ₹100.
+    "Axis Bank":     {"type": "interest_fees_plus_pct",
+                      "pct": D("0.02"), "floor": D("100")},
     "Yes Bank":      {"type": "greater_of_pct_floor",
                       "pct": D("0.05"), "floor": D("200")},
     "IndusInd Bank": {"type": "greater_of_pct_floor",
@@ -26,16 +31,22 @@ INDIA_MIN_PAYMENT_FORMULAS = {
                       "pct": D("0.05"), "floor": D("100")},
     "AmEx India":    {"type": "greater_of_pct_floor",
                       "pct": D("0.02"), "floor": D("100")},
-    # HDFC: 5% + current-month EMI + over-limit + past-due
-    "HDFC Bank":     {"type": "hdfc_compound",
+    # HDFC (from the June 2025 statement): GST + EMI + fees + over-limit +
+    # the larger of 5% of (finance charge + balance) and finance charge +
+    # 5% of the balance; ₹200 at least.
+    "HDFC Bank":     {"type": "pct_of_balance_and_interest",
                       "pct": D("0.05"), "floor": D("200")},
     # Kotak: 5% + interest + fees
     "Kotak Mahindra": {"type": "pct_plus_interest_fees",
                        "pct": D("0.05"), "floor": D("200")},
-    # ICICI: max(interest + fees + 1% principal, 5% outstanding, ₹100)
-    "ICICI Bank":    {"type": "icici_three_way",
-                      "principal_pct": D("0.01"), "outstanding_pct": D("0.05"),
-                      "floor": D("100")},
+    # ICICI (from 1 Mar 2026): the same rule as HDFC's. The ₹100 floor is the
+    # old registry's and is NOT in the MITC text read (source note below).
+    # Founder (round 2, 15 Oct 2026): keep the floor, tagged verify=True until
+    # it is confirmed from a statement (docs/FOUNDER-RECORDS.md, row A10).
+    "ICICI Bank":    {"type": "pct_of_balance_and_interest",
+                      "pct": D("0.05"), "floor": D("100"), "verify": True,
+                      "verify_note": "₹100 floor kept from the old registry; not in the ICICI MITC "
+                                     "(w.e.f. 1 Mar 2026) read 14 Oct 2026. Confirm from a statement."},
 }
 
 USA_MIN_PAYMENT_FORMULAS = {
@@ -63,18 +74,35 @@ FORMULA_SOURCE: dict[str, dict] = {
     bank: {"source_url": None, "as_of": None, "verified": False}
     for bank in (*INDIA_MIN_PAYMENT_FORMULAS, *USA_MIN_PAYMENT_FORMULAS)
 }
+# C14: the big issuers' MITCs, read 14 Oct 2026. Everything else stays an
+# estimate (the UI says "use the minimum on your statement").
+FORMULA_SOURCE.update({
+    "SBI Card": {"source_url": "https://www.sbicard.com/en/most-important-terms-and-conditions.page",
+                 "as_of": "2026-10-14", "verified": True},
+    "Axis Bank": {"source_url": "https://www.axis.bank.in/docs/default-source/default-document-library/mitc-credit-cards.pdf",
+                  "as_of": "2026-10-14", "verified": True},
+    "HDFC Bank": {"source_url": "https://v.hdfc.bank.in/htdocs/common/mad-communication.html",
+                  "as_of": "2026-10-14", "verified": True},
+    "ICICI Bank": {"source_url": "https://www.icici.bank.in/content/dam/icicibank/india/managed-assets/revamp-page-images/docs/pdf/mitc-cc-gk-t.pdf",
+                   "as_of": "2026-10-14", "verified": True,
+                   "note": "formula from the MITC (w.e.f. 1 Mar 2026); the ₹100 floor is not in the text read",
+                   "verify": True},
+})
 STATEMENT_MIN_ADVICE = (
     "Estimated. Use the minimum amount due on your card statement: type it in once and the plan uses it."
 )
-RBI_MIN_DUE_RULE = "RBI Master Direction on Credit Card and Debit Card, 2022, para 9(b)(ii) and Annex"
-
-
-def minimum_basis(loan: Loan) -> str:
-    """"statement" when the user typed the statement's minimum, else
-    "estimated" (a formula with no verified source)."""
-    if loan.min_payment_override is not None and loan.min_payment_override > D("0"):
-        return "statement"
-    return "estimated"
+# C22: the 2022 Master Direction (id=12300) was consolidated on 28 Nov 2025
+# into the Reserve Bank of India (Commercial Banks – Credit Cards and Debit
+# Cards: Issuance and Conduct) Directions, 2025 (id=13155, updated 1 Oct
+# 2026) and the NBFC equivalent (id=12956), which keeps the same rule: the
+# minimum due must not cause negative amortisation and unpaid taxes / charges
+# are not capitalised (text checked on id=12956, 14 Oct 2026).
+RBI_MIN_DUE_RULE = (
+    "RBI (Commercial Banks – Credit Cards and Debit Cards: Issuance and Conduct) Directions, 2025 "
+    "(was Master Direction 2022, para 9(b)(ii))"
+)
+RBI_MIN_DUE_URL = "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13155"
+RBI_MIN_DUE_URL_NBFC = "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12956"
 
 
 DEFAULT_FORMULA = {
@@ -98,6 +126,19 @@ def _evaluate(formula: dict, outstanding: Decimal, interest: Decimal, fees: Deci
     if t == "pct_plus_interest_fees":
         base = max(outstanding * formula["pct"], formula["floor"])
         return base + interest + fees
+    if t == "interest_fees_plus_pct":
+        # Interest (GST included for an Indian card), fees, over-limit and the
+        # instalments in full, plus pct of the balance (C14).
+        return max(interest + fees + current_emi + over_limit + past_due + outstanding * formula["pct"],
+                   formula["floor"])
+    if t == "pct_of_balance_and_interest":
+        # HDFC / ICICI: GST, EMIs, fees in full, then the larger of pct of
+        # (finance charge + balance) and finance charge + pct of balance.
+        # `interest` carries 18% GST for an Indian card; split it back out.
+        fc = interest / D("1.18")
+        gst = interest - fc
+        core = max(formula["pct"] * (fc + outstanding), fc + formula["pct"] * outstanding)
+        return max(gst + fees + current_emi + over_limit + past_due + core, formula["floor"])
     if t == "icici_three_way":
         a = interest + fees + outstanding * formula["principal_pct"]
         b = outstanding * formula["outstanding_pct"]

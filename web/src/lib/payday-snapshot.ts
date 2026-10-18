@@ -3,6 +3,9 @@
  * payment rows, read off Home's "Pay this month" (lib/pay-this-month).
  * Names, amounts and kinds only. No account numbers, no balances, no UPI
  * IDs: the email needs none of them (engine/payday.py checks the same).
+ * A behind loan with a catch-up this month goes as 'catch_up', a loan with a
+ * collection agency as 'collections' (left out of the total), and its
+ * settlement pot as 'pot'.
  */
 import type { PayThisMonth } from './pay-this-month';
 
@@ -24,7 +27,8 @@ export function paydaySnapshot(data: PayThisMonth, country: 'IN' | 'US', todayIs
       name: r.name.slice(0, 60),
       amount: String(Math.round(r.amount)),
       currency: r.currency,
-      kind: r.kind,
+      // Founder 17 Oct 2026: not a normal due for a loan that is behind or with collectors.
+      kind: r.held === 'collections' ? 'collections' : r.behind && r.catchUp ? 'catch_up' : r.kind,
       ...(r.dueDay ? { due_day: r.dueDay } : {}),
     })),
   };

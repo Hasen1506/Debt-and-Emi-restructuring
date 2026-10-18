@@ -39,8 +39,15 @@ export function highInterestLoans(loans: LoanPayload[], country: string): LoanPa
   return loans.filter((l) => Number(l.outstanding) > 0 && Number(l.nominal_rate) >= limit);
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const ymLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1] ?? ym.slice(5, 7)} ${ym.slice(0, 4)}`;
+
 /** The rule in a few plain words. */
 export function fundingRuleLabel(rule: GoalFundingRule | undefined, loans: LoanPayload[], country: string, currency: string): string {
+  return baseRuleLabel(rule, loans, country, currency) + limitsLabel(rule, currency);
+}
+
+function baseRuleLabel(rule: GoalFundingRule | undefined, loans: LoanPayload[], country: string, currency: string): string {
   const r = ruleOf(rule);
   const pct = HIGH_APR_THRESHOLD[country] ?? HIGH_APR_THRESHOLD.IN;
   switch (r.kind) {
@@ -48,13 +55,27 @@ export function fundingRuleLabel(rule: GoalFundingRule | undefined, loans: LoanP
       return `${formatCurrencyWhole(Number(r.amount || 0), currency)} a month`;
     case 'surplus_pct':
       return `${Math.round(Number(r.pct || 0) * 100)}% of spare cash`;
-    case 'after_debt':
-      return (r.afterLoanIndex ?? null) === null
+    case 'after_debt': {
+      const head = (r.afterLoanIndex ?? null) === null
         ? `Debt first: after every loan at ${Math.round(pct * 100)}% or more is paid off`
         : `After the ${loanName(loans[r.afterLoanIndex as number])} is paid off`;
+      // Audit 80+: what it takes once the debt clears, when the user set it.
+      if (Number(r.amount) > 0) return `${head}, then ${formatCurrencyWhole(Number(r.amount), currency)} a month`;
+      if (Number(r.pct) > 0 && Number(r.pct) <= 1) return `${head}, then ${Math.round(Number(r.pct) * 100)}% of spare cash`;
+      return head;
+    }
     default:
       return 'On schedule from now';
   }
+}
+
+/** Audit 80+ programmable diversion, in words: ", at most ₹X a month, ...". */
+export function limitsLabel(rule: GoalFundingRule | undefined, currency: string): string {
+  const parts: string[] = [];
+  if (Number(rule?.cap) > 0) parts.push(`at most ${formatCurrencyWhole(Number(rule!.cap), currency)} a month`);
+  if (Number(rule?.pauseBelow) > 0) parts.push(`paused in any month with under ${formatCurrencyWhole(Number(rule!.pauseBelow), currency)} spare`);
+  if (rule?.until && /^\d{4}-\d{2}$/.test(rule.until)) parts.push(`stops in ${ymLabel(rule.until)}`);
+  return parts.length ? `; ${parts.join(', ')}` : '';
 }
 
 /** Whether the rule can be saved, else what's missing. */
@@ -62,6 +83,14 @@ export function fundingRuleError(rule: GoalFundingRule | undefined): string | nu
   const r = ruleOf(rule);
   if (r.kind === 'fixed' && !(Number(r.amount) > 0)) return 'Enter the amount a month.';
   if (r.kind === 'surplus_pct' && !(Number(r.pct) > 0 && Number(r.pct) <= 1)) return 'Enter a share between 1% and 100%.';
+  // Audit 80+: "once it's paid off, a fixed amount / a share" picked but not filled in.
+  if (r.kind === 'after_debt' && r.pct != null && !(Number(r.pct) > 0 && Number(r.pct) <= 1)) return 'Enter a share between 1% and 100%.';
+  if (r.kind === 'after_debt' && r.pct == null && r.amount != null && !(Number(r.amount) > 0)) return 'Enter the amount a month once the debt is paid off.';
+  // Audit 80+ limits: optional, but a typed value must make sense.
+  if (r.cap != null && r.cap !== '' && !(Number(r.cap) > 0)) return 'Enter the most it can take in a month, above zero.';
+  if (r.pauseBelow != null && r.pauseBelow !== '' && !(Number(r.pauseBelow) >= 0)) return 'Enter the spare cash below which it pauses.';
+  if (r.kind === 'fixed' && Number(r.cap) > 0 && Number(r.cap) < Number(r.amount)) return 'The monthly limit is below the fixed amount; lower the amount or raise the limit.';
+  if (r.until != null && r.until !== '' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(r.until)) return 'Pick the month it stops.';
   return null;
 }
 

@@ -13,6 +13,8 @@ import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
 import { paymentWords } from './r7-inputs';
 import { amountInWords, formatAmount } from './amount';
+import { deriveTenureMonths } from './derived';
+import Decimal from 'decimal.js';
 
 /** 'fx': a loan in another currency with no exchange rate on file. Without
  *  one, ₹20 lakh read as $20 lakh (a $14,000 monthly shortfall). */
@@ -28,8 +30,8 @@ export interface GapContext {
 /** Loan types that are never interest-free, so a 0% rate means it's
  *  missing. Personal loans, BNPL and car loans can be 0% ("no-cost EMI",
  *  dealer offers), so an entered 0 stands for those. */
+// UX2B-5: a card can be 0% (balance transfer, intro offer); Setup asks when it ends.
 const NEVER_ZERO_RATE: ReadonlySet<LoanType> = new Set([
-  'credit_card',
   'home_loan',
   'education_loan',
   'gold_loan',
@@ -44,16 +46,41 @@ export function needsEmi(type: LoanType): boolean {
  *  number, negative, or above 100% a year (the API's bounds), with what to
  *  tell the user. Setup used to save −5% and 500%, and the plan then said
  *  "unreachable right now" instead of pointing at the rate. */
-export function rateOutOfRange(rate: string | null | undefined): string | null {
+export function rateOutOfRange(rate: string | null | undefined, max = 1): string | null {
   const t = (rate ?? '').trim();
   if (t === '') return null;
   const n = Number(t);
   if (!Number.isFinite(n)) return 'Enter the rate as a number, e.g. 8.5 for 8.5% a year.';
   if (n < 0) return 'A rate can’t be negative. Enter the rate from your statement, e.g. 8.5.';
-  if (n > 1) {
-    return 'Rates above 100% a year aren’t accepted. Enter the yearly rate as a percent: 36 for 36% (a 3% monthly rate is 36% a year).';
+  if (n > max) {
+    return `Rates above ${max === 1 ? '100' : '1,000'}% a year aren’t accepted. Enter the yearly rate as a percent: 36 for 36% (a 3% monthly rate is 36% a year).`;
   }
   return null;
+}
+
+/** UX2-4: a loan's own rate may run to 1,000% a year (payday loans, instant-loan
+ *  apps at 1% a day), the API's MAX_LOAN_RATE; other rates stay 0 to 100%. */
+export const MAX_LOAN_RATE = 10;
+export const loanRateOutOfRange = (rate: string | null | undefined) => rateOutOfRange(rate, MAX_LOAN_RATE);
+
+/** UX2-4/18: a non-blocking note under a loan's rate. Above 100% a year: a
+ *  high-cost loan (or, on a card, likely the wrong number). A card at 1-5%
+ *  a year: probably the monthly rate. Null when the rate looks ordinary. */
+export function rateSanityNote(loanType: LoanType, rate: string | null | undefined, country: string): string | null {
+  const t = (rate ?? '').trim();
+  const n = Number(t);
+  if (loanType === 'credit_card' && t !== '' && n === 0) return 'A 0% intro or balance-transfer offer? Add when it ends and the rate after, so the plan charges it from then.';
+  if (t === '' || !Number.isFinite(n) || n <= 0 || n > MAX_LOAN_RATE) return null;
+  const pct = Number((n * 100).toFixed(2));
+  const shown = pct.toLocaleString('en-US');
+  if (loanType === 'credit_card') {
+    if (pct <= 5) return `${shown}% a year is very low for a card. If ${shown}% is the monthly rate, enter ${Number((pct * 12).toFixed(2))} (${shown}% × 12 months).`;
+    if (pct > 100) return `${shown}% a year is far above card rates (${country === 'US' ? 'about 20-30%' : 'about 36-48%'} a year). Check it’s the card’s yearly rate (APR), not a fee or a balance.`;
+    return null;
+  }
+  if (pct <= 100) return null;
+  return `${shown}% a year is a very high-cost loan (payday loans and instant-loan apps charge this). The plan counts it as typed and pays it first; ` +
+    `check it’s the yearly rate, and see Can’t pay for your rights with the lender.`;
 }
 
 /** The same check for a rate typed as a percent ("8.5" for 8.5%). */
@@ -70,12 +97,12 @@ export function percentRateError(pct: string): string | null {
 export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
   const gaps: LoanGapField[] = [];
   if (
-    rateOutOfRange(loan.nominal_rate) ||
+    loanRateOutOfRange(loan.nominal_rate) ||
     (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0))
   ) {
     gaps.push('rate');
   }
-  if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
+  if (needsEmi(loan.loan_type) && loan.repayment !== 'bullet' && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
   if (ctx && loanToUser(1, loan, ctx.country, ctx.fx) == null) gaps.push('fx');
   return gaps;
 }
@@ -83,24 +110,25 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
 /** Setup's check on a loan being typed in: a blank field is missing even
  *  where 0 would be allowed. Returns a message per missing field. */
 export function loanDraftErrors(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track'>> & { currency?: 'INR' | 'USD' },
   country?: string,
 ): Partial<Record<LoanGapField, string>> {
   const pw = paymentWords(country ?? (loan.currency === 'USD' ? 'US' : 'IN'));
   // A typed rate the engine won't take is an error even on a row with no
   // balance: the whole profile goes to the engine.
-  const badRate = rateOutOfRange(loan.nominal_rate);
+  const badRate = loanRateOutOfRange(loan.nominal_rate);
   if (badRate) return { rate: badRate };
   if (dec(loan.outstanding).lte(0)) return {};
   const out: Partial<Record<LoanGapField, string>> = {};
   const rateBlank = (loan.nominal_rate ?? '').trim() === '';
-  if (loan.loan_type === 'credit_card' && (rateBlank || dec(loan.nominal_rate).lte(0))) {
+  if (loan.loan_type === 'credit_card' && rateBlank) {
     out.rate = 'Enter the card’s interest rate, e.g. 42 (a 3.5% monthly rate is 42% a year).';
   } else if (rateBlank) {
     out.rate = 'Enter the interest rate from your statement (0 only if it’s really interest-free).';
   } else if (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0)) {
     out.rate = 'This kind of loan always charges interest. Enter the rate from your statement.';
   }
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return out;
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) {
     out.emi = pw.one === 'EMI'
       ? 'Enter the monthly EMI the bank takes (on your statement or banking app).'
@@ -120,16 +148,21 @@ export function loanDraftErrors(
  * clear at this EMI (an extra 0 typed, NEW-4). Null when it amortises.
  */
 export function emiBelowInterest(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track'>> & { currency?: 'INR' | 'USD' },
   country?: string,
 ): string | null {
   if (!needsEmi(loan.loan_type)) return null;
+  // UX2-3: an interest-only or bullet loan isn't meant to amortise, and a US
+  // income-driven plan's payment may be below the interest (it's forgiven later).
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet' || loan.forgiveness_track === 'idr') return null;
   const P = dec(loan.outstanding);
   const rate = dec(loan.nominal_rate);
   const E = dec(loan.scheduled_emi);
   if (P.lte(0) || rate.lte(0) || E.lte(0)) return null;
   const interest = P.mul(rate).div(12);
-  if (E.gt(interest)) return null;
+  // UX2-1: just above the interest but past the plan's 100 years is the same problem.
+  const tooSlow = E.gt(interest) && deriveTenureMonths(P, rate, E) == null;
+  if (E.gt(interest) && !tooSlow) return null;
   const ccy = loan.currency === 'USD' ? 'USD' : 'INR';
   const sym = ccy === 'INR' ? '₹' : '$';
   const money = (d: typeof P) => `${sym}${formatAmount(d.toDecimalPlaces(0).toFixed(), ccy)}`;
@@ -141,11 +174,35 @@ export function emiBelowInterest(
   const pct = rate.mul(100).toDecimalPlaces(2).toString();
   const tenth = P.div(10);
   const guess = E.gt(tenth.mul(rate).div(12)) ? ` (did you mean ${words(tenth)}?)` : '';
+  // UX2-18: 120% with a ₹12,000 EMI on ₹5 lakh is 12% typed with an extra 0: point at the rate.
+  const tenthRate = rate.div(10);
+  if (rate.gt(1) && E.gt(P.mul(tenthRate).div(12))) {
+    return `At ${pct}%, ${words(P)} earns ${money(interest)} interest a month, more than the ${money(E)} ${pw.one}, so this loan would never be paid off. ` +
+      `Check the rate (did you mean ${tenthRate.mul(100).toDecimalPlaces(2).toString()}%?), the balance and the ${pw.one}.`;
+  }
   return (
     `At ${pct}%, ${words(P)} earns ${money(interest)} interest a month, ` +
-    `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} ${pw.one}, so this loan would never be paid off. ` +
+    (tooSlow ? `so the ${money(E)} ${pw.one} would take over 100 years to pay it off. `
+      : `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} ${pw.one}, so this loan would never be paid off. `) +
     `Check the balance${guess}, the rate and the ${pw.one}.`
   );
+}
+
+/** UX2-1: a payment that only just beats the interest (₹3 L at 14%, ₹3,501;
+ *  $45k at 8.9%, $334) clears, but over decades. Setup says so beside the
+ *  months left, so a typo or an interest-only payment is caught. '' when
+ *  most of the payment goes to the balance or the loan clears within 30 years. */
+export function slowPayoffNote(
+  loan: Pick<LoanPayload, 'nominal_rate' | 'scheduled_emi' | 'outstanding'>, ccy: 'INR' | 'USD', country: string, months: number | null,
+): string {
+  const P = dec(loan.outstanding), E = dec(loan.scheduled_emi);
+  if (months == null || months <= 360 || E.lte(0)) return '';
+  const toBalance = E.sub(P.mul(dec(loan.nominal_rate)).div(12));
+  const sym = ccy === 'INR' ? '₹' : '$';
+  const m = (d: typeof P) => `${sym}${formatAmount(Decimal.max(d, 0).toDecimalPlaces(0).toFixed(), ccy)}`;
+  const pw = paymentWords(country);
+  return `. Only about ${m(toBalance)} of the ${m(E)} ${pw.one} goes to the balance; the rest is interest, so this takes over ${Math.floor(months / 12)} years. ` +
+    `Check the ${pw.one} and the rate. If they’re right, paying even a little more each month cuts years off.`;
 }
 
 export interface ProfileGap {
@@ -178,7 +235,7 @@ export function describeGap(
   missing: LoanGapField[],
   loan?: Pick<LoanPayload, 'nominal_rate'>,
 ): string {
-  if (loan && missing.includes('rate') && rateOutOfRange(loan.nominal_rate)) {
+  if (loan && missing.includes('rate') && loanRateOutOfRange(loan.nominal_rate)) {
     const n = Number(loan.nominal_rate);
     const rate = Number.isFinite(n)
       ? `a valid interest rate (${Number((n * 100).toFixed(2))}% isn’t accepted)`
@@ -230,7 +287,7 @@ export function setupSummaryLine(f: {
   if (f.emiTooSmall && !f.invalid && !f.missing) return 'A loan needs a fix: its EMI is too small to pay it off. It’s marked above.';
   if (f.invalid && !f.emiTooSmall && !f.missing)
     return f.outOfRange
-      ? 'A loan needs a fix: its rate is out of range (0 to 100% a year). It’s marked above.'
+      ? 'A loan needs a fix: its rate is out of range (0 to 1,000% a year). It’s marked above.'
       : 'A loan needs a fix: its rate isn’t a valid number. It’s marked above.';
   if (f.missing && !f.emiTooSmall && !f.invalid) return 'Some loans are missing a number. They’re marked above.';
   if (problems.length > 1) {

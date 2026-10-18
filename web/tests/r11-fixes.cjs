@@ -94,10 +94,7 @@ test('R11-1: a "leave this page?" prompt that keeps the person here re-issues th
     win.dispatchEvent(ev);
     assert.equal(await q, 'again');
     assert.equal(n, 2);
-    // The masthead's auth/me and the rates still go through pageScoped.
-    const api = src('lib/api.ts');
-    assert.match(api, /meInFlight = pageScoped\(\(signal\) => get<AuthUser \| null>\('\/api\/auth\/me', signal\)\)/);
-    assert.match(api, /pageScoped\(\(s\) => get<CentralRatesResponse>\('\/api\/rates\/central', s\), signal\)/);
+    // auth/me and the rates going through pageScoped: r10-fixes.
   } finally {
     delete global.window;
   }

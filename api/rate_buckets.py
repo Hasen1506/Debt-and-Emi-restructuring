@@ -30,6 +30,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api.db.models import RateBucket
+from api.netkey import network_of
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ PERSISTED_LIMITS: list[tuple[str, WindowLimit]] = [
     ("/api/auth/account/", WindowLimit(limit=30)),
     ("/api/admin/", WindowLimit(limit=20)),
     ("/api/outcomes", WindowLimit(limit=30)),
+    # audit80 D15: each one spawns a PDF parse; the memory bucket resets on restart.
+    ("/api/kfs/", WindowLimit(limit=60)),
+    ("/api/credit-report/", WindowLimit(limit=60)),
 ]
 
 
@@ -73,7 +77,9 @@ class DbRateCounter:
         self.limits = limits if limits is not None else PERSISTED_LIMITS
 
     def bucket_key(self, prefix: str, ip: str, window_start: int) -> str:
-        digest = hmac.new(self.key, ip.encode(), hashlib.sha256).hexdigest()[:32]
+        # audit80 D13: an IPv6 client owns a whole /64, so it is counted as
+        # one (api/netkey.py); IPv4 stays per address (carrier NAT in India).
+        digest = hmac.new(self.key, network_of(ip).encode(), hashlib.sha256).hexdigest()[:32]
         return f"{prefix}|{digest}|{window_start}"
 
     async def hit(self, ip: str, path: str, now: Optional[datetime] = None) -> Optional[int]:

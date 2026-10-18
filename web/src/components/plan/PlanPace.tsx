@@ -130,8 +130,8 @@ export function PlanPace({ plan }: { plan: PlanData }) {
   }
 
   return (
-    <section aria-labelledby="plan-pace-h" style={{ fontSize: 12, lineHeight: 1.6 }}>
-      <div id="plan-pace-h" style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
+    <section aria-labelledby="plan-pace-h" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
+      <div id="plan-pace-h" style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
         WHAT YOU&apos;VE PAID
         <span style={{ fontWeight: 400, color: L_T.muted }}> · LAST {pace.months.length} MONTHS, FROM ACTIVITY</span>
       </div>
@@ -141,21 +141,21 @@ export function PlanPace({ plan }: { plan: PlanData }) {
       >
         {pace.months.map((m) => (
           <li key={m.month} style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>{monthLabel(m.month)}</span>
+            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>{monthLabel(m.month)}</span>
             <span style={{ fontWeight: 700, color: m.complete ? L_T.ink : L_T.muted }}>
               {m.paid > 0 ? fc(m.paid) : '—'}
             </span>
             {!m.complete && (
-              <span style={{ fontSize: 10, letterSpacing: '0.06em', color: L_T.muted }}>
+              <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', color: L_T.muted }}>
                 {m.paid > 0 || m.oneOff > 0 ? 'NOT ALL LOGGED' : 'NOTHING LOGGED'}
               </span>
             )}
           </li>
         ))}
         <li style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>PLAN</span>
+          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>PLAN</span>
           <span style={{ fontWeight: 700 }}>{fc(pace.planTotal)}</span>
-          <span style={{ fontSize: 10, letterSpacing: '0.06em', color: L_T.muted }}>A MONTH</span>
+          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', color: L_T.muted }}>A MONTH</span>
         </li>
       </ol>
       <p style={{ margin: 0, color: L_T.inkSoft }}>{says}</p>

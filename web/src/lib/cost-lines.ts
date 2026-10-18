@@ -51,9 +51,6 @@ export const GST_CARD_SOURCE: CostSource = {
   asOf: '12 Oct 2026',
 };
 
-/** GST on the processing fee: the same 18% on a lender's fee. */
-export const GST_FEE_SOURCE = GST_CARD_SOURCE;
-
 const pct = (v: Decimal.Value, dp = 2) => `${new Decimal(v).times(100).toFixed(dp)}%`;
 
 /** Whether the GST figure lets GST compound with the interest (the app's

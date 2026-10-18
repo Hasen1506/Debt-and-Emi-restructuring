@@ -24,15 +24,6 @@ function isInflationModeling(v: string | null | undefined): v is InflationModeli
   return v === 'on' || v === 'off';
 }
 
-// ─── Client-side ────────────────────────────────────────────────────────────
-
-export function readInflationModelingClient(): InflationModeling {
-  if (typeof document === 'undefined') return DEFAULT_INFLATION_MODELING;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
-  const v = match ? decodeURIComponent(match[1]) : null;
-  return isInflationModeling(v) ? v : DEFAULT_INFLATION_MODELING;
-}
-
 export function writeInflationModelingClient(value: InflationModeling) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
@@ -121,21 +112,3 @@ export const INFLATION_LONG_RUN = {
   IN: { rate: '0.04', who: 'RBI', what: 'inflation target (4%, band 2–6%) to March 2031', url: 'https://www.rbi.org.in/scripts/bs_viewbulletin.aspx?Id=24174' },
   US: { rate: '0.02', who: 'the Fed', what: 'longer-run goal (2% PCE prices)', url: 'https://www.federalreserve.gov/monetarypolicy/files/FOMC_LongerRunGoals.pdf' },
 } as const;
-
-/**
- * The line shown beside the debt-free date (grill #39): when inflation
- * modelling is off, say plainly that the plan holds spending flat; when on,
- * say at what rate it grows. `monthlySpend` is already formatted (₹45,000).
- */
-export function spendingAssumptionLine(
-  mode: InflationModeling,
-  monthlySpend: string,
-  ratePct?: string,
-): string {
-  if (mode === 'off') {
-    return `Assumes your spending stays at ${monthlySpend} a month. Turn on rising prices on Plan to see the date with inflation.`;
-  }
-  return ratePct
-    ? `Assumes your spending of ${monthlySpend} a month grows ${ratePct}% a year with prices.`
-    : `Assumes your spending of ${monthlySpend} a month grows with prices.`;
-}

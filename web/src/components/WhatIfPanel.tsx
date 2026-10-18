@@ -33,7 +33,7 @@ import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
-import { rollBalancesForward } from '@/lib/roll-forward';
+import { owedTodayLoans, rollBalancesForward } from '@/lib/roll-forward';
 import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
 import {
   addCommitment,
@@ -51,6 +51,8 @@ import {
 import { computeGoalSlip, materialPullForwards } from '@/lib/goal-slip';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { PrepayChoice } from '@/components/PrepayChoice';
+import { asksPrepayChoice, lowerEmiAfter, prepayFields, saveLowerEmi, type PrepayMode } from '@/lib/prepay-choice';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -100,6 +102,9 @@ export function WhatIfPanel({
   // Derive realistic slider ceilings + the default "Applied to" loan from
   // the live profile. The user complained about a hardcoded 50k cap and a
   // random lump-sum default; both come from these.
+  // UX fix 4: the box shows and caps what's owed today (after the EMIs
+  // already paid this month), the balance Home and Loan Check show.
+  const owedLoans = useMemo(() => owedTodayLoans(user.loans, runArgs?.paid_emi_this_month ?? []), [user.loans, runArgs]);
   const { fixedExpensesCap, loanOptions, defaultLoanIdx } =
     useMemo(() => {
       // Slider ceiling = variable (discretionary) expenses when present,
@@ -124,7 +129,7 @@ export function WhatIfPanel({
           const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
           const t = LOAN_TYPE_NAME[l.loan_type];
           return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
-        })()} · ${formatCurrency(l.outstanding, loanCurrency(l, user.country))}`,
+        })()} · ${formatCurrency(owedLoans[i].outstanding, loanCurrency(l, user.country))}`,
         isTop: i === top,
       })).filter(o => isOpenCurrentLoan(user.loans[o.value]));
       return {
@@ -132,7 +137,7 @@ export function WhatIfPanel({
         loanOptions: opts,
         defaultLoanIdx: top,
       };
-    }, [user, configuredUser, marginalRate]);
+    }, [user, configuredUser, marginalRate, owedLoans]);
 
   // Surplus delta: ₹/month extra (positive = more cash to debts).
   const [surplusDelta, setSurplusDelta] = useState(0);
@@ -147,7 +152,7 @@ export function WhatIfPanel({
   const resolvedLumpTarget = resolveLoanIndex(lumpRef, user.loans);
   const lumpTarget = isOpenCurrentLoan(user.loans[resolvedLumpTarget]) ? resolvedLumpTarget : -1;
   // A lump sum is denominated in its selected loan's native currency.
-  const lumpTargetCap = lumpTarget >= 0 ? Number(user.loans[lumpTarget].outstanding) : 0;
+  const lumpTargetCap = lumpTarget >= 0 ? Number(owedLoans[lumpTarget].outstanding) : 0;
   useEffect(() => {
     setLumpAmount(value => Math.min(value, lumpTargetCap));
   }, [lumpTargetCap]);
@@ -155,6 +160,12 @@ export function WhatIfPanel({
   const [surplus, setSurplus] = useState<ScenarioState>(INITIAL);
   const [rate, setRate] = useState<ScenarioState>(INITIAL);
   const [lump, setLump] = useState<ScenarioState>(INITIAL);
+  // UX2 #20: "lower your EMI or finish sooner?" is the user's answer; a new
+  // amount or loan asks again.
+  const [lumpMode, setLumpMode] = useState<PrepayMode | null>(null);
+  const [lumpModeTried, setLumpModeTried] = useState(false);
+  useEffect(() => { setLumpMode(null); setLumpModeTried(false); }, [lumpAmount, lumpTarget]);
+  const lumpAsks = lumpAmount > 0 && lumpAmount < lumpTargetCap && asksPrepayChoice(user.loans[lumpTarget]);
 
   // Currency of the loan the lump-sum is being applied to. A USD card
   // lump-sum should show "$" everywhere; an INR home-loan lump-sum
@@ -194,6 +205,10 @@ export function WhatIfPanel({
 
   function commitLumpSum() {
     if (lumpAmount <= 0 || !Number.isFinite(lumpAmount) || lumpTarget < 0) return;
+    if (lumpAsks && !lumpMode) {
+      setLumpModeTried(true);
+      return;
+    }
     const stored = loadProfileClient();
     const index = resolveLoanIndex(lumpRef, stored.user.loans);
     if (!stored.isLive || !isOpenCurrentLoan(stored.user.loans[index])) {
@@ -208,14 +223,21 @@ export function WhatIfPanel({
         loanCurrency(target, stored.user.country) !== loanCurrency(expected, user.country) ||
         Number(target.outstanding) !== Number(expected.outstanding) ||
         target.nominal_rate !== expected.nominal_rate || target.scheduled_emi !== expected.scheduled_emi ||
-        (!lumpRef.loanId && target.bank !== expected.bank) || lumpAmount > Number(target.outstanding)) {
+        (!lumpRef.loanId && target.bank !== expected.bank) || lumpAmount > lumpTargetCap) {
       setToast('This loan changed. Refresh the plan and check the payment again.');
       return;
     }
     const sched = target.scheduled_emi || '0';
-    const outstandingD = new Decimal(target.outstanding || '0');
+    // What's owed today (after this month's EMI if paid), as the box shows.
+    const outstandingD = new Decimal(owedLoans[lumpTarget]?.outstanding || target.outstanding || '0');
     const paymentD = new Decimal(String(lumpAmount));
     const fullyClears = paymentD.gte(outstandingD);
+    // The engine's figure for the lower EMI when it has one, else the same
+    // formula here (lib/prepay-choice).
+    const option = lump.result?.prepay_options?.find((o) => o.mode === 'reduce_emi');
+    const newEmi = !fullyClears && lumpMode === 'reduce_emi'
+      ? Number(option?.new_emi ?? lowerEmiAfter(owedLoans[lumpTarget] ?? target, lumpAmount) ?? 0)
+      : null;
     applyToolResult({
       loanIndex: index,
       kind: fullyClears ? 'closed' : 'paid_extra',
@@ -226,7 +248,9 @@ export function WhatIfPanel({
       note: `What-if lock-in — ${fmtLump(lumpAmount)} → ${target.bank}`,
       loans: stored.user.loans,
       country: stored.user.country,
+      ...(!fullyClears && lumpMode ? { prepay: prepayFields(lumpMode, sched, newEmi) } : {}),
     });
+    const emiSaved = newEmi ? saveLowerEmi({ loanIndex: index, loanId: target.id }, newEmi) : false;
     const entry: Omit<CommitmentEntry, 'id'> = {
       date: todayISO(),
       kind: 'lump_sum',
@@ -239,7 +263,8 @@ export function WhatIfPanel({
     writeCommitmentsClient(next);
     setCommitments(next);
     setLumpAmount(0);
-    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.`);
+    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.` +
+      (emiSaved && newEmi ? ` Its EMI is now ${fmtLump(newEmi)} in Profile; check it against the bank's letter.` : ''));
     startTransition(() => router.refresh());
   }
 
@@ -295,7 +320,7 @@ export function WhatIfPanel({
   );
 
   useDebouncedScenario(
-    `${baseKey}|${lumpAmount}|${lumpTarget}`,
+    `${baseKey}|${lumpAmount}|${lumpTarget}|${lumpMode}`,
     setLump,
     async (signal: AbortSignal) =>
       lumpAmount === 0 || lumpTarget < 0
@@ -305,6 +330,7 @@ export function WhatIfPanel({
             horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
+            ...(lumpMode ? { lump_sum_mode: lumpMode } : {}),
           }, signal),
     lumpAmount !== 0 && lumpTarget >= 0,
   );
@@ -422,7 +448,7 @@ export function WhatIfPanel({
         title={'If floating rates change'}
         hint={
           hasFloating
-            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. 100 bps = 1 percentage point.'
+            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. The box counts basis points: 25 = 0.25%, 100 = 1%.'
             : 'None of your loans has a floating rate, so a rate change doesn’t move the plan.'
         }
         disabled={!hasFloating}
@@ -436,7 +462,8 @@ export function WhatIfPanel({
         formatValue={(v) =>
           v === 0
             ? 'no change'
-            : `${v > 0 ? '+' : ''}${v} bps (${(v / 100).toFixed(2)}pp)`
+            : // Audit 80 B16: % points first; bps only as the box's unit.
+              `${v > 0 ? '+' : ''}${(v / 100).toFixed(2)}% points`
         }
         formatInterest={fmtUser}
         state={rate}
@@ -465,7 +492,7 @@ export function WhatIfPanel({
         disabled={lumpTargetCap <= 0}
         extraControls={
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 'var(--fs-dense)' }}>
               <span style={{ color: L_T.muted }}>Into</span>
               <select
                 value={lumpTarget}
@@ -474,7 +501,7 @@ export function WhatIfPanel({
                   setLumpRef({loanIndex:index, loanId:user.loans[index]?.id});
                   setLumpAmount(0);
                 }}
-                style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
+                style={{ fontFamily: 'inherit', fontSize: 'var(--fs-dense)', padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
               >
                 {lumpTarget < 0 && <option value={-1}>Choose an open loan</option>}
                 {loanOptions.map((o) => (
@@ -484,8 +511,22 @@ export function WhatIfPanel({
                   </option>
                 ))}
               </select>
-              <span style={{ color: L_T.muted, fontSize: 11 }}>★ The dearest, the plan&apos;s own pick</span>
+              <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>★ The dearest, the plan&apos;s own pick</span>
             </label>
+            {lumpAsks && (
+              <PrepayChoice
+                country={user.country}
+                value={lumpMode}
+                onChange={setLumpMode}
+                detail={prepayDetail(lump.result, fmtLump, user.country)}
+                error={lumpModeTried && !lumpMode ? 'Choose one before logging it: it changes what the bank does.' : null}
+              />
+            )}
+            {lumpAsks && !lumpMode && lump.result && (
+              <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>
+                Until you choose, the figures above keep the {user.country === 'US' ? 'payment' : 'EMI'}, which is what a bank does with no instruction.
+              </span>
+            )}
             <LockItInButton
               disabled={lumpAmount <= 0}
               label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions.find(o => o.value === lumpTarget)?.label.split(' · ')[0] ?? 'loan'}`}
@@ -504,7 +545,7 @@ export function WhatIfPanel({
             padding: '8px 12px',
             borderLeft: `2px solid ${L_T.positive}`,
             background: L_T.paper,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             display: 'flex',
             justifyContent: 'space-between',
             gap: 12,
@@ -518,7 +559,7 @@ export function WhatIfPanel({
       )}
 
       {commitments.length > 0 && (
-        <div style={{ marginTop: 12, fontSize: 12 }}>
+        <div style={{ marginTop: 12, fontSize: 'var(--fs-dense)' }}>
           <LBracket onClick={() => setShowLog((v) => !v)}>
             {showLog ? 'HIDE' : 'SHOW'} CHANGES MADE HERE · {commitments.length}
           </LBracket>
@@ -590,9 +631,26 @@ function LockItInButton({
       <LBracket accent onClick={onClick} label={label} disabled={disabled}>
         {shortLabel}
       </LBracket>
-      {reason && <span style={{display:'block', fontSize:11, color:L_T.muted}}>{reason}</span>}
+      {reason && <span style={{display:'block', fontSize: 'var(--fs-small)', color:L_T.muted}}>{reason}</span>}
     </span>
   );
+}
+
+/** One line per answer to "lower your EMI or finish sooner?", from the
+ *  engine's figures for the loan on its own schedule. */
+function prepayDetail(result: CompareResponse | null, fmt: (v: number) => string, country: UserPayload['country']): Partial<Record<PrepayMode, string>> | undefined {
+  const opts = result?.prepay_options;
+  if (!opts?.length) return undefined;
+  const pay = country === 'US' ? 'payment' : 'EMI';
+  const out: Partial<Record<PrepayMode, string>> = {};
+  for (const o of opts) {
+    const saved = Number(o.interest_saved);
+    const save = saved > 0 ? `, about ${fmt(Math.round(saved))} less interest on this loan` : '';
+    out[o.mode] = o.mode === 'reduce_tenure'
+      ? `${pay} stays ${fmt(Math.round(Number(o.old_emi)))}; ${o.new_months} months left instead of ${o.old_months}${save}`
+      : `${pay} ${fmt(Math.round(Number(o.old_emi)))} → ${fmt(Math.round(Number(o.new_emi)))} a month, ending as planned${save}`;
+  }
+  return out;
 }
 
 function roundStep(value: number, base: number): number {
@@ -662,8 +720,8 @@ function BeforeAfter({
         );
         return (
           <div key={r.label} role="img" aria-label={`${r.label.toLowerCase()}: ${r.aText} on your plan, ${r.bText} with this change`}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 11 }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 'var(--fs-small)' }}>
               <span style={{ color: L_T.muted }}>Your plan</span>
               {bar(r.a, L_T.inkSoft, false)}
               <span style={{ color: L_T.inkSoft, whiteSpace: 'nowrap' }}>{r.aText}</span>
@@ -732,7 +790,7 @@ function SliderRow({
     : 0;
   const interest = Number(state.result?.interest_saved ?? '0');
   const tone = (good: boolean | null) => (good == null ? L_T.muted : good ? L_T.positive : L_T.negative);
-  const small = { fontFamily: 'inherit', fontSize: 10, letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
+  const small = { fontFamily: 'inherit', fontSize: 'var(--fs-label)', letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
 
   return (
     <div
@@ -749,7 +807,7 @@ function SliderRow({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <strong style={{ fontSize: 'var(--fs-body)' }}>{title}</strong>
         <TypableAmountInput
           value={value}
           onChange={onChange}
@@ -789,8 +847,8 @@ function SliderRow({
         aria-valuetext={formatValue(value)}
         style={{ width: '100%', accentColor: L_T.accent, opacity: disabled ? 0.6 : 1 }}
       />
-      <div style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
-      <div aria-live="polite" style={{ fontSize: 12, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
+      <div aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
         {state.loading ? (
           <span style={{ color: L_T.muted }}>Working it out…</span>
         ) : state.error ? (
@@ -810,7 +868,7 @@ function SliderRow({
                   : `${formatInterest(Math.abs(interest))} ${interest > 0 ? 'less' : 'more'} interest`}
               </strong>
             </span>
-            {summary && <div style={{ color: L_T.muted, fontSize: 11 }}>{summary}</div>}
+            {summary && <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{summary}</div>}
             {value !== 0 && <BeforeAfter result={state.result} country={country} formatInterest={formatInterest} />}
           </>
         ) : (
@@ -860,7 +918,7 @@ function StartMonthPicker({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
       }}
     >
       <span style={{ color: L_T.muted }}>From</span>
@@ -872,7 +930,7 @@ function StartMonthPicker({
         style={{
           opacity: disabled ? 0.55 : 1,
           padding: '5px 8px',
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           fontFamily: 'inherit',
           border: `1px solid ${L_T.ink}`,
           background: L_T.paper,
@@ -965,7 +1023,7 @@ function TypableAmountInput({
       }}
     >
       {mode === 'integer' && (
-        <span style={{ fontSize: 12, color: L_T.muted }}>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           {currency === 'USD' ? '$' : '₹'}
         </span>
       )}
@@ -994,7 +1052,7 @@ function TypableAmountInput({
         style={{
           width: mode === 'bps' ? 70 : 104,
           padding: '4px 6px',
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           fontFamily: 'inherit',
           border: `1px solid ${L_T.ink}`,
           background: L_T.paper,
@@ -1004,16 +1062,16 @@ function TypableAmountInput({
         }}
       />
       {unit && (
-        <span style={{ fontSize: 12, color: L_T.muted }}>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           {unit}
         </span>
       )}
       {boxError ? (
-        <span id={errId} role="alert" data-testid="whatif-box-error" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.negative }}>
+        <span id={errId} role="alert" data-testid="whatif-box-error" style={{ display: 'block', flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.negative }}>
           {boxError}
         </span>
       ) : boxNote ? (
-        <span id={errId} role="status" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
+        <span id={errId} role="status" style={{ display: 'block', flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           {boxNote}
         </span>
       ) : null}

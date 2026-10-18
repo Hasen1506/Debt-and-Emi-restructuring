@@ -20,6 +20,9 @@ class FilingStatusUS(str, Enum):
     SINGLE = "single"
     MFJ = "mfj"
     HOH = "hoh"
+    # Married filing separately (C17): half the MFJ mortgage-debt limit,
+    # no §221 student-loan deduction (IRC §221(e)(2); IRS Topic 456).
+    MFS = "mfs"
 
 
 class IncomeType(str, Enum):
@@ -35,6 +38,26 @@ class LoanType(str, Enum):
     EDUCATION = "education_loan"
     GOLD = "gold_loan"
     BNPL = "bnpl"
+    # Round 3 (#10). Their own labels, and their own tax rule: see tax_type().
+    LAP = "loan_against_property"
+    HOME_TOPUP = "home_topup"
+    TWO_WHEELER = "two_wheeler_loan"
+    MEDICAL = "medical_loan"
+
+
+# A loan against property or a home-loan top-up is taxed as a home loan only
+# when the money bought, built or repaired a house (s.22 [24(b)] follows the
+# use of the money, not the loan's name). None / "other" = no tax benefit.
+HOUSE_USES = ("buy_build", "repair")
+
+
+def tax_type(loan: "Loan") -> "LoanType":
+    """The loan type the tax rules see (round 3, #10): HOME for a loan
+    against property or a top-up whose money went into a house, else the
+    loan's own type (so a LAP or top-up with no house use gets no relief)."""
+    if loan.loan_type in (LoanType.LAP, LoanType.HOME_TOPUP) and loan.house_use in HOUSE_USES:
+        return LoanType.HOME
+    return loan.loan_type
 
 
 class LiquidityClass(str, Enum):
@@ -114,8 +137,11 @@ class Loan:
     #     Charges on Loans Directions, 2 July 2025, para 5(i)), unknown and
     #     not assumed otherwise (engine/prepayment_fee.py). With a fee, the
     #     Avalanche order is searched (engine/fee_order.py).
-    #   • prepay_lock_in_months   — number of sim-months from start during
-    #     which any extra principal payment is rejected. Surplus that
+    #   • prepay_lock_in_months   — months from TODAY (sim month 1; for a
+    #     planned loan, from its arrival) during which any extra principal
+    #     payment is rejected. The API derives it from the calendar month
+    #     the lock-in ends (LoanIn.prepay_lock_in_until), so a saved loan's
+    #     lock-in runs down as time passes (Audit C4). Surplus that
     #     can't go anywhere flows to the next-priority loan via the
     #     ranker cascade.
     #   • part_payment_freq_months — restricts how often above-schedule
@@ -171,6 +197,9 @@ class Loan:
     # Home loan, self-occupied: False when the house wasn't finished within
     # 5 years of borrowing, which cuts the cap to ₹30,000 (s.22(2)(b)).
     sec24_full_cap: bool = True
+    # Home loan: the lender is one Schedule XV para 3(a)(iii) lists (banks,
+    # HFCs, employer…), so principal repaid counts under s.123 [80C] (C10).
+    principal_80c_eligible: bool = True
     # ── US-only fields (engine/us_loans.py; grill #33, #34) ──────────────────
     # Student loans: "federal" | "private" | None (not marked; treated as
     # federal, so never refinanced privately). `forgiveness_track` "pslf" |
@@ -187,6 +216,59 @@ class Loan:
     original_home_value: Optional[Decimal] = None
     mortgage_insurance_kind: Optional[str] = None
     pmi_months_remaining: Optional[int] = None
+    # ── The contract over time (Audit 80+ Section C; engine/contract.py) ──────
+    # What a floating-rate rise does: "extend" (hold the EMI, lengthen the
+    # tenure), "raise_emi" (keep the end date), "mix" (half and half). None =
+    # the market default: extend for an Indian loan (founder decision, C1),
+    # raise_emi for a US loan. RBI's reset circular (18 Aug 2023, para
+    # 2(iii)) gives the borrower all three choices.
+    on_rate_rise: Optional[str] = None
+    # Most months the loan may have left after an extension: the lender's
+    # maximum tenure or the borrower's age limit, counted from today. None =
+    # 360 for an Indian home loan (SBI's 30-year maximum), no extension for
+    # anything else (the EMI rises instead).
+    max_tenure_months: Optional[int] = None
+    # "emi" | "interest_only" | "bullet" (C2). None = "emi", except a gold
+    # loan with no EMI, which is a bullet (RBI gold directions 2025 para
+    # 6(i)). A bullet accrues simple interest and repays principal plus
+    # interest in its last month; an interest-only loan pays the interest
+    # monthly and the principal in its last month. Every loan with a tenure
+    # pays what is left in its last contractual month (C3, C6).
+    repayment: Optional[str] = None
+    # UX2B-5: an intro/promo rate (a 0% balance-transfer card) that lasts
+    # `promo_months` plan months, then `rate_after_promo` applies.
+    promo_months: int = 0
+    rate_after_promo: Optional[Decimal] = None
+    # US mortgage taken on or before 15 Dec 2017: keeps the $1M ($500k MFS)
+    # acquisition-debt limit of IRC §163(h)(3)(B)(ii) instead of $750k (C17).
+    mortgage_before_2017_12_16: bool = False
+    # US car loan whose interest is "qualified passenger vehicle loan
+    # interest", IRC §163(h)(4) (OBBBA, P.L. 119-21 §70203; C16): taken after
+    # 31 Dec 2024 for a NEW personal-use vehicle with final assembly in the
+    # US, secured by a first lien. Only the user can tell (VIN plant); False
+    # = not claimed. Tax years 2025-2028 only.
+    us_auto_interest_qualified: bool = False
+    # Round 3 (#10): what a loan against property / home-loan top-up paid
+    # for: "buy_build" | "repair" | None (not for a house). See tax_type().
+    house_use: Optional[str] = None
+    # Founder decision 17 Oct 2026 (engine/debt_status.py): "normal" | "behind" |
+    # "collections" ("settled" never reaches the engine; the API zeroes it).
+    # overdue_amount: what a behind loan is behind by (loan currency; None =
+    # estimate one EMI). extra_ok: the user pinned / ordered a collections loan.
+    debt_status: str = "normal"
+    overdue_amount: Optional[Decimal] = None
+    extra_ok: bool = False
+
+    def __post_init__(self) -> None:
+        # Principal counts in s.123 [80C] only for buying or building a house,
+        # and not for a top-up (conservative; founder note r3b). Repair
+        # interest is capped at ₹30,000 for a self-occupied house (s.22(2)(b)).
+        if self.loan_type not in (LoanType.LAP, LoanType.HOME_TOPUP):
+            return
+        if self.loan_type == LoanType.HOME_TOPUP or self.house_use == "repair":
+            self.principal_80c_eligible = False
+        if self.house_use == "repair":
+            self.sec24_full_cap = False
 
 
 class LifecycleEventKind(str, Enum):
@@ -380,6 +462,10 @@ class User:
     # uniformly (legacy behaviour preserved).
     hike_schedule: list[tuple[int, int, Decimal]] = field(default_factory=list)
     business_cagr: Decimal = Decimal("0")
+    # India, old regime: s.123 [80C] items other than home-loan principal
+    # this tax year (EPF, PPF, ELSS, life cover, tuition). None = not asked,
+    # so no 80C room is assumed for a home-loan prepayment (C10).
+    sec80c_other: Optional[Decimal] = None
     inflation_rate: Decimal = Decimal("0.046")    # RBI MPC Apr 2026: CPI 4.6% FY26-27
     # NRI on a US work visa. Tax-resident in the US (W-2 / 1099 income, USD)
     # while still servicing Indian-origin debts (home loan, family obligations).
@@ -416,3 +502,27 @@ class User:
     # back to 1.0 (parity), which is correct for the common single-
     # currency case where the helper is a no-op.
     fx_to_user_currency: Dict[str, Decimal] = field(default_factory=dict)
+    # Most the user could borrow to cover short months (their cards' spare
+    # limit), user currency (Audit C11). None = 3 months of take-home pay,
+    # an assumption the plan labels. Past it the plan is marked infeasible.
+    gap_credit_limit: Optional[Decimal] = None
+    # Round 2 (founder, 15 Oct 2026): the borrower's age in whole months at
+    # plan month 1 (the API works it out from the date of birth the user
+    # gave) and the age by which loans should be paid off (retirement / the
+    # lender's age limit). None = not known. With both known, a tenure-first
+    # rate rise never stretches a loan past that age (engine/contract.py
+    # extension_cap). retirement_age None = 60 for salaried, 70 otherwise
+    # (contract.DEFAULT_RETIREMENT_AGE), only used when age_months is known.
+    age_months: Optional[int] = None
+    retirement_age: Optional[int] = None
+    # Round 2 (founder, item 3): the user's own assumed yearly return on money
+    # kept back, after tax. None = the labelled default (prepay_invest.
+    # DEFAULT_ASSUMED_RETURN: 6.5% India, 4% US, an FD-like / savings-like
+    # rate after tax). Used only to decide when to show the prepay / keep /
+    # split question, never to recommend a product.
+    assumed_post_tax_return: Optional[Decimal] = None
+    # Round 2 (item 4, NRI): one-time cost of sending money home, as a share
+    # of the amount sent (fees + FX margin). None = the published corridor
+    # average (engine/cross_border.default_remittance_cost) for the user's
+    # currency, 0 where none is on file.
+    remittance_cost: Optional[Decimal] = None

@@ -25,7 +25,7 @@ const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('R6B-1: Setup step 3 shows no crore-scale interest when the gap borrowing runs away', () => {
   const qs = src('components/setup/QuickSetup.tsx');
-  assert.match(qs, /gapRunsAway = short && plan\.debt_free_month == null/);
+  assert.match(qs, /gapRunsAway = short && (plan\.debt_free_month|shownDebtFreeMonth\(plan\)) == null/);
   assert.match(qs, /\['Interest you’ll pay', '—', 'the gap borrowing keeps growing'\]/);
   assert.match(qs, /'doesn’t clear at these figures'/);
   assert.match(qs, /saneCap\(owedToday\)/);
@@ -133,7 +133,7 @@ test('R6B-9: choosing a strategy offline saves it, says so, and refreshes on rec
   // A probe of a static file decides, since navigator.onLine isn't reliable everywhere.
   assert.match(h, /fetch\(PROBE, \{ method: 'HEAD', cache: 'no-store' \}\)/);
   assert.match(h, /data-testid="strategy-offline-note"/);
-  for (const f of ['components/StrategySwitcher.tsx', 'components/personas/StrategyMedallion.tsx', 'components/personas/StrategyTriptych.tsx']) {
+  for (const f of ['components/StrategySwitcher.tsx', 'components/chrome/PayoffOrderSwitch.tsx', 'components/personas/StrategyTriptych.tsx']) {
     const s = src(f);
     assert.match(s, /useStrategyRefresh\(\)/, f);
     assert.match(s, /<OfflineStrategyNote\s+show=\{offline\}/, f);

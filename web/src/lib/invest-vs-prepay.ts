@@ -142,17 +142,6 @@ export function quarterlyCompound(nominal: Decimal | string): Decimal {
   return r.div(4).plus(1).pow(4).minus(1);
 }
 
-/**
- * Monthly compounding: effective = (1 + r/12)^12 − 1
- *
- * Most US HYSAs quote APY (already-compounded). We still expose the
- * helper for cases where a nominal-APR is given.
- */
-export function monthlyCompound(nominal: Decimal | string): Decimal {
-  const r = D(nominal);
-  return r.div(12).plus(1).pow(12).minus(1);
-}
-
 /** The safe vehicles for a country, with after-tax yields at `marginalRate`. */
 export function safeBenchmarks(
   country: Country,

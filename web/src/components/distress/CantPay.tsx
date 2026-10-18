@@ -15,7 +15,7 @@
  * (sprint L2: TenureWhatIf.tsx, engine/tenure_whatif.py, engine/gap_debt.py);
  * this page links there instead of repeating them.
  */
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -32,10 +32,14 @@ import {
 import {
   HARDSHIP_ASK_TEXT,
   LETTER_SELF_CHECK,
+  US_COLLECTOR_RULE,
+  US_ASK_TEXT,
   TRIAGE_RULES,
   TRIAGE_VERIFIED_ON,
   MAX_MONTHS_UNPAID,
   hardshipLetter,
+  DRAFT_MARK,
+  forSending,
   missedCostClosing,
   missedPaymentCost,
   protectOrder,
@@ -45,6 +49,11 @@ import {
   type TriageLine,
   type TriageRule,
 } from '@/lib/distress-triage';
+import { CantPayPublic } from './CantPayPublic';
+import { AgentComplaintSection } from './AgentComplaint';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import { UsLettersLink } from './UsLettersLink';
+import { emiOffTakeHome } from '@/lib/loan-status-core';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));
@@ -62,7 +71,7 @@ const groupIN = (s: string) => {
 /** The ledger's underlined select (as Loan check's LENDER), not the OS grey box (C-07). */
 const selectStyle: CSSProperties = {
   fontFamily: 'inherit',
-  fontSize: 13,
+  fontSize: 'var(--fs-body)',
   fontWeight: 600,
   color: L_T.ink,
   background: 'transparent',
@@ -73,7 +82,7 @@ const selectStyle: CSSProperties = {
   minHeight: 32,
   maxWidth: '100%',
 };
-const captionStyle: CSSProperties = { fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
+const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
 export function CantPay() {
   const profile = useStoredProfile();
@@ -85,7 +94,9 @@ export function CantPay() {
   const lines = useMemo(
     () =>
       m.loans
-        .filter((l) => Number(l.outstanding) > 0)
+        // Round 3 (#21): an EMI taken from salary is gone before take-home
+        // arrives, so it isn't in the money to share out (lib/derived does the same).
+        .filter((l) => Number(l.outstanding) > 0 && emiOffTakeHome(l.loan))
         .map((l) => ({
           key: l.loan.id ?? String(l.index),
           label: loanLabel(l.loan),
@@ -101,24 +112,23 @@ export function CantPay() {
   // Take-home minus costs: what is left for loan payments before any EMI.
   const leftBeforeEmis =
     num(profile.user.monthly_income) - num(profile.user.fixed_expenses) - num(profile.user.variable_expenses ?? '0');
-  const [availableText, setAvailableText] = useState(groupIN(String(Math.max(0, Math.round(leftBeforeEmis)))));
+  // B24: the amount is filled in visibly from the profile once it has loaded
+  // (it used to start blank on first paint and still say COVERED), and the
+  // user's own edit is never overwritten.
+  const [availableText, setAvailableText] = useState('');
+  const [availableTouched, setAvailableTouched] = useState(false);
+  const fromProfile = profile.isLive && leftBeforeEmis > 0 ? groupIN(String(Math.round(leftBeforeEmis))) : '';
+  useEffect(() => {
+    if (!availableTouched) setAvailableText(fromProfile);
+  }, [fromProfile, availableTouched]);
+  const hasAvailable = availableText.trim() !== '';
   const available = num(availableText);
   const order = useMemo(() => protectOrder(lines, available), [lines, available]);
+  const isIN = country === 'IN';
 
-  if (country !== 'IN') {
-    return (
-      <LShell>
-        <div style={{ padding: '32px 0', maxWidth: 640 }}>
-          <LSectionHeader>CAN&apos;T PAY THIS MONTH?</LSectionHeader>
-          <p style={{ fontSize: 12, lineHeight: 1.7 }}>
-            The rules on this page are India&apos;s (RBI). US rules on late payments and debt collectors are different
-            and aren&apos;t covered here yet. Call your lender before the due date and ask what hardship options it has.
-          </p>
-          <LBracket href="/plan">SEE YOUR PLAN →</LBracket>
-        </div>
-      </LShell>
-    );
-  }
+  // A17/B3: signed out (no saved profile) the page is public: the rules and
+  // a blank letter, never the demo profile's loans.
+  if (!profile.isLive) return <CantPayPublic />;
 
   return (
     <LShell>
@@ -127,7 +137,7 @@ export function CantPay() {
           <h1 id="cp-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>
             CAN&apos;T PAY EVERYTHING THIS MONTH?
           </h1>
-          <p style={{ fontSize: 12, color: L_T.muted, lineHeight: 1.7, marginTop: 8 }}>
+          <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7, marginTop: 8 }}>
             One step at a time. First, what to keep paying. Then what a missed payment costs, a letter to your lender,
             and your rights. Nothing here is sent or saved.
           </p>
@@ -138,7 +148,7 @@ export function CantPay() {
             <span id="cp-protect">WHAT TO PROTECT FIRST</span>
           </LSectionHeader>
           {lines.length === 0 ? (
-            <p style={{ fontSize: 12 }}>
+            <p style={{ fontSize: 'var(--fs-dense)' }}>
               No loans on file. <LBracket href="/profile?step=loans">ADD YOUR LOANS →</LBracket>
             </p>
           ) : (
@@ -147,31 +157,47 @@ export function CantPay() {
                 <LField
                   label="Money you have for loan payments this month"
                   value={availableText}
-                  onChange={setAvailableText}
+                  onChange={(v) => { setAvailableTouched(true); setAvailableText(v); }}
                   onBlur={() => setAvailableText((v) => groupIN(v))}
                   inputMode="decimal"
                   prefix={ccy === 'INR' ? '₹' : '$'}
-                  hint={`Your take-home minus spending is ${fc(leftBeforeEmis)}. Due this month: ${fc(due)}.`}
+                  testId="cp-available"
+                  hint={
+                    availableTouched || !fromProfile
+                      ? `Your take-home minus spending is ${fc(leftBeforeEmis)}. Due this month: ${fc(due)}.`
+                      : `Filled from your profile (take-home minus spending). Change it if this month is different. Due this month: ${fc(due)}.`
+                  }
                 />
               </div>
               <ol style={{ paddingLeft: 18, margin: '14px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {order.map((l) => (
-                  <li key={l.key} data-testid="cp-protect-row" style={{ fontSize: 12, lineHeight: 1.6 }}>
+                  <li key={l.key} data-testid="cp-protect-row" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
                     <strong>{l.label}</strong>: {fc(l.required)}
                     {l.loan_type === 'credit_card' ? ' (minimum due)' : ''} ·{' '}
-                    <span style={{ color: l.covered === 'full' ? L_T.positive : L_T.negative }}>
+                    {!hasAvailable ? (
+                      <span style={{ color: L_T.muted }} data-testid="cp-protect-status">enter what you have above</span>
+                    ) : (
+                    <span data-testid="cp-protect-status" style={{ color: l.covered === 'full' ? L_T.positive : L_T.negative }}>
                       {l.covered === 'full'
                         ? 'COVERED'
                         : l.covered === 'part'
                           ? `PAY ${fc(l.pay)}, ${fc(l.short)} SHORT`
                           : `${fc(l.short)} SHORT`}
                     </span>
-                    <div style={{ color: L_T.muted, fontSize: 11 }}>{l.reason}</div>
+                    )}
+                    <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{l.reason}</div>
                   </li>
                 ))}
               </ol>
-              {available < due && (
-                <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
+              {hasAvailable && available < due && !isIN && (
+                <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
+                  For anything short: call or write to the lender <em>before</em> the due date (letter below) and ask for its
+                  hardship program. A payment that fails on autopay can add a returned-payment fee, so ask first. A longer term
+                  lowers the payment: try it on <LBracket href="/plan#tenure-what-if">PLAN → LONGER TERM WHAT-IF</LBracket>.
+                </p>
+              )}
+              {hasAvailable && available < due && isIN && (
+                <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
                   For anything short: tell the lender <em>before</em> the due date (letter below). If the EMI is
                   auto-debited (NACH, a standing bank mandate), a failed debit adds the bank&apos;s return charge on top,
                   so ask the lender first. A longer tenure lowers the EMI: try it on{' '}
@@ -183,16 +209,27 @@ export function CantPay() {
           )}
         </section>
 
-        <MissCostSection lines={order} fc={fc} />
-        <LetterSection lines={order} name={profile.user.display_name ?? ''} fc={fc} />
+        {isIN && <MissCostSection lines={order} fc={fc} />}
+        <LetterSection lines={order} name={profile.user.display_name ?? ''} fc={fc} country={isIN ? 'IN' : 'US'} step={isIN ? 3 : 2} />
 
+        {!isIN && (
+          <section aria-labelledby="cp-rights" data-testid="cp-rights">
+            <LSectionHeader step={3}>
+              <span id="cp-rights">YOUR RIGHTS WITH DEBT COLLECTORS</span>
+            </LSectionHeader>
+            <Rule r={US_COLLECTOR_RULE} />
+            <UsLettersLink />
+          </section>
+        )}
+        {isIN && (<>
+        <AgentComplaintSection name={profile.user.display_name ?? ''} lines={order} />
         <section aria-labelledby="cp-rights" data-testid="cp-rights">
           <LSectionHeader step={4}>
             <span id="cp-rights">YOUR RIGHTS WITH RECOVERY AGENTS</span>
           </LSectionHeader>
           <Rule r={TRIAGE_RULES.recovery} />
           <Rule r={TRIAGE_RULES.recovery_2027} />
-          <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>
             If an agent breaks these rules: write to the lender&apos;s grievance officer with dates and times. If it
             isn&apos;t fixed in 30 days, the RBI Ombudsman complaint route (cms.rbi.org.in) is free.
           </p>
@@ -205,27 +242,28 @@ export function CantPay() {
           <Rule r={TRIAGE_RULES.settlement} />
           <Rule r={TRIAGE_RULES.restructuring} />
           <Rule r={TRIAGE_RULES.sma} />
-          <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>
             Debt-settlement firms usually ask you to stop paying and save instead, then negotiate. That pushes every
             account into default first: late charges, recovery calls and credit-report damage while the savings build.
             RightDue earns nothing from lenders or settlement firms.
           </p>
         </section>
+        </>)}
 
-        <p style={{ fontSize: 10, color: L_T.muted }}>
-          Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}. A calculator and a draft, not legal advice.
+        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
+          {isIN ? <>Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}.</> : <>Collector rules from the CFPB&apos;s Regulation F, read 14 Oct 2026.</>} A calculator and a draft, not legal advice.
         </p>
       </div>
     </LShell>
   );
 }
 
-function Rule({ r }: { r: TriageRule }) {
+export function Rule({ r }: { r: TriageRule }) {
   return (
     <LCardPaper>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{r.title}</div>
-      <div style={{ fontSize: 12, lineHeight: 1.7, marginTop: 4 }}>{r.plain}</div>
-      <div style={{ fontSize: 10, color: L_T.muted, marginTop: 6 }}>
+      <div style={{ fontSize: 'var(--fs-dense)', fontWeight: 700 }}>{r.title}</div>
+      <div style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.7, marginTop: 4 }}>{r.plain}</div>
+      <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 6 }}>
         Source:{' '}
         <a href={r.url} target="_blank" rel="noreferrer" className="rd-cite" style={{ color: 'inherit' }}>
           {r.source}
@@ -236,7 +274,7 @@ function Rule({ r }: { r: TriageRule }) {
   );
 }
 
-type Line = TriageLine & { bank: string; floating: boolean };
+export type Line = TriageLine & { bank: string; floating: boolean };
 
 /** Both loan pickers start on the same loan: the first one this month leaves short, else the first (C-07). */
 function defaultKey(lines: Line[]): string {
@@ -307,16 +345,16 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           placeholder="see bank's charges"
         />
       </div>
-      <label className="l-check-row" style={{ fontSize: 12, marginTop: 6 }}>
+      <label className="l-check-row" style={{ fontSize: 'var(--fs-dense)', marginTop: 6 }}>
         <input type="checkbox" checked={autoDebit} onChange={(e) => setAutoDebit(e.target.checked)} />
         <span>Paid by auto-debit (NACH / mandate)</span>
       </label>
       {valid && n === 0 ? (
-        <p data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
+        <p data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.8, marginTop: 10 }}>
           {missedCostClosing(0, fc(0))}
         </p>
       ) : valid ? (
-        <div data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
+        <div data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.8, marginTop: 10 }}>
           {n === 1
             ? `Interest on the unpaid ${fc(pick.required)} at the loan\u2019s own ${pick.ratePct.toFixed(2)}%: ${fc(cost.interest)}`
             : `${n} unpaid instalments of ${fc(pick.required)} (${fc(cost.arrears)} overdue by month ${n}). Interest on them at the loan\u2019s own ${pick.ratePct.toFixed(2)}%, each from its own due date: ${fc(cost.interest)}`}
@@ -332,7 +370,7 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           {missedCostClosing(n, fc(cost.total)).slice(`Adds about ${fc(cost.total)}`.length)}
         </div>
       ) : (
-        <p data-testid="cp-cost-total" role="status" style={{ fontSize: 12, color: L_T.negative, marginTop: 10 }}>
+        <p data-testid="cp-cost-total" role="status" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative, marginTop: 10 }}>
           Fix the field above to see the cost.
         </p>
       )}
@@ -342,7 +380,22 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
   );
 }
 
-function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (v: number) => string }) {
+export function LetterSection({
+  lines,
+  name,
+  fc,
+  country = 'IN',
+  step = 3,
+  loanPicker,
+}: {
+  lines: Line[];
+  name: string;
+  fc: (v: number) => string;
+  country?: 'IN' | 'US';
+  step?: number;
+  /** Public page: the user picks the kind of loan instead of a saved one. */
+  loanPicker?: ReactNode;
+}) {
   const [key, setKey] = useState('');
   const [reason, setReason] = useState('');
   const [canPayText, setCanPayText] = useState<string | null>(null);
@@ -371,6 +424,7 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
     asks,
     floating: pick.floating,
     dateText: today,
+    country,
   });
   const letter = edited ?? draft;
   const subject = `Request for hardship relief on my ${pick.label}${accountRef.trim() ? `, account ${accountRef.trim()}` : ''}`;
@@ -378,7 +432,7 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
   const canShare = typeof navigator !== 'undefined' && typeof (navigator as Navigator).share === 'function';
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(letter);
+      await navigator.clipboard.writeText(forSending(letter));
       setSaid('Letter copied. Paste it into an email or the lender\u2019s service form.');
     } catch {
       setSaid('Couldn\u2019t copy here. Select the letter and copy it by hand.');
@@ -386,13 +440,13 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
   };
   const share = async () => {
     try {
-      await navigator.share({ title: subject, text: letter });
+      await navigator.share({ title: subject, text: forSending(letter) });
     } catch {
       /* cancelled */
     }
   };
   const download = () => {
-    const blob = new Blob([letter], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([forSending(letter)], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -403,12 +457,15 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setSaid('Saved as hardship-letter.txt.');
   };
-  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(letter)}`;
+  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(forSending(letter))}`;
   return (
     <section aria-labelledby="cp-letter" data-testid="cp-letter">
-      <LSectionHeader step={3}>
+      <LSectionHeader step={step}>
         <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
       </LSectionHeader>
+      <DraftLegalMarker id="letter-hardship" />
+      <p style={{ ...captionStyle, letterSpacing: 0, fontFamily: 'inherit' }} data-testid="letter-caution">{DRAFT_MARK}</p>
+      {loanPicker ?? (
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan for the letter</span>
         <select value={pick.key} onChange={(e) => { setKey(e.target.value); setLenderText(null); setCanPayText(null); }} style={selectStyle} data-testid="cp-letter-loan">
@@ -419,8 +476,9 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
           ))}
         </select>
       </label>
+      )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <LField label="Lender" value={lender} onChange={setLenderText} placeholder="e.g. HDFC Bank" />
+        <LField label="Lender" value={lender} onChange={setLenderText} placeholder={country === 'US' ? 'e.g. Chase' : 'e.g. HDFC Bank'} />
         <LField label="Your name" value={nameText} onChange={setNameText} placeholder="as on the loan" />
         <LField label="Reason (short and true)" value={reason} onChange={setReason} />
         <LField
@@ -429,17 +487,18 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
           onChange={setCanPayText}
           onBlur={() => setCanPayText(groupIN(canPay))}
           inputMode="decimal"
-          prefix="₹"
+          prefix={country === 'US' ? '$' : '₹'}
+          placeholder=""
           testId="cp-canpay"
         />
         <LField label="Loan account number" value={accountRef} onChange={setAccountRef} />
       </div>
-      <fieldset style={{ border: 'none', padding: 0, margin: '8px 0', fontSize: 12 }}>
-        <legend style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
+      <fieldset style={{ border: 'none', padding: 0, margin: '8px 0', fontSize: 'var(--fs-dense)' }}>
+        <legend style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
         {(Object.keys(HARDSHIP_ASK_TEXT) as HardshipAsk[]).map((a) => (
           <label key={a} className="l-check-row">
             <input type="checkbox" checked={asks.includes(a)} onChange={() => toggle(a)} />
-            <span>{HARDSHIP_ASK_TEXT[a]}</span>
+            <span>{(country === 'US' ? US_ASK_TEXT : HARDSHIP_ASK_TEXT)[a]}</span>
           </label>
         ))}
       </fieldset>
@@ -452,10 +511,10 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
         value={letter}
         onChange={(e) => setEdited(e.target.value)}
         rows={18}
-        style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: 10, border: `1px solid ${L_T.ink}`, borderRadius: 0, boxSizing: 'border-box' }}
+        style={{ width: '100%', fontFamily: 'inherit', fontSize: 'var(--fs-body)', lineHeight: 1.5, padding: 10, border: `1px solid ${L_T.ink}`, borderRadius: 0, boxSizing: 'border-box' }}
       />
       {edited !== null && edited !== draft && (
-        <p style={{ fontSize: 11, color: L_T.muted, margin: '4px 0 0' }}>
+        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '4px 0 0' }}>
           You have edited the letter, so the fields above no longer change it.{' '}
           <LBracket onClick={() => setEdited(null)}>RESET TO DRAFT</LBracket>
         </p>
@@ -466,10 +525,10 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
         {canShare && <LBracket onClick={share}>SHARE</LBracket>}
         <LBracket onClick={download}>DOWNLOAD .TXT</LBracket>
       </div>
-      <p role="status" aria-live="polite" data-testid="cp-letter-said" style={{ fontSize: 11, color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>
+      <p role="status" aria-live="polite" data-testid="cp-letter-said" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>
         {said}
       </p>
-      <div style={{ fontSize: 12, marginTop: 8 }}>
+      <div style={{ fontSize: 'var(--fs-dense)', marginTop: 8 }}>
         <strong>Before you send it:</strong>
         <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
           {LETTER_SELF_CHECK.map((c) => (

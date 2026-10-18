@@ -140,3 +140,44 @@ def capture_exception(exc: BaseException, method: str = "", route: str = "",
     else:
         run()
     return event["event_id"]
+
+
+def capture_message(message: str, level: str = "warning", route: str = "",
+                    sender: Callable[[str, bytes, str], None] = _send, background: bool = True) -> Optional[str]:
+    """Report one operational message (audit80 D13: sign-up cap at 50%) if
+    SENTRY_DSN is set. Digits are masked like everything else sent."""
+    target = dsn()
+    if target is None:
+        return None
+    try:
+        event = {
+            "event_id": uuid.uuid4().hex,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "platform": "python",
+            "level": level if level in ("info", "warning", "error") else "warning",
+            "logger": "rightdue.api",
+            "environment": os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            "message": {"formatted": message[:MAX_MESSAGE]},
+            "request": {"url": scrub(route)},
+            "tags": {"component": "api"},
+        }
+        body = envelope(event, target)
+    except Exception:  # pragma: no cover
+        return None
+
+    def run():
+        try:
+            sender(target.envelope_url, body, target.public_key)
+        except Exception:
+            log.info("Sentry report not delivered.")
+
+    if background:
+        threading.Thread(target=run, daemon=True).start()
+    else:
+        run()
+    return event["event_id"]
+
+
+def enabled() -> bool:
+    """For /api/health (audit80 D19): whether error reports are on. Never the DSN."""
+    return dsn() is not None

@@ -100,13 +100,15 @@ export function formatAmount(value: string, currency: AmountCurrency): string {
   return groupDigits(new Decimal(t).toDecimalPlaces(2).toString(), currency);
 }
 
-/** The scale in words: "₹25 lakh", "₹1.5 crore", "$2.4 thousand", "$1.25 million". Null under 1,000. */
+/** The scale in words: "₹25 lakh", "₹1.5 crore", "$2.4 thousand", "$1.25 million". Null under ₹1 lakh / $1,000. */
 export function amountInWords(value: string, currency: AmountCurrency): string | null {
   if (!/^\d*\.?\d+$/.test(value)) return null;
   const v = new Decimal(value);
   const scales: Array<[number, string]> =
     currency === 'INR'
-      ? [[1e7, 'crore'], [1e5, 'lakh'], [1e3, 'thousand']]
+      ? // Audit 80 B21: nobody says "₹5.2 thousand"; below a lakh the
+        // grouped figure is enough, so no echo.
+        [[1e7, 'crore'], [1e5, 'lakh']]
       : [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']];
   const sym = currency === 'INR' ? '₹' : '$';
   for (const [n, word] of scales) {
@@ -156,17 +158,4 @@ export function isPartialScale(raw: string): boolean {
 export function amountForCaller(raw: string, currency: AmountCurrency = 'INR'): string {
   const v = parseAmountText(raw, currency).value;
   return v === null ? '' : v;
-}
-
-/**
- * A limit or slab edge in words, one way everywhere (UX50 C-19): "₹2 lakh",
- * "₹1.5 lakh", "₹1 crore", "₹75,000" — never "₹2L", which a screen reader
- * says as "rupees two L". Whole thousands under a lakh keep en-IN digits.
- */
-export function formatScale(n: number): string {
-  if (!Number.isFinite(n)) return '';
-  const trim = (x: number) => String(Math.round(x * 100) / 100);
-  if (n >= 1e7) return `₹${trim(n / 1e7)} crore`;
-  if (n >= 1e5) return `₹${trim(n / 1e5)} lakh`;
-  return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }

@@ -21,8 +21,8 @@
  * in `/tools/<id>` must follow the same skeleton.
  */
 
-import type { CSSProperties, ReactNode } from 'react';
-import { LCardSoft, LCardHard, LMathBlock, L_T, L_MONO, lGridColumns } from './primitives';
+import type { ReactNode } from 'react';
+import { LMathBlock, L_T, L_MONO } from './primitives';
 
 // ─── Header: CLI line + hero question ──────────────────────────────────
 export function LToolHeader({
@@ -45,7 +45,7 @@ export function LToolHeader({
     <section style={{ fontFamily: L_MONO }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 14,
@@ -55,7 +55,7 @@ export function LToolHeader({
           flexWrap: 'wrap',
         }}
       >
-        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 600, textDecoration: 'none' }}>
           ← ALL TOOLS
         </a>
         <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
@@ -75,182 +75,6 @@ export function LToolHeader({
         {question}
       </h1>
     </section>
-  );
-}
-
-// ─── $ INPUT card ───────────────────────────────────────────────────────
-export function LToolInput({
-  title = 'INPUT',
-  asOf,
-  children,
-  style,
-}: {
-  /** Title without the leading `$ ` — primitive adds it. */
-  title?: string;
-  /** Date label — e.g. `MAY 24, 2026`. Renders as `AS OF · <date>` at the
-   *  bottom of the card. Pass `null` to suppress (rare — spec says every
-   *  tool's INPUT card carries a date stamp). */
-  asOf?: string | null;
-  children: ReactNode;
-  style?: CSSProperties;
-}) {
-  return (
-    <LCardSoft style={{ fontFamily: L_MONO, ...style }}>
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: '0.18em',
-          color: L_T.muted,
-          marginBottom: 12,
-        }}
-      >
-        {title.toUpperCase()}
-      </div>
-      {children}
-      {asOf !== null && (
-        <div
-          style={{
-            marginTop: 14,
-            paddingTop: 10,
-            borderTop: `1px dashed ${L_T.faint}`,
-            fontSize: 10,
-            letterSpacing: '0.18em',
-            color: L_T.muted,
-          }}
-        >
-          AS OF · {(asOf ?? new Date().toDateString()).toUpperCase()}
-        </div>
-      )}
-    </LCardSoft>
-  );
-}
-
-// ─── $ VERDICT card ─────────────────────────────────────────────────────
-export function LToolVerdict({
-  eyebrow,
-  headline,
-  visual,
-  kpi,
-  actions,
-  style,
-}: {
-  /** Accent eyebrow above the headline — e.g. "WHERE TO ROUTE IT". */
-  eyebrow: string;
-  /** Two-to-three line bold caps headline — the verdict itself. */
-  headline: string;
-  /** Either an allocation bar (`LAllocationBar`) or a tool-specific
-   *  signature visual (mini trajectory, break-even line, etc.). Render
-   *  either, but always render *one* — the spec mandates a visual. */
-  visual?: ReactNode;
-  /** 4-cell KPI strip. Optional values get `—`. */
-  kpi?: Array<{
-    l: string;
-    v: string;
-    s?: string;
-    tone?: 'pos' | 'neg' | 'accent';
-  }>;
-  /** Action row — brackets, buttons. The spec asks for at least one
-   *  action so the user can apply / explore / dismiss the verdict. */
-  actions?: ReactNode;
-  style?: CSSProperties;
-}) {
-  return (
-    <LCardHard style={{ fontFamily: L_MONO, ...style }}>
-      <div
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.2em',
-          color: L_T.accent,
-          fontWeight: 700,
-          marginBottom: 10,
-        }}
-      >
-        VERDICT · {eyebrow.toUpperCase()}
-      </div>
-      <h2
-        style={{
-          fontFamily: L_MONO,
-          fontSize: 20,
-          fontWeight: 700,
-          letterSpacing: '-0.005em',
-          lineHeight: 1.25,
-          textTransform: 'uppercase',
-          color: L_T.ink,
-          margin: '0 0 14px',
-        }}
-      >
-        {headline}
-      </h2>
-      {visual && <div style={{ marginBottom: 16 }}>{visual}</div>}
-      {kpi && kpi.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: lGridColumns(Math.min(kpi.length, 4), 140),
-            gap: 1,
-            background: L_T.ink,
-            border: `1px solid ${L_T.ink}`,
-            margin: '0 0 14px',
-          }}
-        >
-          {kpi.slice(0, 4).map((c, i) => {
-            const tone =
-              c.tone === 'pos'
-                ? L_T.positive
-                : c.tone === 'neg'
-                  ? L_T.negative
-                  : c.tone === 'accent'
-                    ? L_T.accent
-                    : L_T.ink;
-            return (
-              <div
-                key={i}
-                style={{ background: L_T.bg, padding: '10px 12px' }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    letterSpacing: '0.18em',
-                    color: L_T.muted,
-                    marginBottom: 4,
-                  }}
-                >
-                  {c.l.toUpperCase()}
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: tone }}>
-                  {c.v}
-                </div>
-                {c.s && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: L_T.muted,
-                      marginTop: 3,
-                      letterSpacing: '0.08em',
-                    }}
-                  >
-                    {c.s}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {actions && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 14,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            paddingTop: 6,
-          }}
-        >
-          {actions}
-        </div>
-      )}
-    </LCardHard>
   );
 }
 
@@ -301,7 +125,7 @@ export function LAllocationBar({
                 flexGrow: Math.max(0.0001, seg.pct),
                 background: bg,
                 color,
-                fontSize: 9,
+                fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 display: 'flex',
@@ -323,7 +147,7 @@ export function LAllocationBar({
           display: 'flex',
           gap: 12,
           marginTop: 6,
-          fontSize: 9,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.1em',
           color: L_T.muted,
           flexWrap: 'wrap',

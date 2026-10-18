@@ -246,18 +246,6 @@ def test_lender_deadline_reminds_the_day_after():
     assert "next step is open" in rs[0].text
 
 
-def test_done_and_past_items_get_no_reminder_and_opens_on_the_day():
-    items = reminders.from_milestones([
-        {"key": "sent", "label": "Complaint sent", "day": "2026-10-01", "state": "done"},
-        {"key": "ombudsman_opens", "label": "RBI Ombudsman open from", "day": "2026-11-01", "state": "upcoming"},
-        {"key": "ombudsman_deadline", "label": "Last day", "day": "2026-10-05", "state": "upcoming"},
-        {"key": "bad", "day": "not a date"},
-    ])
-    rs = reminders.schedule(items, today=date(2026, 10, 12))
-    assert [(r.key, r.send_on) for r in rs] == [("ombudsman_opens", date(2026, 11, 1))]
-    assert reminders.due_on(rs, date(2026, 11, 1))[0].text.endswith("Open RightDue for the next step.")
-
-
 def test_closure_dates_feed_reminders():
     r = cl.closure_letter(market="IN", loan_type="home_loan", lender="HDFC Bank", closed_on=date(2026, 10, 1),
                           today=date(2026, 10, 12), lender_kind="bank")

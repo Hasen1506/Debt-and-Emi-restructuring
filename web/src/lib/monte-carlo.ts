@@ -15,11 +15,6 @@
  * reproducible for golden tests; without one the tool reruns per parameter
  * change, which gives the user a feel for sampling variance.
  */
-import Decimal from 'decimal.js';
-import { dec } from './safe-decimal';
-
-const D = dec;
-
 /** A small seeded generator (mulberry32) so a run can be reproduced in a
  *  golden test (grill #41). Without a seed the tool keeps Math.random. */
 export function seededRandom(seed: number): () => number {
@@ -157,17 +152,4 @@ export function simulateMonteCarlo(input: MonteCarloInput): MonteCarloResult {
     probBeatLoanReal: (loanRealRate: number) =>
       trialRealReturns.filter((r) => r > loanRealRate).length / trials,
   };
-}
-
-/**
- * Convert nominal loan rate to real-terms loan rate at a given inflation.
- *   real = (1 + nominal) / (1 + inflation) − 1
- */
-export function toRealRate(
-  nominal: Decimal | string | number,
-  inflation: Decimal | string | number,
-): Decimal {
-  const n = D(nominal);
-  const i = D(inflation);
-  return n.plus(1).div(i.plus(1)).minus(1);
 }

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import {
-  ACCOUNT_PATH, BOARD, DATA_FIDUCIARY, GRIEVANCE_CONTACT, GRIEVANCE_REPLY_DAYS_MAX,
-  NOTICE_LAST_UPDATED, RETENTION, SOURCES, STORAGE, TERMS_PATH,
+  ACCOUNT_PATH, BOARD, CONTACT_EMAILS, DATA_FIDUCIARY, GRIEVANCE_CONTACT, GRIEVANCE_REPLY_DAYS_LEGAL_MAX, GRIEVANCE_REPLY_DAYS_MAX,
+  NOTICE_LAST_UPDATED, NOTICE_VERSION, PROCESSORS, RETENTION, SOURCES, TERMS_PATH,
 } from '@/lib/privacy-facts';
 
 export const metadata: Metadata = { title: 'Privacy notice · RightDue' };
@@ -14,9 +15,9 @@ export const metadata: Metadata = { title: 'Privacy notice · RightDue' };
  * your rights and complain to the Board. Facts live in lib/privacy-facts.
  * Public: middleware lets it through without signing in.
  */
-const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, letterSpacing: '0.08em' };
-const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
-const LI: React.CSSProperties = { margin: '4px 0', fontSize: 13, lineHeight: 1.55 };
+const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
+const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
+const LI: React.CSSProperties = { margin: '4px 0', fontSize: 'var(--fs-body)', lineHeight: 1.55 };
 const NOTE: React.CSSProperties = { ...P, color: L_T.muted };
 
 function Row({ what, why }: { what: React.ReactNode; why: React.ReactNode }) {
@@ -33,7 +34,7 @@ export default function PrivacyPage() {
     <LShell>
       <article style={{ maxWidth: 760 }}>
         <h1 style={{ margin: 0, fontSize: 20, letterSpacing: '0.08em' }}>PRIVACY NOTICE</h1>
-        <p style={NOTE}>Last updated {NOTICE_LAST_UPDATED}. Plain words first; the legal terms are explained where they appear.</p>
+        <p style={NOTE}>Last updated {NOTICE_LAST_UPDATED} (version {NOTICE_VERSION}). Plain words first; the legal terms are explained where they appear.</p>
 
         <h2 style={H2}>WHO WE ARE</h2>
         <p style={P}>
@@ -46,36 +47,97 @@ export default function PrivacyPage() {
           Questions about your data, or a complaint: <strong>{GRIEVANCE_CONTACT.name}</strong> ({GRIEVANCE_CONTACT.role}),{' '}
           <a href={mail}>{GRIEVANCE_CONTACT.email}</a>.
         </p>
+        <div data-testid="privacy-contacts">
+          <DraftLegalMarker id="privacy-notice-2026-10-15" note="new contact addresses" />
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.privacy}`}>{CONTACT_EMAILS.privacy}</a>} why="your data, your rights under the DPDP Act, and complaints about how we handle your data (our grievance contact)." />
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.support}`}>{CONTACT_EMAILS.support}</a>} why="help with the app, and the Report a problem button." />
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.security}`}>{CONTACT_EMAILS.security}</a>} why="a security problem you found (see /.well-known/security.txt)." />
+          </ul>
+          <p style={NOTE}>All three reach the founder. We never ask for your password, a sign-in code or your bank details by email.</p>
+        </div>
 
         <h2 style={H2}>WHAT WE KEEP, AND WHY</h2>
-        <p style={P}>You can use the calculators without an account. If you sign in, we keep:</p>
+        <p style={P}>
+          Most of RightDue needs an account. Without one you can use Loan Check, the glossary and these pages; what you
+          type into Loan Check is used to work out the answer and is not stored. When you have an account, we keep:
+        </p>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <Row what="Your email address" why="to send your sign-in code and to know which saved plan is yours. We email you only sign-in codes and anything you switch on yourself, never marketing." />
           <Row
             what="The plan you save"
-            why="your loans (lender, type, balance, interest rate, EMI or minimum, tenure, dates, any nickname or lender UPI ID you add), income, expenses, savings and emergency fund, assets and investments, goals, tax details (regime, deductions), country and city, and your activity log (payments, bonuses, decisions). We keep it so your plan is the same on every device you sign in on, and use it only to calculate your plan and tools."
+            why="your loans (lender, type, balance, interest rate, EMI or minimum, tenure, dates, any nickname or lender UPI ID you add), income, expenses, savings and emergency fund, assets and investments, goals, tax details (regime, deductions), country and city, the name you give for a greeting (optional), your age bracket, the credit score you enter, and your activity log (payments, bonuses, decisions). We keep it so your plan is the same on every device you sign in on, and use it only to calculate your plan and tools."
           />
           <Row
             what="Sign-in records"
             why="when a code was sent and used, how many wrong codes were entered, and when each sign-in session started, ended or expires. We use them to keep your account safe and to stop misuse. Codes and session keys are stored only in a scrambled (hashed) form that can't be used to sign in."
           />
           <Row
+            what="Your agreement to this notice"
+            why="which version of this notice and the terms you agreed to, when, how (code or Google), that you confirmed you are 18 or older, and when you withdrew (deleted your account). The law asks us to be able to prove it (DPDP Act s.6(10))."
+          />
+          <Row
+            what="A record of access to your saved plan"
+            why="each time your plan is read, saved, downloaded or deleted, and each device sign-out: which action, when and whether it worked. No figures. It lets us spot and investigate misuse (DPDP Rules 2025 rule 6(1)(c))."
+          />
+          <Row
+            what="Your signed-in devices"
+            why="a rough name for each device (for example, Chrome on Android), when it signed in and when it was last used, so you can see them and sign them out on the Your data page. Never your IP address or location."
+          />
+          <Row
             what="Your internet (IP) address, briefly"
             why="to limit how often one connection can request codes or send reports. We store only a keyed hash (a scrambled stand-in) of the address, never the address itself."
           />
         </ul>
+        <section aria-label="Emails you switch on, and usage counts" data-testid="privacy-r2-additions">
+          <DraftLegalMarker id="privacy-notice-2026-10-15" note="emails, usage counts and consent records" />
+          <p style={P}>Only if you switch them on (each is off until you do, and each email has a one-tap &ldquo;turn these emails off&rdquo; link):</p>
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            <Row
+              what="Payday email"
+              why="the day your salary is paid and this month's payment list (each lender or nickname, the amount and whether it is an EMI, a card minimum or an extra payment), so we can email the list on payday. We also keep when we emailed you and your answer from the email (&ldquo;All paid&rdquo;, &ldquo;Paid some&rdquo;, &ldquo;I can't pay this month&rdquo;, or a &ldquo;done&rdquo; reply) until the app has applied it."
+            />
+            <Row
+              what="Deadline reminders"
+              why="the dates from a complaint or loan-closure letter you are tracking (for example the last day to go to the RBI Ombudsman) and their labels, so we can email a week before, the day before and on the day. No letter text, account number or name."
+            />
+            <Row
+              what="Rate-move email"
+              why="for each repo-linked loan you tick: its name, balance, interest rate, EMI or months left, and which RBI decision we last emailed you about, so we can email what an RBI repo change does to that loan."
+            />
+          </ul>
+          <p style={P}>
+            When you turn an email off (in the app or from the email), its payment list, reminder dates or watched loans
+            are deleted at once. The record of what was sent and your answers stays until you delete your account, and is
+            used only to count, without names, how many people come back after an email. Emails can arrive a day or two
+            late on busy days: we use a free email plan with a daily limit, and sign-in codes always go first.
+          </p>
+          <Row
+            what="Usage counts (only when we switch them on)"
+            why="daily totals such as &ldquo;one more person reached step 2 of Setup&rdquo; or &ldquo;one more plan was saved&rdquo;. The page sends only the name of the step or field (never what you typed, an amount, a lender, your email or an id) without cookies, and the server adds one to that day's total and keeps nothing else: no IP address, no user id. To avoid counting you twice, this browser remembers which counts it already sent; that note never leaves your device and stays after you sign out."
+          />
+          <Row
+            what="The record of your agreement, in detail"
+            why="each time you agree (when you sign up, or again after a change), and when you withdraw by deleting your account: your email, the versions of this notice and the terms, the purpose you agreed to in these words, whether you confirmed you are 18 or older, how you signed in (code or Google) and when. It holds none of your figures, and is kept for one year after you delete your account so we can show what you agreed to."
+          />
+        </section>
         <p style={P}>Things we use but do not keep:</p>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <Row what="Numbers sent to calculate a page" why="the server works out your plan from the figures sent with the request and does not store them unless you save your plan." />
           <Row what="A Key Facts Statement (KFS) PDF you upload" why="read once to fill in the loan form for you to check; it is not saved." />
+          <Row
+            what="A credit report you upload (CIBIL, Experian, Equifax or CRIF), and its password"
+            why="read once on our server in Oregon, USA, to fill in your loans for you to check. The report holds your name, PAN, date of birth, addresses, phone number and every account. The report, its password, your PAN, date of birth and address are not saved or logged, and are not sent back to your browser; account numbers are masked. The loans you then choose to keep become part of your saved plan."
+          />
           <Row
             what="Lender outcome reports you choose to share"
             why={`anonymous: they are not linked to your account. A keyed hash of your connection is kept for ${RETENTION.outcomeClientHashDays} days to enforce a daily limit, then wiped.`}
           />
         </ul>
         <p style={P}>
-          Before you sign in, your plan stays in this browser (cookies and local storage on your device). Parts of it are
-          sent to our server so pages can be calculated, but nothing is stored on the server until you sign in and save.
+          When you are signed in, this browser also keeps a working copy of your plan (cookies and local storage) so pages
+          load fast; it is removed when you sign out, when your session ends, or with &ldquo;Clear data in this browser&rdquo;
+          on the <a href={ACCOUNT_PATH}>Your data</a> page.
         </p>
         <p style={P}>
           We do not sell your data, show ads, share your data with lenders, credit bureaus or brokers, or use it to train AI
@@ -88,21 +150,15 @@ export default function PrivacyPage() {
           our instructions, and we stay responsible):
         </p>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
-          <li style={LI}>Database: {STORAGE.database}.</li>
-          <li style={LI}>App server: {STORAGE.appServer}.</li>
-          <li style={LI}>Network: {STORAGE.network}.</li>
-          <li style={LI}>Email: {STORAGE.email}.</li>
-          <li style={LI}>
-            Fonts: your browser loads the page font from Google Fonts, so Google sees your IP address when it does.
-          </li>
-          <li style={LI}>
-            Share prices for the portfolio tool: our server asks Yahoo Finance for the ticker symbols only, never who asked.
-          </li>
-          <li style={LI}>
-            Only when we switch them on: Sentry (error reports from our servers and, through our server, from your browser, with digits masked and none of your
-            figures, email or address) and Cloudflare Turnstile (a check on the sign-in page that you are a person).
-          </li>
+          {PROCESSORS.map((p) => (
+            <li key={p.who} style={LI}>
+              <strong>{p.who}</strong>, {p.role}: {p.data}{p.when === 'always' ? '' : ` (${p.when})`}.
+            </li>
+          ))}
         </ul>
+        <p style={NOTE}>
+          The same list, as switched on at that moment, is in the file you download on the Your data page.
+        </p>
         <p style={P}>
           So your data is stored outside India (in Singapore and the USA). The DPDP Act allows this except to countries the
           Government restricts (section 16; Rules 2025 rule 15); none is restricted today.
@@ -111,12 +167,25 @@ export default function PrivacyPage() {
         <h2 style={H2}>HOW LONG WE KEEP IT</h2>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <li style={LI}>Your saved plan and email: until you delete your account.</li>
+          <li style={LI}>
+            When you delete your account: your plan, devices and payday-email settings go at once. The sign-in records
+            (your email, when codes were sent and used, wrong guesses, when sessions started and ended), the record of
+            your agreement and the access record are kept for {RETENTION.deletedAccountRecordsDays} days, then deleted.
+            They can&apos;t be used to sign in and hold none of your figures; the DPDP Rules 2025 ask for one year of such
+            records (rules 6(1)(e) and 8(3)).
+          </li>
+          <li style={LI}>
+            Copies: our database host keeps about {RETENTION.databaseRestoreHours} hours of history for recovery, and our
+            encrypted nightly backups (in a private store only we can open) are kept for up to {RETENTION.backupDays} days:
+            one for each of the last 14 days, then one a week. A deleted account disappears from them when
+            they expire.
+          </li>
           <li style={LI}>A sign-in code: usable for {RETENTION.signInCodeMinutes} minutes, then its hash is wiped.</li>
           <li style={LI}>A sign-in session: {RETENTION.sessionDays} days, or until you sign out.</li>
           <li style={LI}>
-            Sign-in records: {RETENTION.signInRecordsDays} days after the code or session ended (or until you delete your
-            account, whichever is sooner), then deleted. The DPDP
-            Rules 2025 ask for one year of such records so misuse can be investigated (rules 6(1)(e) and 8(3)).
+            Sign-in records and the access record: {RETENTION.signInRecordsDays} days after the code, session or access,
+            then deleted. The DPDP Rules 2025 ask for one year of such records so misuse can be investigated (rules
+            6(1)(e) and 8(3)).
           </li>
           <li style={LI}>Rate-limit counters: deleted {RETENTION.rateCounterHours} hours after their hour ends.</li>
         </ul>
@@ -125,11 +194,12 @@ export default function PrivacyPage() {
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <Row what="See your data (DPDP Act s.11)" why={<>download everything the server holds on the <a href={ACCOUNT_PATH}>Your data</a> page.</>} />
           <Row what="Correct or update it (s.12)" why="edit it in Profile at any time." />
-          <Row what="Erase it, or withdraw consent (s.12, s.6(4))" why={<>delete your account on the <a href={ACCOUNT_PATH}>Your data</a> page: type your email and confirm. It removes your saved plan, sessions and sign-in records at once. You can also clear what this browser keeps there.</>} />
+          <Row what="Erase it, or withdraw consent (s.12, s.6(4))" why={<>delete your account on the <a href={ACCOUNT_PATH}>Your data</a> page: type your email and confirm. It is as quick as signing up was. It removes your saved plan, devices and settings at once and records that you withdrew; the records listed under &ldquo;How long we keep it&rdquo; follow after {RETENTION.deletedAccountRecordsDays} days. You can also clear what this browser keeps there.</>} />
+          <Row what="Sign out other devices" why={<>see every signed-in device and sign any of them out on the <a href={ACCOUNT_PATH}>Your data</a> page.</>} />
           <Row what="Nominate someone (s.14)" why={<>to use these rights if you die or can&apos;t act yourself: email <a href={mail}>{GRIEVANCE_CONTACT.email}</a> with their name and email.</>} />
           <Row
             what="Complain (s.13)"
-            why={<>email <a href={mail}>{GRIEVANCE_CONTACT.email}</a> from the address you sign in with. We will reply within {GRIEVANCE_REPLY_DAYS_MAX} days at the latest, the limit set by the DPDP Rules 2025 (rule 14(3)).</>}
+            why={<>email <a href={mail}>{GRIEVANCE_CONTACT.email}</a> from the address you sign in with. We will reply within {GRIEVANCE_REPLY_DAYS_MAX} days (the DPDP Rules 2025 allow up to {GRIEVANCE_REPLY_DAYS_LEGAL_MAX}, rule 14(3)).</>}
           />
           <Row
             what="Go to the Board"
@@ -147,7 +217,10 @@ export default function PrivacyPage() {
         </p>
 
         <h2 style={H2}>CHILDREN</h2>
-        <p style={P}>RightDue is for adults (18 or older). Please don&apos;t create an account for anyone younger.</p>
+        <p style={P}>
+          RightDue is for adults (18 or older). You confirm you are 18 or older when you sign in, and we keep that with
+          your agreement. Please don&apos;t create an account for anyone younger.
+        </p>
 
         <h2 style={H2}>WHERE THE LAW STANDS</h2>
         <p style={NOTE}>
@@ -155,7 +228,8 @@ export default function PrivacyPage() {
           (eighteen months later); we follow them now. This notice has not been checked by a lawyer. Sources: the{' '}
           <a href={SOURCES.act}>DPDP Act 2023</a>, the <a href={SOURCES.rules}>DPDP Rules 2025</a> and the{' '}
           <a href={SOURCES.commencement}>commencement notification</a>, all on meity.gov.in. If we change this notice, the
-          date above changes, and we will email you before a change that uses your data in a new way.
+          date and version above change, and the next time you sign in we ask you to agree to the new version. Before a
+          change that uses your data in a new way, we email everyone who agreed to an older version.
         </p>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>

@@ -4,7 +4,7 @@
  * reads the plan, checks /tax, signs out; then signs in again on a clean
  * browser and gets the saved plan back from the account.
  */
-import { expect, fillLoan, isPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-usa@rightdue.app';
 
@@ -13,6 +13,8 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     await signIn(page, EMAIL);
     await expect(page).toHaveURL(/\/onboarding$/);
     await page.getByRole('group', { name: 'Where you live' }).getByRole('button', { name: /USA/ }).click();
+    // R3C-1: Setup asks how a US filer files (no silent Single).
+    await page.getByRole('group', { name: 'How you file your tax return' }).getByRole('button', { name: /^Single$/ }).click();
     await page.getByLabel(/Take-home pay a month/).fill('7800');
     await page.getByLabel(/Spending a month/).fill('2500');
     await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
@@ -28,7 +30,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
   });
 
   await test.step('plan preview (golden)', async () => {
-    const sim = page.waitForResponse(isPlanCall('/api/simulate'));
+    const sim = page.waitForResponse(isSetupPlanCall());
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     expect(JSON.stringify(await planSummary(await sim), null, 2)).toMatchSnapshot('usa-onboarding-simulate.json');
   });

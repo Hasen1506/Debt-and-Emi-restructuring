@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -88,7 +89,7 @@ test('#4 a loan nickname shows with the lender and type, and without one nothing
   assert.equal(loanLabel(dads), "Dad's car loan (HDFC car loan)");
   assert.equal(loanName(dads), "Dad's car loan");
   assert.equal(loanNickname({ nickname: 'x'.repeat(100) }).length, NICKNAME_MAX);
-  assert.match(src('app/profile/ProfileClient.tsx'), /label="Nickname \(optional\)"/);
+  assert.match(profileSource(), /label="Nickname \(optional\)"/);
   assert.match(src('lib/api.ts'), /nickname\?: string;/);
   // Spare cash, Activity and Home use it.
   assert.match(src('app/tools/windfall/tool.tsx'), /loanLabel\(l\)/);
@@ -112,7 +113,7 @@ test('#5 state lists are complete and a country switch drops the other country\'
   assert.equal(placeLabel({ country: 'IN' }), '');
   // Honest about what it changes: no number moves by state yet.
   for (const c of ['IN', 'US']) assert.match(STATE_HELP[c], /not|Nothing/);
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /label="State \(optional\)"/);
   assert.match(profile, /label="City \(optional\)"/);
   // Integration L3 x G3: one `state`; the US keeps G3's two-letter field.
@@ -150,7 +151,7 @@ test('#11 an Indian floating loan asks "for a business?" and a yes drops the RBI
   assert.equal(feeShownWithPurpose({ ...home, business_purpose: true, prepayment_penalty_pct: '0.02' }, 'IN').status, 'entered');
   assert.match(PURPOSE_HELP, /yourself or your family/);
   assert.match(PURPOSE_HELP, /2 July 2025/);
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /feeShownWithPurpose as feeShown/);
   assert.match(profile, /asksBusinessPurpose\(l, country\)/);
 });

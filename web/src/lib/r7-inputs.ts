@@ -54,7 +54,7 @@ export function paymentWords(country: CountryCode | string): {
 }
 
 /** R7-7: loan kinds that exist only in India. */
-export const INDIA_ONLY_LOAN_TYPES: readonly string[] = ['gold_loan'];
+export const INDIA_ONLY_LOAN_TYPES: readonly string[] = ['gold_loan', 'loan_against_property', 'home_topup', 'two_wheeler_loan'];
 
 /** R7-7: the loan-kind chips for this country; a kind already chosen stays
  *  so a saved loan never loses its label. */

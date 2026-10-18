@@ -83,8 +83,10 @@ test('sunk costs are out, a binding cap gives no tax benefit, locked loans go la
   const u3 = { country: 'IN', tax_regime: 'new', loans: [{ ...base, nominal_rate: '0.40', prepay_lock_in_months: 6 }, { ...base, nominal_rate: '0.09' }] };
   assert.deepEqual(payoffOrders(u3, '0').avalanche, [1, 0]);
   // US mortgage: the shield follows usMortgageShieldShare (itemisers only).
-  const us = { country: 'US', filing_status: 'single', loans: [{ ...base, loan_type: 'home_loan', outstanding: '400000', nominal_rate: '0.07' }] };
+  const us = { country: 'US', filing_status: 'single', itemises: true, loans: [{ ...base, loan_type: 'home_loan', outstanding: '400000', nominal_rate: '0.07' }] };
   assert.ok(userMarginalCosts(us, '0.24').get(0).taxBenefit.gt(0));
+  // Round 3 (#25): not itemizing (the default), no break.
+  assert.ok(userMarginalCosts({ ...us, itemises: undefined }, '0.24').get(0).taxBenefit.eq(0));
 });
 
 test('"why this loan first": the breakdown on Home, same words as the engine', () => {
@@ -96,7 +98,8 @@ test('"why this loan first": the breakdown on Home, same words as the engine', (
   assert.match(lines[1].label, /GST/);
   const home = src('components/home/HomeDebtFree.tsx');
   assert.match(home, /userMarginalCosts\(plan\.user, plan\.marginalRate\)/);
-  assert.match(home, /whyFirst\(mc\)/);
+  // Audit 80 B13/E2: Home states the one all-in figure; the breakdown is behind WHY.
+  assert.match(home, /whyFirstShort\(mc\.total, target\.nominal\)/);
   const py = fs.readFileSync(path.resolve(__dirname, '../../engine/marginal_cost.py'), 'utf8');
   for (const w of ['The next payment here saves', 'interest (compounded monthly)', 'GST on it', "tax break you'd give up", 'prepayment fee', 'locked against prepayment for']) {
     assert.ok(py.includes(w) && src('lib/marginal-cost.ts').includes(w), w);

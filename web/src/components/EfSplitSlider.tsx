@@ -84,7 +84,7 @@ export function EfSplitSlider({
           alignItems: 'center',
           gap: 12,
           fontFamily: 'var(--font-mono)',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)',
           letterSpacing: '0.08em',
           color: 'var(--muted)',
         }}
@@ -117,11 +117,11 @@ export function EfSplitSlider({
         display: 'inline-flex',
         flexDirection: 'column',
         gap: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
       }}
     >
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontWeight: 600, fontSize: 13 }}>
+        <span style={{ fontWeight: 600, fontSize: 'var(--fs-body)' }}>
           Emergency fund and debts {explainer}
         </span>
         <input
@@ -141,7 +141,7 @@ export function EfSplitSlider({
           {pct}% emergency fund · {debtPct}% debts
         </span>
       </div>
-      <span className="muted" style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 480 }}>
+      <span className="muted" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.5, maxWidth: 480 }}>
         {pending
           ? 'Recomputing schedule…'
           : `Each month, ${pct}% of the spare cash goes to your emergency fund until it reaches its target, and ${debtPct}% pays debts down faster. 0% puts it all on debts; 100% fills the fund first.`}

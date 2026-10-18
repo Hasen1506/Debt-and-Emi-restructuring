@@ -29,7 +29,11 @@ async function onboard(page: Page, email: string) {
   await page.getByLabel(/Spending a month/).fill('40000');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
   await fillLoan(page, 0, { kind: /^card$/i, balance: '150000', rate: '42' });
-  await fillLoan(page, 1, { kind: /^personal$/i, balance: '400000', rate: '14', emi: '13000' });
+  // ₹1L personal (smaller than the card, cheaper than it): smallest-first and
+  // cheapest-first now differ, so (A2, W3) the order question is asked. With
+  // ₹4L every order paid card → personal → home and the chips were replaced
+  // by the "same result" line.
+  await fillLoan(page, 1, { kind: /^personal$/i, balance: '100000', rate: '14', emi: '13000' });
   await fillLoan(page, 2, { kind: /^home$/i, balance: '2500000', rate: '8.6', emi: '22000' });
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
 }
@@ -38,9 +42,11 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   const sent = track(page);
   await onboard(page, 'golden-retest4-rapid@rightdue.app');
   await planPreviewSettled(page);
-  // The first preview: exactly one pair.
-  await expect.poll(() => sent.length).toBe(2);
-  expect(sent.map((s) => s.path).sort()).toEqual(['/api/baseline', '/api/simulate']);
+  // The first preview: one pair, plus (audit 80 B4/A22, W6) the same loans
+  // smallest-first, "what you'd likely do", the savings baseline.
+  await expect.poll(() => sent.length).toBe(3);
+  expect(sent.map((s) => s.path).sort()).toEqual(['/api/baseline', '/api/simulate', '/api/simulate']);
+  expect(sent.filter((s) => s.path === '/api/simulate' && s.body.strategy === 'snowball')).toHaveLength(1);
 
   // Four quick choices, faster than the pause.
   const order = page.getByRole('group', { name: 'Which loan gets your extra money first?' }).getByRole('button');
@@ -48,8 +54,11 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   expect(n).toBeGreaterThan(1);
   const before = sent.length;
   await page.getByRole('button', { name: /^Not now$/ }).click();
-  for (let i = n - 1; i >= 1; i--) await order.nth(i).click({ delay: 0 });
-  const last = order.nth(1);
+  // End on an order not worked out yet: smallest-first (snowball) is already
+  // known from the first preview's "what you'd likely do" run (W6 B4), so
+  // ending on it answered from memory with no request at all.
+  for (let i = 1; i < n; i++) await order.nth(i).click({ delay: 0 });
+  const last = order.nth(n - 1);
   await expect(last).toHaveAttribute('aria-pressed', 'true');
   await planPreviewSettled(page);
   await page.waitForTimeout(800);
@@ -73,6 +82,8 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
   await page.waitForURL('**/plan');
   // Plan's tenure what-if: three quick clicks, one compare for the last.
+  // Audit 80 B15: this healthy plan folds the longer-tenure card; open it.
+  await page.locator('#main').getByTestId('tenure-fold').locator('summary').click();
   const plus5 = page.getByRole('button', { name: '+5 YRS' });
   await expect(plus5).toBeVisible();
   await page.waitForLoadState('networkidle');

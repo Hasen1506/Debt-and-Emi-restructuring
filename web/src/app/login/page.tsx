@@ -15,8 +15,9 @@ import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
 import { TURNSTILE_SITE_KEY, TurnstileBox } from '@/components/auth/Turnstile';
-import { PRIVACY_PATH, TERMS_PATH } from '@/lib/privacy-facts';
+import { NOTICE_VERSION, PRIVACY_PATH, TERMS_PATH, TERMS_VERSION } from '@/lib/privacy-facts';
 import { GOOGLE_CONFIG_PATH, googleStartHref } from '@/lib/google-signin';
+import { LOGIN_COPY, START_PREVIEW, START_STEPS, loginFrame } from '@/lib/login-frame';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
 const STARTING_RETRIES = 12;
@@ -27,6 +28,9 @@ type Phase = 'email' | 'code';
 export default function LoginPage() {
   const params = useSearchParams();
   const next = params.get('next');
+  // B1: framed as step 1 of a free plan when on the way to Setup.
+  const frame = loginFrame(next, params.get('start'));
+  const copy = LOGIN_COPY[frame];
   const redirectTo = typeof window === 'undefined' ? '/' : safeRedirect(next, window.location.origin);
 
   const [phase, setPhase] = useState<Phase>('email');
@@ -47,6 +51,14 @@ export default function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReset, setTurnstileReset] = useState(0);
   const needsTurnstile = Boolean(TURNSTILE_SITE_KEY);
+  // audit80 D7: an explicit 18+ declaration, stored with the consent (D2).
+  const [adult, setAdult] = useState(false);
+  // A tick made before the page hydrated is in the DOM but not in state, so
+  // the button stayed disabled with the box shown ticked (golden India E2E,
+  // cold server). Read it once on mount.
+  const adultRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (adultRef.current?.checked) setAdult(true); }, []);
+  const agreement = { notice_version: NOTICE_VERSION, terms_version: TERMS_VERSION, age_confirmed: adult };
 
   // Tick once a second while a request is pending or the resend cooldown runs.
   useEffect(() => {
@@ -165,7 +177,7 @@ export default function LoginPage() {
     setError(null);
     startBusy('verify');
     try {
-      const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim());
+      const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim(), agreement);
       await finishSignIn(user.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
@@ -222,12 +234,27 @@ export default function LoginPage() {
 
   return (
     <section style={card}>
-      <h1 style={title}>Sign in</h1>
-      <p style={subtitle}>
-        {phase === 'email'
-          ? <>We&rsquo;ll email you a 6-digit code. No passwords.</>
-          : <>Enter the 6-digit code we emailed you.</>}
+      {frame === 'start' && (
+        <ol aria-label="Steps to your plan" data-testid="login-stepper" style={stepper}>
+          {START_STEPS.map((s, i) => (
+            <li key={s} aria-current={i === 0 ? 'step' : undefined} style={{ ...stepItem, color: i === 0 ? 'var(--ink)' : 'var(--muted)', fontWeight: i === 0 ? 700 : 400 }}>
+              {i + 1} {s}
+            </li>
+          ))}
+        </ol>
+      )}
+      <h1 style={title} data-testid="login-title">{copy.title}</h1>
+      <p style={subtitle} data-testid="login-sub">
+        {phase === 'email' ? copy.sub : copy.code}
       </p>
+      {frame === 'start' && phase === 'email' && (
+        <div data-testid="login-preview" style={{ margin: '0 0 18px', fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 'var(--fs-dense)', color: 'var(--muted)', marginBottom: 4 }}>In about two minutes you&rsquo;ll see:</div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {START_PREVIEW.map((l) => <li key={l}>{l}</li>)}
+          </ul>
+        </div>
+      )}
 
       {phase === 'email' && (
         <form onSubmit={onRequest} style={form}>
@@ -246,30 +273,45 @@ export default function LoginPage() {
           </label>
           <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           {/* DPDP Act 2023 s.5-6: the notice comes before consent, and consent
-              is a clear action (the button says so). Grill #51. */}
+              is a clear action (the button says so). Grill #51. audit80 D2:
+              the versions agreed to and the 18+ tick are stored at sign-in. */}
           <p style={noticeText}>
             We keep your email, your sign-in records and the plan you save, only to run your account on any device.
             You can download or delete them any time. Read the <a href={PRIVACY_PATH}>privacy notice</a> and{' '}
             <a href={TERMS_PATH}>terms</a>.
           </p>
+          <label style={{ ...noticeText, display: 'flex', gap: 8, alignItems: 'flex-start', color: 'var(--ink)' }}>
+            <input
+              type="checkbox"
+              required
+              ref={adultRef}
+              checked={adult}
+              onChange={(e) => setAdult(e.target.checked)}
+              data-testid="age-confirm"
+              style={{ marginTop: 2 }}
+            />
+            I am 18 or older.
+          </label>
           <button
             type="submit"
-            disabled={submitting || (needsTurnstile && !turnstileToken)}
-            style={primaryStyle(submitting || (needsTurnstile && !turnstileToken))}
+            disabled={submitting || !adult || (needsTurnstile && !turnstileToken)}
+            style={primaryStyle(submitting || !adult || (needsTurnstile && !turnstileToken))}
           >
-            [ {submitting ? 'Sending…' : 'Agree and send code'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Sending…' : 'Agree and send code'}<span aria-hidden="true"> ]</span>
           </button>
           {googleOn && (
             <>
-              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
+              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
               <a
-                href={googleStartHref(next)}
+                href={googleStartHref(next, undefined, agreement)}
+                aria-disabled={!adult}
+                onClick={(e) => { if (!adult) { e.preventDefault(); setError('Tick \u201cI am 18 or older\u201d first.'); } }}
                 data-testid="google-signin"
                 style={{ ...primary, background: 'transparent', color: 'var(--ink)', border: '1px solid var(--ink)', textAlign: 'center', textDecoration: 'none' }}
               >
-                [ Continue with Google ]
+                <span aria-hidden="true">[ </span>Continue with Google<span aria-hidden="true"> ]</span>
               </a>
-              <p style={{ ...infoText, marginTop: 0, fontSize: 11 }}>
+              <p style={{ ...infoText, marginTop: 0, fontSize: 'var(--fs-small)' }}>
                 Google tells RightDue only your email address, which Google has checked is yours. Nothing else from your Google account is read or kept.
               </p>
             </>
@@ -290,7 +332,8 @@ export default function LoginPage() {
               required
               autoFocus
               pattern="\d{6}"
-              maxLength={6}
+              // UX2-7: no maxLength: a pasted "123 456" or "123-456" was cut to
+              // "123 45" before the spaces were stripped. onChange keeps 6 digits.
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               style={{ ...input, letterSpacing: '0.4em', fontFamily: 'var(--font-mono)', fontSize: 20, textAlign: 'center' }}
@@ -298,7 +341,7 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={submitting || code.length !== 6} style={primaryStyle(submitting || code.length !== 6)}>
-            [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Verifying…' : 'Verify and sign in'}<span aria-hidden="true"> ]</span>
           </button>
           <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
@@ -311,6 +354,10 @@ export default function LoginPage() {
           </div>
         </form>
       )}
+
+      <p style={{ ...infoText, fontSize: 'var(--fs-dense)' }} data-testid="login-cant-pay">
+        Behind on a payment, or getting recovery calls? <a href="/cant-pay">Your rights and a letter to your lender</a>, no sign-in needed.
+      </p>
 
       {wake?.show && (
         <div role="status" aria-live="polite" style={{ marginTop: 14 }}>
@@ -344,9 +391,11 @@ const card: React.CSSProperties = {
   borderRadius: 0,
 };
 const title: React.CSSProperties = { margin: 0, fontSize: 22, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' };
-const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 14 };
+const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: 0, margin: '0 0 12px', fontSize: 'var(--fs-dense)', fontFamily: 'var(--font-mono)' };
+const stepItem: React.CSSProperties = { whiteSpace: 'nowrap' };
+const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 'var(--fs-body)' };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
+const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
 const input: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 16,
@@ -362,7 +411,7 @@ const primary: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+  fontSize: 'var(--fs-label)',
   fontWeight: 700,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
@@ -379,11 +428,11 @@ const ghost: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontSize: 'var(--fs-label)',
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   cursor: 'pointer',
 };
-const noticeText: React.CSSProperties = { margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--muted)' };
-const infoText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--muted)' };
-const errorText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--negative, #c53030)' };
+const noticeText: React.CSSProperties = { margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: 'var(--muted)' };
+const infoText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
+const errorText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--negative, #c53030)' };

@@ -7,6 +7,7 @@
  * shows what the entry does to the plan — the debt-free month and the
  * interest — from the same engine run Plan uses.
  */
+import { planEnd } from '@/lib/plan-gap';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
@@ -29,6 +30,8 @@ import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, L_MONO, L_T } from '@/components/ledger/primitives';
 import { LifeEventForm } from '@/components/lifecycle/LifeEventForm';
 import { loanLabel, openLoans } from './history';
+import { PrepayChoice } from '@/components/PrepayChoice';
+import { asksPrepayChoice, lowerEmiAfter, prepayFields, type PrepayMode } from '@/lib/prepay-choice';
 import { rateChangeLoanIndex, isOpenCurrentLoan } from '@/lib/plan-controls';
 
 export type LogType = 'payment' | 'rate' | 'pay' | 'spending' | 'loan';
@@ -78,6 +81,8 @@ const STATUS_OF: Record<ActivityKind, PayStatus> = {
   missed: 'missed',
   paid_extra: 'extra',
   closed: 'off',
+  // A Profile correction is changed in Profile; here it reads as an extra.
+  balance_correction: 'extra',
 };
 const SOURCES: { v: string; label: string }[] = [
   { v: 'surplus', label: 'This month’s spare cash' },
@@ -90,7 +95,8 @@ const SOURCES: { v: string; label: string }[] = [
 async function run(args: PlanRunArgs, strategy: StrategyName) {
   const r = await api.simulate({ ...args, strategy });
   return {
-    month: r.debt_free_month,
+    // Round 2: planEnd() — no date for a capped run (as Plan and the tools).
+    month: planEnd(r).debtFreeMonth,
     interest: Number(r.total_interest_paid),
     /** What the plan pays above the minimums this month, in the user's currency. */
     extraThisMonth: Number(r.trajectory.find((p) => p.month === 1)?.extra_paid ?? 0),
@@ -153,6 +159,8 @@ export function LogDialog({
   const [source, setSource] = useState(edit?.source ?? 'surplus');
   const [note, setNote] = useState(edit?.note ?? '');
   const [tried, setTried] = useState(false);
+  // UX2 #20: a prepayment on an EMI loan asks "lower your EMI or finish sooner?".
+  const [prepayMode, setPrepayMode] = useState<PrepayMode | null>(edit?.prepayMode ?? null);
 
   // An amount left blank means the usual one, where there is one.
   const typed = amount.trim();
@@ -163,6 +171,8 @@ export function LogDialog({
   const fmt = (v: Decimal.Value) => formatCurrencyWhole(new Decimal(v).toFixed(0), lccy);
   const usual = card ? `Minimum ${fmt(planned)}` : `${country === 'US' ? 'Payment' : 'EMI'} ${fmt(planned)}`;
 
+  const asksPrepay = !edit && status === 'extra' && asksPrepayChoice(loan) && amt.gt(0) && amt.lt(new Decimal(loan?.outstanding || 0));
+  const lowerEmi = asksPrepay && loan ? lowerEmiAfter(loan, amt.toNumber()) : null;
   const payProblems: Record<string, string | null> = {
     timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? localTerms('The first EMI is not due yet. Choose “Paid extra” for an early prepayment.', country) : null,
     loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
@@ -176,6 +186,7 @@ export function LogDialog({
     date: !date ? 'Pick the date.' : date > today ? 'That’s after today. A payment you’re planning goes on Plan.' : null,
     newBalance: newBalance.trim() && !(Number(newBalance) >= 0) ? 'Enter the balance, or leave it blank.' : null,
     fee: fee.trim() && !(Number(fee) >= 0) ? 'Enter the fee, or leave it blank.' : null,
+    prepay: asksPrepay && !prepayMode ? 'Choose one: it changes what the bank does with the money.' : null,
   };
   const payValid = !Object.values(payProblems).some(Boolean);
   const showPay = (k: string) => (tried ? payProblems[k] : null);
@@ -217,6 +228,7 @@ export function LogDialog({
       ...(status === 'extra' ? { source } : {}),
       ...(plannedExtra ? { plannedExtra } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
+      ...(asksPrepay && prepayMode ? prepayFields(prepayMode, loan?.scheduled_emi || 0, lowerEmi) : {}),
     };
   }
 
@@ -384,7 +396,7 @@ export function LogDialog({
         style={{ width: '100%', maxWidth: 600, background: L_T.paper, border: `2px solid ${L_T.ink}`, boxShadow: `6px 6px 0 0 ${L_T.ink}`, padding: '18px 20px', fontFamily: L_MONO, display: 'flex', flexDirection: 'column', gap: 14 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <h2 id="log-dialog-h" style={{ margin: 0, fontSize: 11, letterSpacing: '0.18em', color: L_T.accent, fontWeight: 700 }}>
+          <h2 id="log-dialog-h" style={{ margin: 0, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.accent, fontWeight: 700 }}>
             {edit ? 'CHANGE THIS ENTRY' : 'LOG AN ENTRY'}
           </h2>
           <LBracket onClick={onClose} label="Close">× CLOSE</LBracket>
@@ -437,6 +449,15 @@ export function LogDialog({
                 <Field label="Date" kind="date" value={date} onChange={setDate} error={showPay('date')} />
               </div>
             </Row>
+            {asksPrepay && (
+              <PrepayChoice
+                country={country}
+                value={prepayMode}
+                onChange={setPrepayMode}
+                detail={lowerEmi ? { reduce_emi: `${fmt(new Decimal(loan?.scheduled_emi || 0))} → ${fmt(lowerEmi)} a month` } : undefined}
+                error={showPay('prepay')}
+              />
+            )}
             {status === 'extra' && (
               <LChipRow label="Where it came from">
                 {SOURCES.map(({ v, label }) => (
@@ -447,7 +468,7 @@ export function LogDialog({
               </LChipRow>
             )}
             {shortfall.gt(0) && (
-              <div style={{ fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+              <div style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
                 {fmt(shortfall)} unpaid
                 {feeEstimate && feeEstimate.total.gt(0) && (
                   <>
@@ -506,7 +527,7 @@ export function LogDialog({
               />
             </div>
             {spendMode === 'month' && Number(spent) > 0 && budget > 0 && (
-              <p style={{ margin: 0, fontSize: 12, color: Number(spent) > budget ? L_T.negative : L_T.positive }}>
+              <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: Number(spent) > budget ? L_T.negative : L_T.positive }}>
                 {formatCurrencyWhole(Math.abs(Number(spent) - budget), ccy)} {Number(spent) > budget ? 'over' : 'under'} the plan. Kept as a
                 record; to change the plan, pick “from now on”.
               </p>
@@ -560,8 +581,8 @@ function Preview({
   if (!state) return null;
   const tone = (v: number) => (v > 0 ? L_T.negative : v < 0 ? L_T.positive : L_T.muted);
   return (
-    <div aria-live="polite" style={{ padding: '10px 12px', border: `1px dashed ${L_T.ink}`, background: L_T.bg, fontSize: 11, lineHeight: 1.7 }}>
-      <div style={{ fontSize: 9, letterSpacing: '0.14em', color: L_T.muted }}>WHAT IT DOES TO THE PLAN</div>
+    <div aria-live="polite" style={{ padding: '10px 12px', border: `1px dashed ${L_T.ink}`, background: L_T.bg, fontSize: 'var(--fs-small)', lineHeight: 1.7 }}>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted }}>WHAT IT DOES TO THE PLAN</div>
       {state === 'none' && <div>Nothing changes: the plan already counts this.</div>}
       {state === 'held' && (
         <div>

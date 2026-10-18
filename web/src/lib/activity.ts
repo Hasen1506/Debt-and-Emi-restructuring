@@ -31,7 +31,10 @@ export type ActivityKind =
   | 'paid_partial'
   | 'missed'
   | 'paid_extra'
-  | 'closed';
+  | 'closed'
+  /** UX2 #20: a balance lowered in Profile because it had been entered
+   *  wrong. A record only: it pays nothing and moves no balance. */
+  | 'balance_correction';
 
 export interface ActivityEntry {
   /** Stable ID — `crypto.randomUUID()` in the browser, kept as string. */
@@ -96,6 +99,16 @@ export interface ActivityEntry {
    *  Blank / unset → outstanding unchanged (previous behavior). Engine
    *  ignores this on non-card loans, which have amortization. */
   newOutstanding?: string;
+  /** UX2 #20, a prepayment on an EMI loan: the borrower's answer to "lower
+   *  your EMI or finish sooner?". With 'reduce_emi' the profile's EMI was
+   *  lowered to `emiAfter` (from `emiBefore`) when this was logged. */
+  prepayMode?: 'reduce_tenure' | 'reduce_emi';
+  emiBefore?: string;
+  emiAfter?: string;
+  /** UX2 #20: logged from a Profile balance edit. The new balance is already
+   *  in the profile (dated after this entry), so the entry is a record and
+   *  never moves the balance again. */
+  fromProfileEdit?: { from: string; to: string };
 }
 
 export const ACTIVITY_KINDS: ActivityKind[] = [
@@ -104,6 +117,7 @@ export const ACTIVITY_KINDS: ActivityKind[] = [
   'missed',
   'paid_extra',
   'closed',
+  'balance_correction',
 ];
 
 const STORAGE_KEY = 'rightdue_activity';
@@ -198,7 +212,7 @@ export function sortActivityNewestFirst(entries: ActivityEntry[]): ActivityEntry
  * `scheduledEmi` for missed. Always non-negative.
  */
 export function overdueAmount(entry: ActivityEntry): string {
-  if (entry.kind === 'paid_full' || entry.kind === 'paid_extra' || entry.kind === 'closed') {
+  if (entry.kind === 'paid_full' || entry.kind === 'paid_extra' || entry.kind === 'closed' || entry.kind === 'balance_correction') {
     return '0';
   }
   if (entry.kind === 'missed') return entry.scheduledEmi;
@@ -227,4 +241,40 @@ export function extraPrincipal(entry: ActivityEntry): string {
   if (entry.kind !== 'paid_extra') return '0';
   const extra = Number(entry.amount) - Number(entry.scheduledEmi);
   return String(Math.max(0, extra));
+}
+
+export type BalanceDropReason = 'prepayment' | 'correction';
+
+/** UX2 #20: Activity entries for EMI-loan balances lowered in Profile, by
+ *  the reason the user gave (by loan id). A prepayment is a paid_extra of
+ *  the drop with no EMI in it; a correction is a record only. Both are
+ *  logged just before `recordedAt` (the new balance's stamp), so the
+ *  balance, which already includes them, is never lowered twice. */
+export function balanceEditEntries(
+  prev: LoanPayload[],
+  next: LoanPayload[],
+  reasons: Record<string, BalanceDropReason | undefined>,
+  today: string,
+  recordedAt: string,
+): Omit<ActivityEntry, 'id'>[] {
+  const loggedAt = new Date(Date.parse(recordedAt) - 1).toISOString();
+  return next.flatMap((loan, loanIndex) => {
+    const before = loan.id ? prev.find((p) => p.id === loan.id) : undefined;
+    const reason = loan.id ? reasons[loan.id] : undefined;
+    if (!before || !reason) return [];
+    const drop = Number(before.outstanding) - Number(loan.outstanding);
+    if (!(drop > 0)) return [];
+    const fromProfileEdit = { from: String(before.outstanding), to: String(loan.outstanding) };
+    return [{
+      loanIndex,
+      loanId: loan.id,
+      kind: reason === 'prepayment' ? 'paid_extra' as const : 'balance_correction' as const,
+      date: today,
+      amount: drop.toFixed(2),
+      scheduledEmi: '0',
+      ...(reason === 'prepayment' ? { source: 'lump-sum' } : {}),
+      fromProfileEdit,
+      loggedAt,
+    }];
+  });
 }

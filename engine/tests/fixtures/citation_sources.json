@@ -191,5 +191,30 @@
       "non-business",
       "any source"
     ]
+  },
+  "RESET_RISE_OPTIONS_BANK": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13140",
+      "Reserve Bank of India (Commercial Banks – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/170, updated 1 October 2026), paragraph 349, Note and item (5)"
+    ],
+    "key_facts": [
+      "EMI",
+      "class of borrowers",
+      "fixed",
+      "prepay",
+      "negative amortisation"
+    ]
+  },
+  "RESET_RISE_OPTIONS_NBFC": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12942",
+      "Reserve Bank of India (Non-Banking Financial Companies – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/362, updated 1 July 2026), paragraph 31, Note and item (5); HFCs under paragraph 176(3) of the HFC Directions, 2025"
+    ],
+    "key_facts": [
+      "EMI",
+      "class of borrowers",
+      "prepay",
+      "negative amortisation"
+    ]
   }
 }

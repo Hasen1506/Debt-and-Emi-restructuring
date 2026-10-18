@@ -7,6 +7,11 @@ export function isRegularPayment(e: ActivityEntry): boolean {
     (e.kind === 'paid_extra' && Number(e.scheduledEmi) > 0);
 }
 
+/** UX2 #20: a balance corrected in Profile is a record, not money paid. */
+export function isMoneyPaid(e: ActivityEntry): boolean {
+  return e.kind !== 'balance_correction';
+}
+
 export function regularPaid(entries: ActivityEntry[]): Decimal {
   return entries.reduce((sum, e) => {
     if (!isRegularPayment(e) || e.kind === 'missed') return sum;
@@ -16,6 +21,7 @@ export function regularPaid(entries: ActivityEntry[]): Decimal {
 }
 
 export function paymentState(entries: ActivityEntry[], minimum: number, total: number): 'due' | 'missed' | 'part' | 'emi_paid' | 'paid' {
+  entries = entries.filter(isMoneyPaid);
   const regular = entries.filter(isRegularPayment);
   if (entries.some(e => e.kind === 'closed')) return 'paid';
   if (regular.length === 0) return 'due';

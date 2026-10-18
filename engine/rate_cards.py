@@ -8,6 +8,17 @@ re-read then. Tier-B and Tier-C entries are filled with
 positioning (PSU spread vs private mid-tier vs SFB) — each is flagged
 `is_indicative=True` so data ops can swap in live scrapes incrementally.
 
+Audit 80+ A21 (14 Oct 2026): those extrapolated figures were never read off a
+lender's page, so wherever they surface they are labelled UNVERIFIED_LABEL
+("typical, unverified") and never quoted as a lender's rate: Loan Check
+ignores them (loan_check.find_lender), Home's "Cheaper rates" uses Tier A
+only (restructuring_scan._country_pool), and the Profile range hint shows
+the label and offers no click-to-fill from them (web RateRangeHint). The
+"2026-05 industry norms" LoanTerms figures are gone: a term no rule fixes
+and no bank page states is "not known", never a guessed number. How the
+cards should be refreshed from primary sources (bank MCLR/EBLR disclosure
+pages, RBI DBIE) on the existing cron: docs/RATE-SOURCES.md.
+
 All rates are Decimal in [0, 1]. Use the `low`/`high` ends for sensitivity
 sliders; the median is what the optimiser uses by default.
 """
@@ -17,6 +28,9 @@ from typing import Optional
 from engine.models import Country, LoanType
 
 D = Decimal
+
+# The label for a figure no one read off a lender's own page.
+UNVERIFIED_LABEL = "typical, unverified"
 
 # What the Tier-A cards were priced against when last read. The weekly data
 # run (scripts/refresh_market_data.py) flags the cards for a re-read once the
@@ -65,7 +79,8 @@ class LoanTerms:
     rather than a verified read of the bank's current Schedule of Charges
     PDF. The UI uses this to label the suggestion "indicative — confirm
     with sanction letter" so users don't treat the suggestion as ground
-    truth. Country defaults from `_country_default_terms` are regulatory
+    truth. (A21: no entry carries guessed figures any more; an unsourced
+    term is None with UNVERIFIED_LABEL, never a number.) Country defaults from `_country_default_terms` are regulatory
     (RBI mandate / CARD Act / QM rule) and pass through as
     is_indicative=False.
     """
@@ -73,7 +88,7 @@ class LoanTerms:
     prepay_lock_in_months: Optional[int] = None
     part_payment_freq_months: Optional[int] = None
     is_indicative: bool = True
-    last_verified: str = "2026-05 industry norms"
+    last_verified: str = UNVERIFIED_LABEL
 
 
 @dataclass
@@ -98,6 +113,13 @@ class InstitutionRateCard:
     late_payment_penal_rate: Optional[Decimal] = None    # annualised; added to nominal on overdue principal
     last_verified: str = "2026-05-14"
     is_indicative: bool = False     # True for Tier-B/C extrapolations
+
+    @property
+    def verification(self) -> str:
+        """How far to trust this card's figures, as the UI says it:
+        "checked 2026-10-09" for a Tier-A read, UNVERIFIED_LABEL for an
+        extrapolation (whatever its last_verified field holds)."""
+        return UNVERIFIED_LABEL if self.is_indicative else f"checked {self.last_verified}"
     # Per-loan-type True-APR triggers. When set, the /api/loan-terms
     # endpoint exposes them as onboarding click-to-fill suggestions for
     # users on this bank + loan type. When None, callers fall through
@@ -725,13 +747,6 @@ def _country_default_terms(
         is_indicative=False,
         last_verified=src,
     )
-    norm = lambda pp, li, pf: LoanTerms(  # noqa: E731
-        prepayment_penalty_pct=pp,
-        prepay_lock_in_months=li,
-        part_payment_freq_months=pf,
-        is_indicative=True,
-        last_verified="2026-05 industry norms",
-    )
     unknown = lambda: LoanTerms(  # noqa: E731
         prepayment_penalty_pct=None,
         prepay_lock_in_months=None,
@@ -741,7 +756,9 @@ def _country_default_terms(
     )
     if country == Country.IN:
         if loan_type == LoanType.CREDIT_CARD:
-            return reg(D("0"), 0, None, "industry standard — no prepay penalty on cards")
+            # A card balance can be paid off any day; there is no loan term
+            # to prepay, so no charge exists to suggest.
+            return reg(D("0"), 0, None, "cards have no prepayment charge: pay any time")
         if rate_type == "floating":
             # engine/prepayment_fee.py: RBI (Pre-payment Charges on Loans)
             # Directions, 2025, para 5(i), July 2, 2025.
@@ -753,19 +770,23 @@ def _country_default_terms(
             return unknown()
         if loan_type == LoanType.EDUCATION:
             return reg(D("0"), 0, None, "RBI master direction")
-        return norm(D("0"), 0, None)
+        # A21: was a guessed "industry norm" of 0; nothing sources it.
+        return unknown()
     # US
     if loan_type == LoanType.CREDIT_CARD:
         return reg(D("0"), 0, None, "CARD Act 2009 + Reg Z")
     if loan_type == LoanType.HOME:
         return reg(D("0"), 0, None, "QM rule (Ability-to-Repay 2014)")
-    if loan_type == LoanType.AUTO:
-        return reg(D("0"), 0, None, "industry standard")
-    if loan_type == LoanType.PERSONAL:
-        return reg(D("0"), 0, None, "industry standard")
+    # A21: US auto and personal-loan prepayment terms are set by the loan
+    # contract and state law; no federal rule fixes them, so "industry
+    # standard" was an unsourced claim. Private education loans: TILA bars
+    # prepayment penalties (15 U.S.C. 1650(e), from the Higher Education
+    # Opportunity Act 2008); federal student loans never had one.
+    if loan_type in (LoanType.AUTO, LoanType.PERSONAL):
+        return unknown()
     if loan_type == LoanType.EDUCATION:
-        return reg(D("0"), 0, None, "industry standard")
-    return norm(D("0"), 0, None)
+        return reg(D("0"), 0, None, "15 U.S.C. 1650(e): no prepayment penalty on education loans")
+    return unknown()
 
 
 def lookup_loan_terms(

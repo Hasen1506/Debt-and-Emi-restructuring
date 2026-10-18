@@ -1,13 +1,16 @@
 import type { Metadata } from 'next';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
-import { ACCOUNT_PATH, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH } from '@/lib/privacy-facts';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import {
+  ACCOUNT_PATH, CONTACT_EMAILS, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH, TERMS_VERSION,
+} from '@/lib/privacy-facts';
 
 export const metadata: Metadata = { title: 'Terms of use · RightDue' };
 
 /** Terms of use (grill #51). Plain words; public without signing in. */
-const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, letterSpacing: '0.08em' };
-const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
-const LI: React.CSSProperties = { margin: '4px 0', fontSize: 13, lineHeight: 1.55 };
+const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
+const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
+const LI: React.CSSProperties = { margin: '4px 0', fontSize: 'var(--fs-body)', lineHeight: 1.55 };
 
 export default function TermsPage() {
   const mail = `mailto:${GRIEVANCE_CONTACT.email}`;
@@ -15,7 +18,11 @@ export default function TermsPage() {
     <LShell>
       <article style={{ maxWidth: 760 }}>
         <h1 style={{ margin: 0, fontSize: 20, letterSpacing: '0.08em' }}>TERMS OF USE</h1>
-        <p style={{ ...P, color: L_T.muted }}>Last updated {NOTICE_LAST_UPDATED}. By using {DATA_FIDUCIARY.name} you agree to these terms.</p>
+        <p style={{ ...P, color: L_T.muted }}>
+          Last updated {NOTICE_LAST_UPDATED} (version {TERMS_VERSION}). You agree to these terms and the privacy notice
+          when you press &ldquo;Agree and send code&rdquo; (or Continue with Google) on the sign-in page; we record which
+          version you agreed to and when. Loan Check, which needs no account, is covered by them too.
+        </p>
 
         <h2 style={H2}>WHAT RIGHTDUE IS</h2>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
@@ -62,19 +69,33 @@ export default function TermsPage() {
             you make using its estimates. Nothing in these terms takes away rights you have under Indian consumer or data
             protection law.
           </li>
-          <li style={LI}>If we change these terms, the date above changes; for a change that matters, we will tell you before it applies.</li>
           <li style={LI}>
+            If we change these terms, the date and version above change and we ask you to agree again the next time you
+            sign in. For a change that matters, we email everyone who agreed to an older version before it applies.
+          </li>
+          <li style={LI} data-testid="terms-emails">
+            <DraftLegalMarker id="terms-2026-10-15" note="emails" />{' '}
+            Emails you switch on (payday email, deadline reminders, rate-move email) are reminders, not advice, and can
+            arrive late: they go out once a day on a free email plan with a daily limit, sign-in codes first. A reminder
+            is based on the dates and figures you entered; check them against your lender&apos;s letters. You can turn
+            every email off from any email or in the app.
+          </li>
+          <li style={LI} data-testid="terms-liability">
+            <DraftLegalMarker id="terms-2026-10-15" note="liability cap and courts for users in the USA" />{' '}
             RightDue is free, so to the extent the law allows, our total liability to you for anything arising from the
             service is limited to ₹1,000 (or US$15 for users in the USA). This does not limit liability that the law
             does not allow us to limit.
           </li>
-          <li style={LI}>We reply to complaints within 30 days. Data-protection grievances follow the timeline in the privacy notice.</li>
+          <li style={LI}>We reply to complaints within 30 days, data-protection grievances included (the privacy notice says the same).</li>
           <li style={LI}>These terms are governed by the laws of India, and courts at Chennai, Tamil Nadu have jurisdiction.</li>
         </ul>
 
         <h2 style={H2}>CONTACT</h2>
         <p style={P}>
-          {GRIEVANCE_CONTACT.name}: <a href={mail}>{GRIEVANCE_CONTACT.email}</a>. These terms have not been checked by a lawyer.
+          {GRIEVANCE_CONTACT.name}: <a href={mail}>{GRIEVANCE_CONTACT.email}</a> for privacy and complaints,{' '}
+          <a href={`mailto:${CONTACT_EMAILS.support}`}>{CONTACT_EMAILS.support}</a> for help with the app, and{' '}
+          <a href={`mailto:${CONTACT_EMAILS.security}`}>{CONTACT_EMAILS.security}</a> for a security problem.
+          These terms have not been checked by a lawyer.
         </p>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>

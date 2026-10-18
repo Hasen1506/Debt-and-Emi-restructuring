@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,7 +27,7 @@ const s = (v) => (v == null ? null : v.toString());
 
 test('differential: student-loan holds and explainers equal the engine', () => {
   const u = lib('us-loans.ts');
-  assert.equal(cases.student.length, 27);
+  assert.equal(cases.student.length, 45); // E7: + 'none' and 'unsure' answers
   for (const c of cases.student) {
     assert.equal(u.forgivenessPrepayBlock(c.loan), c.block, JSON.stringify(c.loan));
     assert.deepEqual(u.studentLoanExplainer(c.loan), c.explainer, JSON.stringify(c.loan));
@@ -93,8 +94,8 @@ test('a PA mortgage saves only federal tax in the on-screen payoff order too', (
 });
 
 test('the Profile loan card shows the US fields for US-market loans', () => {
-  const p = src('app/profile/ProfileClient.tsx');
-  assert.match(p, /loanMarket\(l, country\) === 'US' && \(\s*<UsLoanFields/);
+  const p = profileSource();
+  assert.match(p, /loanMarket\(l, country\) === 'US' && \(?\s*<UsLoanFields/);
   assert.match(p, /<UsStateField value=\{usState\}/);
   assert.match(p, /\.\.\.usLoanFieldsFor\(l, country\)/);
   const f = src('components/profile/UsLoanFields.tsx');

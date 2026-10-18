@@ -70,7 +70,7 @@ export function MonthYearPicker({
 
   return (
     <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      <legend className="muted" style={{ fontSize: 12, padding: 0, marginBottom: 4 }}>
+      <legend className="muted" style={{ fontSize: 'var(--fs-dense)', padding: 0, marginBottom: 4 }}>
         {label}
         {optional && ' (optional)'}
       </legend>
@@ -109,17 +109,17 @@ export function MonthYearPicker({
         </select>
       </div>
       {error && (
-        <span id={`${id}-err`} role="alert" style={{ fontSize: 12, color: 'var(--negative)', display: 'block' }}>
+        <span id={`${id}-err`} role="alert" style={{ fontSize: 'var(--fs-dense)', color: 'var(--negative)', display: 'block' }}>
           {error}
         </span>
       )}
       {half && (
-        <span role="status" style={{ fontSize: 11, color: 'var(--accent)' }}>
+        <span role="status" style={{ fontSize: 'var(--fs-small)', color: 'var(--accent)' }}>
           Still needed: {month ? 'the year' : 'the month'}.
         </span>
       )}
       {hint && !half && (
-        <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+        <span className="muted" style={{ fontSize: 'var(--fs-small)', display: 'block', marginTop: 4 }}>
           {hint}
         </span>
       )}

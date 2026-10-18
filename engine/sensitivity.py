@@ -17,7 +17,9 @@ their "before" date could differ from /plan's.
 """
 from decimal import Decimal
 from copy import deepcopy
-from engine.models import LifecycleEvent, LifecycleEventKind, User
+from engine.plan_end import shown_debt_free_month
+from engine.formulas import emi
+from engine.models import LifecycleEvent, LifecycleEventKind, LoanType, User
 from engine.simulation import simulate_plan, SimulationResult
 from engine.ordering import Strategy
 from engine.surplus import from_user_currency
@@ -158,6 +160,7 @@ def with_lump_sum(
     marginal_rate: Decimal | None = None,
     simulation_start_month: int = 1,
     plan: dict | None = None,
+    mode: str = "reduce_tenure",
 ) -> SimulationResult:
     """Apply `amount` (in the user's currency) upfront to
     `user.loans[target_loan_index]` before simulating.
@@ -165,6 +168,11 @@ def with_lump_sum(
     The amount is converted to the loan's currency (P2-07), the bank's
     prepayment fee comes out of it, and a loan that can't take an extra
     payment yet (lock-in / pre-EMI) is left as it is.
+
+    `mode` is the borrower's answer to "lower your EMI or finish sooner?"
+    (engine/prepay_choice): reduce_tenure keeps the EMI (the loan ends
+    sooner); reduce_emi re-works the EMI on the lower balance over the
+    months left. A card has no EMI, so the mode changes nothing there.
     """
     u = deepcopy(user)
     if 0 <= target_loan_index < len(u.loans):
@@ -173,6 +181,9 @@ def with_lump_sum(
             in_loan_ccy = from_user_currency(amount, l, u)
             to_principal = in_loan_ccy * (D("1") - (l.prepayment_penalty_pct or D("0")))
             l.outstanding = max(D("0"), l.outstanding - to_principal)
+            if (mode == "reduce_emi" and l.loan_type != LoanType.CREDIT_CARD
+                    and l.outstanding > 0 and l.tenure_months_remaining > 0 and l.scheduled_emi > 0):
+                l.scheduled_emi = min(l.scheduled_emi, emi(l.outstanding, l.nominal_rate, l.tenure_months_remaining))
     return _run(u, strategy, horizon_months, marginal_rate, simulation_start_month, plan)
 
 
@@ -180,17 +191,19 @@ def compare(
     baseline: SimulationResult,
     scenario: SimulationResult,
 ) -> dict:
-    """Diff two simulation runs into a small dict the UI can render directly."""
+    """Diff two simulation runs into a small dict the UI can render directly.
+    A capped run (C11) has no date to diff (UX walkthrough fix 2)."""
+    b_dfm, s_dfm = shown_debt_free_month(baseline), shown_debt_free_month(scenario)
     months_delta = D("0")
-    if baseline.debt_free_month and scenario.debt_free_month:
-        months_delta = D(baseline.debt_free_month - scenario.debt_free_month)
-    elif baseline.debt_free_month is None and scenario.debt_free_month:
+    if b_dfm and s_dfm:
+        months_delta = D(b_dfm - s_dfm)
+    elif baseline.debt_free_month is None and s_dfm:
         # The baseline never finishes inside its horizon: the what-if pulls
         # the date forward by at least horizon - scenario (was reported as 0).
-        months_delta = D(max(0, len(baseline.months) - scenario.debt_free_month))
+        months_delta = D(max(0, len(baseline.months) - s_dfm))
     return {
-        "debt_free_month_baseline": baseline.debt_free_month,
-        "debt_free_month_scenario": scenario.debt_free_month,
+        "debt_free_month_baseline": b_dfm,
+        "debt_free_month_scenario": s_dfm,
         "months_pulled_forward": months_delta,
         "interest_saved": baseline.total_interest_paid - scenario.total_interest_paid,
         "extra_invested": scenario.total_invested - baseline.total_invested,
@@ -211,9 +224,9 @@ def compare(
 # central-bank decisions drive, not as random noise, and each scenario is a
 # sentence a person can check. Five simulator runs, not five thousand.
 #
-# Caveat carried into the copy: on a rate rise the engine raises the EMI to
-# keep the end date (_reset_rate, unchanged this sprint). Many Indian lenders
-# extend the tenure instead, which would push the later edge out further.
+# On a rate rise an Indian loan now holds its EMI and extends its tenure
+# (Audit 80+ C1, engine/contract.py; US loans and loans set to "raise_emi"
+# keep the end date), so the later edge reflects the longer tenure.
 
 RANGE_RATE_BAND = D("0.01")      # ±1 percentage point on floating loans
 RANGE_INCOME_MONTHS = 1          # ±1 month of take-home pay
@@ -240,7 +253,7 @@ def debt_free_range(
     """
     base = baseline or _run(user, strategy, horizon_months, marginal_rate,
                             simulation_start_month, plan)
-    exact = base.debt_free_month
+    exact = shown_debt_free_month(base)
     has_floating = any(l.rate_type == "floating" and l.outstanding > 0 for l in user.loans)
     scenarios: list[tuple[str, str, str, SimulationResult]] = []
 
@@ -279,8 +292,8 @@ def debt_free_range(
         return m - exact
 
     rows = [
-        {"id": sid, "label": label, "why": why, "debt_free_month": r.debt_free_month,
-         "shift_months": shift(r.debt_free_month)}
+        {"id": sid, "label": label, "why": why, "debt_free_month": shown_debt_free_month(r),
+         "shift_months": shift(shown_debt_free_month(r))}
         for sid, label, why, r in scenarios
     ]
     months = [exact] + [r["debt_free_month"] for r in rows]

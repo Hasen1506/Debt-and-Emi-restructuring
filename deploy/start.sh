@@ -21,13 +21,26 @@ if [ "${NEXT_PUBLIC_DISABLE_AUTH:-false}" = "true" ] && [ "${RIGHTDUE_ALLOW_DISA
   exit 1
 fi
 
+# audit80 D13: Turnstile needs BOTH keys. With only the secret, every code
+# request is refused (no box on the page to make a token); with only the
+# site key, the box shows but nothing checks it. Say so loudly at start.
+if [ -n "${TURNSTILE_SECRET_KEY:-}" ] && [ -z "${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" ]; then
+  echo "start.sh: WARNING TURNSTILE_SECRET_KEY is set but NEXT_PUBLIC_TURNSTILE_SITE_KEY is not: sign-in codes will be refused. Set both, then Clear build cache & deploy." >&2
+fi
+if [ -z "${TURNSTILE_SECRET_KEY:-}" ] && [ -n "${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}" ]; then
+  echo "start.sh: WARNING NEXT_PUBLIC_TURNSTILE_SITE_KEY is set but TURNSTILE_SECRET_KEY is not: the box shows but nothing verifies it." >&2
+fi
+
 # One worker: the free plan has 512 MB and a fraction of a CPU, and the rate
 # limiter keeps its buckets in process memory (one worker = one set).
 # --forwarded-allow-ips is left at its default (127.0.0.1, i.e. Next.js);
 # the client address for rate limits comes from api/client_ip.py, which reads
 # X-Forwarded-For only as far back as TRUSTED_PROXY_HOPS.
+# audit80 D24: --no-access-log, because uvicorn's line includes the query
+# string (?score=742, ?t=<signed token>). api/request_log.py logs method,
+# route template, status and duration instead.
 python -m uvicorn api.main:app --host "$API_HOST" --port "$API_PORT" --workers 1 \
-  --timeout-keep-alive 65 &
+  --timeout-keep-alive 65 --no-access-log &
 API_PID=$!
 
 shutdown() {

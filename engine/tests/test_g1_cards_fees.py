@@ -20,7 +20,7 @@ from engine.fee_order import ILLUSTRATIVE_HIGH_FEE, unknown_fee_check
 from engine.formulas import effective_rate, gst_component
 from engine.marginal_cost import compounded, loan_marginal_cost, marginal_cost, prepayment_fee_with_gst
 from engine.minimum_payments import (
-    FORMULA_SOURCE, INDIA_MIN_PAYMENT_FORMULAS, STATEMENT_MIN_ADVICE, compute_minimum_payment, minimum_basis,
+    FORMULA_SOURCE, INDIA_MIN_PAYMENT_FORMULAS, STATEMENT_MIN_ADVICE, compute_minimum_payment,
 )
 from engine.models import Country, IncomeType, InvestmentOption, LiquidityClass, Loan, LoanType, TaxRegimeIN, User
 from engine.ordering import Strategy
@@ -74,13 +74,18 @@ def test_new_spend_while_revolving_has_no_interest_free_period():
 
 def test_every_bank_formula_is_marked_unverified_and_the_statement_wins():
     assert set(FORMULA_SOURCE) >= set(INDIA_MIN_PAYMENT_FORMULAS)
-    assert all(v["verified"] is False and v["source_url"] is None for v in FORMULA_SOURCE.values())
+    # C14 (audit 80): the big four issuers are sourced from their MITC with a
+    # date; every other formula stays an unverified estimate.
+    sourced = {"SBI Card", "Axis Bank", "HDFC Bank", "ICICI Bank"}
+    for bank, v in FORMULA_SOURCE.items():
+        if bank in sourced:
+            assert v["verified"] is True and v["source_url"].startswith("https://") and v["as_of"]
+        else:
+            assert v["verified"] is False and v["source_url"] is None
     assert "statement" in STATEMENT_MIN_ADVICE
     card = Loan(loan_type=LoanType.CREDIT_CARD, bank="HDFC Bank", outstanding=D("50000"), nominal_rate=D("0.42"),
                 rate_type="fixed", tenure_months_remaining=0, scheduled_emi=D("0"))
-    assert minimum_basis(card) == "estimated"
     card.min_payment_override = D("2600")
-    assert minimum_basis(card) == "statement"
     assert compute_minimum_payment(card, Country.IN, interest_accrued=D("2065")) == D("2600")
 
 

@@ -3,7 +3,7 @@
 /**
  * Ledger primitives — "The Statement" visual language.
  *
- * Mirrors the contracts in design/ledger-v2/ledger-skin-home.jsx / ledger-skin-rest.jsx at
+ * Mirrors the contracts in design/ledger-v2/ledger-skin-home.jsx / ledger-skin-rest.jsx (archived, see docs/ARCHIVE.md) at
  * repo root. Every Ledger* screen composes from this file; no screen
  * should re-implement its own borders, mastheads, or KPI grids.
  *
@@ -21,23 +21,27 @@ import Link from 'next/link';
 import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
-  bg: '#fbfaf3',
-  paper: '#ffffff',
-  ink: '#0a0a0a',
-  inkSoft: '#2a2a26',
-  muted: '#5e5e58',
-  faint: '#a8a8a3',
-  rule: '#0a0a0a',
-  ruleSoft: '#d8d6cd',
-  accent: '#ab4f30',       // 4.5:1 as text on bg and under white text (was #c96442)
-  accentInk: '#8b3a1f',
-  positive: '#137a3a',     // 4.5:1 on the highlight rows too (was #15803d)
-  negative: '#b91c1c',
-  highlight: '#fff3a3',
-  highlightSoft: '#fff8d3',
+  // UX2 #23: CSS variables (styles/globals.css), so dark mode is one switch
+  // of the tokens. Light values: bg #fbfaf3, paper #fff, ink #0a0a0a, muted
+  // #5e5e58, accent #ab4f30 (4.5:1 as text on bg and under white text),
+  // positive #137a3a, negative #b91c1c, highlight #fff3a3.
+  bg: 'var(--canvas)',
+  paper: 'var(--card)',
+  ink: 'var(--ink)',
+  inkSoft: 'var(--ink-soft)',
+  muted: 'var(--muted)',
+  faint: 'var(--soft)',
+  rule: 'var(--border)',
+  ruleSoft: 'var(--rule-soft)',
+  accent: 'var(--accent)',
+  accentInk: 'var(--accent-ink)',
+  positive: 'var(--positive)',
+  negative: 'var(--negative)',
+  highlight: 'var(--highlight)',
+  highlightSoft: 'var(--highlight-soft)',
 } as const;
 
-export const L_MONO = "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace";
+export const L_MONO = "'IBM Plex Mono', 'RD Mono Fallback', 'JetBrains Mono', ui-monospace, monospace";
 
 // ─── LRule ──────────────────────────────────────────────────────────────
 export function LRule({
@@ -60,7 +64,7 @@ export function LRule({
         fontFamily: L_MONO,
         color: color ?? L_T.ink,
         fontWeight: weight,
-        fontSize: 11,
+        fontSize: 'var(--fs-label)',
         lineHeight: 1,
       }}
     >
@@ -99,8 +103,8 @@ export function LBracket({
 }) {
   const base: CSSProperties = {
     fontFamily: L_MONO,
-    fontSize: 10,
-    letterSpacing: '0.14em',
+    fontSize: 13,
+    letterSpacing: '0.08em',
     color: accent ? L_T.accent : active ? L_T.ink : L_T.muted,
     fontWeight: active ? 700 : 500,
     textDecoration: active ? 'underline' : 'none',
@@ -113,7 +117,16 @@ export function LBracket({
     padding: 0,
     ...style,
   };
-  const inner = <>[{children}]</>;
+  // Audit 80+ E13: the brackets are drawn, not spoken ("left bracket …
+  // right bracket" in screen readers): aria-hidden keeps them out of the
+  // accessible name, which is the words alone.
+  const inner = (
+    <>
+      <span aria-hidden="true">[</span>
+      {children}
+      <span aria-hidden="true">]</span>
+    </>
+  );
   if (href) {
     if (href.startsWith('/') && !href.startsWith('//')) return (
       <Link href={href} prefetch={prefetch} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
@@ -144,8 +157,10 @@ export function LShell({ children }: { children: ReactNode }) {
         width: '100%',
         background: L_T.bg,
         color: L_T.ink,
-        fontFamily: L_MONO,
-        fontSize: 12,
+        // Audit 80+ B5: body text in IBM Plex Sans at 16px; figures, labels
+        // and tables set the mono themselves.
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--fs-body)',
         lineHeight: 1.55,
         fontFeatureSettings: '"tnum"',
         display: 'flex',
@@ -161,6 +176,18 @@ export function LShell({ children }: { children: ReactNode }) {
 // Bold ink title over a 2px rule (design rev 3), so sections stand apart
 // from the muted labels inside them. `step` adds a numbered "01 /" lead
 // for screens that read as a sequence (input → result → the math).
+/** E10: holds the place of text that changes once the browser has read
+ *  Activity, as big as the longest of `ghosts` (drawn by CSS, so it is never
+ *  read out or matched as page text; styles/globals.css .rd-ghost). */
+export function Reserve({ ghosts, children, block }: { ghosts: string[]; children: ReactNode; block?: boolean }) {
+  return (
+    <span style={{ display: block ? 'grid' : 'inline-grid' }}>
+      <span style={{ gridArea: '1 / 1' }}>{children}</span>
+      {ghosts.map((g) => <span key={g} aria-hidden="true" className="rd-ghost" data-ghost={g} />)}
+    </span>
+  );
+}
+
 export function LSectionHeader({
   children,
   right,
@@ -179,8 +206,9 @@ export function LSectionHeader({
         marginBottom: 10,
         paddingBottom: 6,
         borderBottom: `2px solid ${L_T.ink}`,
-        fontSize: 12,
-        letterSpacing: '0.16em',
+        fontSize: 14,
+        fontFamily: 'var(--font-mono)',
+        letterSpacing: '0.1em',
         flexWrap: 'wrap',
         gap: 8,
       }}
@@ -209,7 +237,7 @@ export function LSectionHeader({
 export function lPayBtn(solid: boolean): CSSProperties {
   return {
     fontFamily: 'inherit',
-    fontSize: 12,
+    fontSize: 'var(--fs-label)',
     fontWeight: 700,
     letterSpacing: '0.08em',
     padding: '8px 14px',
@@ -306,11 +334,11 @@ export function LAllocationBar({
                 flex: share,
                 minWidth: 6,
                 background: s.color,
-                color: s.ink ?? '#fff',
+                color: s.ink ?? 'var(--card)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 9,
+                fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 letterSpacing: '0.06em',
                 borderRight: i < arr.length - 1 ? `1px solid ${L_T.ink}` : 'none',
@@ -329,7 +357,7 @@ export function LAllocationBar({
   return (
     <div>
       {bar}
-      <ul aria-hidden="true" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 12 }}>
+      <ul aria-hidden="true" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 'var(--fs-dense)' }}>
         {segments
           .filter((s) => s.value > 0)
           .map((s) => (
@@ -364,7 +392,7 @@ export function LProgressBar({
     <span
       role="img"
       aria-label={`${Math.round(p)}%`}
-      style={{ fontFamily: L_MONO, fontSize: 11, letterSpacing: 0, color, whiteSpace: 'pre' }}
+      style={{ fontFamily: L_MONO, fontSize: 'var(--fs-small)', letterSpacing: 0, color, whiteSpace: 'pre' }}
     >
       <span aria-hidden="true">
         [{'█'.repeat(filled)}
@@ -381,7 +409,7 @@ export function LCli({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 11,
+        fontSize: 'var(--fs-label)',
         letterSpacing: '0.18em',
         color: L_T.muted,
         marginBottom: 6,
@@ -412,15 +440,21 @@ export function LKpi({
   items,
   cols,
   mobile,
+  label,
 }: {
   items: LKpiItem[];
   cols?: number;
   mobile?: boolean;
+  /** Names the figures as a group (audit 80+ E13: a term list a screen
+   *  reader can move through, not one run of text). */
+  label?: string;
 }) {
   const n = cols ?? (mobile ? 2 : items.length);
   return (
-    <div
+    <dl
+      aria-label={label}
       style={{
+        margin: 0,
         display: 'grid',
         gridTemplateColumns: lGridColumns(n, 140),
         // Rules drawn by the cells, not an ink background showing through
@@ -431,19 +465,22 @@ export function LKpi({
     >
       {items.map((m, i) => (
         <div key={i} style={{ background: L_T.bg, padding: '10px 14px', borderRight: `1px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
-          <div
+          <dt
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: L_T.muted,
-              letterSpacing: '0.12em',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
               marginBottom: 4,
             }}
           >
             {m.l}
-          </div>
-          <div
+          </dt>
+          <dd
             style={{
-              fontSize: mobile ? 15 : 17,
+              margin: 0,
+              fontFamily: 'var(--font-mono)',
+              fontSize: mobile ? 18 : 'var(--fs-figure)',
               fontWeight: 700,
               color: m.tone ?? L_T.ink,
               letterSpacing: '-0.01em',
@@ -451,13 +488,13 @@ export function LKpi({
             }}
           >
             {m.v}
-          </div>
+          </dd>
           {m.s !== undefined && m.s !== null && m.s !== '' && (
-            <div style={{ fontSize: 10, color: L_T.muted, marginTop: 4 }}>{m.s}</div>
+            <dd style={{ margin: '4px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>{m.s}</dd>
           )}
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -504,9 +541,9 @@ export function LField({
         htmlFor={editable ? id : undefined}
         style={{
           display: 'block',
-          fontSize: 11,
-          letterSpacing: '0.12em',
-          color: L_T.muted,
+          fontSize: 'var(--fs-small)',
+          fontWeight: 600,
+          color: L_T.inkSoft,
           marginBottom: 4,
         }}
       >
@@ -516,7 +553,8 @@ export function LField({
         style={{
           borderBottom: `2px solid ${error ? L_T.negative : L_T.ink}`,
           padding: '6px 2px',
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
+          fontFamily: 'var(--font-mono)',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -555,7 +593,7 @@ export function LField({
         )}
       </div>
       {error && (
-        <div id={errId} role="alert" style={{ fontSize: 11, color: L_T.negative, marginTop: 4 }}>
+        <div id={errId} role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative, marginTop: 4 }}>
           {error}
         </div>
       )}
@@ -563,10 +601,9 @@ export function LField({
         <div
           id={hintId}
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             color: L_T.muted,
             marginTop: 4,
-            letterSpacing: '0.04em',
           }}
         >
           {hint}
@@ -676,7 +713,7 @@ export function LSlider({
           justifyContent: 'space-between',
           alignItems: 'baseline',
           marginBottom: 6,
-          fontSize: 11,
+          fontSize: 'var(--fs-small)',
           gap: 8,
         }}
       >
@@ -731,7 +768,7 @@ export function LSlider({
           />
         )}
       </div>
-      <div style={{ display: 'flex', gap: 18, fontSize: 11, color: L_T.muted, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 18, fontSize: 'var(--fs-small)', color: L_T.muted, flexWrap: 'wrap' }}>
         {outcomes.map((o, i) => (
           <span key={i}>
             → {o.label}{' '}
@@ -772,9 +809,9 @@ export function LButton({
     color: L_T.bg,
     border: 'none',
     fontFamily: L_MONO,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 700,
-    letterSpacing: '0.14em',
+    letterSpacing: '0.1em',
     cursor: 'pointer',
     textDecoration: 'none',
     display: 'inline-block',
@@ -784,7 +821,9 @@ export function LButton({
   if (href) {
     return (
       <a href={href} style={base}>
-        [ {children} ]
+        <span aria-hidden="true">[ </span>
+        {children}
+        <span aria-hidden="true"> ]</span>
       </a>
     );
   }
@@ -796,7 +835,9 @@ export function LButton({
       aria-busy={disabled || undefined}
       style={{ ...base, cursor: disabled ? 'progress' : 'pointer' }}
     >
-      [ {children} ]
+      <span aria-hidden="true">[ </span>
+      {children}
+      <span aria-hidden="true"> ]</span>
     </button>
   );
 }
@@ -832,14 +873,16 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
     window.location.reload();
   }
   if (!onHome) return null;
+  // Audit 80+ E13: a <div>, not a second <footer> landmark (the site footer
+  // is the page's one contentinfo).
   return (
-    <footer
+    <div
       style={{
         borderTop: `1px solid ${L_T.ink}`,
         padding: mobile ? '8px 18px' : '10px 32px',
         display: 'flex',
         justifyContent: 'flex-start',
-        fontSize: 10,
+        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
         letterSpacing: '0.14em',
         color: L_T.muted,
         background: L_T.bg,
@@ -848,7 +891,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
       <LBracket accent onClick={toggleTone}>
         {tone === 'OVERWHELMED' ? '← BACK TO THE FULL VIEW' : 'FEELING OVERWHELMED? ONE STEP AT A TIME'}
       </LBracket>
-    </footer>
+    </div>
   );
 }
 
@@ -864,7 +907,7 @@ export function LMathBlock({
     <LCardPaper>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 8,
@@ -872,7 +915,7 @@ export function LMathBlock({
       >
         {title}
       </div>
-      <div style={{ fontSize: 12, color: L_T.ink, lineHeight: 1.8 }}>
+      <div style={{ fontSize: 'var(--fs-dense)', color: L_T.ink, lineHeight: 1.8 }}>
         {rows.map((r, i) => (
           <div key={i} style={{ display: 'flex', flexWrap: 'wrap', columnGap: 8 }}>
             <span style={{ minWidth: 'min(180px, 45%)' }}>{r.k}</span>
@@ -903,10 +946,8 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
       aria-pressed={on}
       onClick={onClick}
       style={{
-        fontFamily: L_MONO,
-        fontSize: 11,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--fs-small)',
         padding: '7px 12px',
         border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
         background: on ? L_T.ink : L_T.paper,
@@ -923,7 +964,7 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
 export function LChipRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div role="group" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 12, color: L_T.muted }}>{label}</span>
+      <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>{label}</span>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
     </div>
   );

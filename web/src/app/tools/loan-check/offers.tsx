@@ -55,7 +55,7 @@ function span(months: number): string {
 function FeeProblem({ parsed, onFix }: { parsed: ParsedFee; onFix: (v: string) => void }) {
   if (!parsed.error) return null;
   return (
-    <span role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
+    <span role="alert" style={{ fontSize: 'var(--fs-small)', color: 'var(--negative)' }}>
       {parsed.error}{' '}
       {parsed.suggestion && (
         <button
@@ -68,7 +68,7 @@ function FeeProblem({ parsed, onFix }: { parsed: ParsedFee; onFix: (v: string) =
             color: 'var(--accent)',
             textDecoration: 'underline',
             cursor: 'pointer',
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
           }}
         >
           Use {parsed.suggestion}
@@ -80,7 +80,7 @@ function FeeProblem({ parsed, onFix }: { parsed: ParsedFee; onFix: (v: string) =
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 'var(--fs-body)' }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
@@ -198,7 +198,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
   return (
     <Card>
       <LSectionHeader>Got an offer? Compare it</LSectionHeader>
-      <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
+      <p style={{ margin: '6px 0 14px', fontSize: 'var(--fs-body)' }}>
         Banks often reply with &ldquo;our current rate, for a fee&rdquo;. Enter what{' '}
         {bank} offered, a quote from another lender, or both. You&apos;ll see what
         each choice costs from today and which is cheapest.
@@ -292,7 +292,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
             {busy ? 'Comparing…' : 'Compare'}
           </button>
           {err && (
-            <span role="alert" style={{ marginLeft: 12, color: 'var(--negative)', fontSize: 13 }}>
+            <span role="alert" style={{ marginLeft: 12, color: 'var(--negative)', fontSize: 'var(--fs-body)' }}>
               {err}
             </span>
           )}
@@ -310,13 +310,13 @@ function OfferResult({ r }: { r: OfferCompareResponse }) {
   return (
     <div style={{ marginTop: 20 }}>
       <h3 style={{ fontSize: 18, margin: '0 0 6px', color }}>{r.headline}</h3>
-      <p style={{ fontSize: 14, margin: '0 0 8px' }}>{r.reason}</p>
+      <p style={{ fontSize: 'var(--fs-body)', margin: '0 0 8px' }}>{r.reason}</p>
       {r.warnings.map((w) => (
-        <p key={w} style={{ fontSize: 14, margin: '0 0 8px', color: 'var(--accent)' }}>
+        <p key={w} style={{ fontSize: 'var(--fs-body)', margin: '0 0 8px', color: 'var(--accent)' }}>
           {w}
         </p>
       ))}
-      <p style={{ fontSize: 14, margin: '0 0 12px' }}>
+      <p style={{ fontSize: 'var(--fs-body)', margin: '0 0 12px' }}>
         <strong>Next step:</strong> {r.next_step}
       </p>
       <div
@@ -325,7 +325,7 @@ function OfferResult({ r }: { r: OfferCompareResponse }) {
         tabIndex={0}
         style={{ overflowX: 'auto' }}
       >
-        <table style={{ borderCollapse: 'collapse', fontSize: 14, width: '100%', minWidth: 560 }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-body)', width: '100%', minWidth: 560 }}>
           <thead>
             <tr style={{ textAlign: 'right' }}>
               <th scope="col" style={{ textAlign: 'left', padding: '6px 8px 6px 0' }}>Choice</th>
@@ -344,12 +344,12 @@ function OfferResult({ r }: { r: OfferCompareResponse }) {
           </tbody>
         </table>
       </div>
-      <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+      <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '8px 0 0' }}>
         Cost is the interest paid {horizon} plus money paid up front. Saving is against
         &ldquo;{r.options.find((o) => o.key === r.baseline)?.label}&rdquo;.
       </p>
       {r.notes.map((n) => (
-        <p key={n} className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+        <p key={n} className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '4px 0 0' }}>
           {n}
         </p>
       ))}
@@ -376,7 +376,7 @@ function OptionRow({ o, baseline, verdict }: { o: OfferOption; baseline: string;
       <td className="num" style={{ padding: 6 }}>{formatPct(o.rate)}</td>
       <td className="num" style={{ padding: 6 }}>
         {inr(o.emi)}
-        <span className="muted" style={{ display: 'block', fontSize: 11 }}>
+        <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-small)' }}>
           {o.months} months
         </span>
       </td>
@@ -400,7 +400,7 @@ function UpfrontDetail({ options }: { options: OfferOption[] }) {
   const withCosts = options.filter((o) => o.upfront.length > 0);
   if (!withCosts.length) return null;
   return (
-    <details style={{ marginTop: 10, fontSize: 13 }}>
+    <details style={{ marginTop: 10, fontSize: 'var(--fs-body)' }}>
       <summary style={{ cursor: 'pointer' }}>What is paid up front</summary>
       {withCosts.map((o) => (
         <div key={o.key} style={{ marginTop: 6 }}>

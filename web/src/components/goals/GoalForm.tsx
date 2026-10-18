@@ -27,6 +27,7 @@ import { GOAL_STATE_LABEL, goalStateTone, type GoalLine } from '@/lib/goal-line'
 import { MONTH_NAMES_SHORT } from '@/lib/today';
 import type { AmountCurrency } from '@/lib/amount';
 import { Field } from '@/components/ToolPrimitives';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { LBracket, LChip, LChipRow, L_MONO, L_T } from '@/components/ledger/primitives';
 
 export const GOAL_KINDS: { kind: GoalKind; label: string }[] = [
@@ -144,7 +145,7 @@ export function GoalForm({
   const toneColor = tone === 'pos' ? L_T.positive : tone === 'neg' ? L_T.negative : tone === 'accent' ? L_T.accent : L_T.ink;
   const select: React.CSSProperties = {
     fontFamily: L_MONO,
-    fontSize: 13,
+    fontSize: 'var(--fs-body)',
     padding: '7px 8px',
     border: `1px solid ${show('targetMonth') ? L_T.negative : L_T.ruleSoft}`,
     background: L_T.paper,
@@ -157,7 +158,7 @@ export function GoalForm({
       aria-label={editing ? `Edit ${initial?.label || 'goal'}` : 'New goal'}
       style={{ border: `1px solid ${L_T.ink}`, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14, background: L_T.bg }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.16em', fontWeight: 700 }}>{editing ? 'EDIT GOAL' : 'NEW GOAL'}</div>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', fontWeight: 700 }}>{editing ? 'EDIT GOAL' : 'NEW GOAL'}</div>
 
       <LChipRow label="1 · What it's for">
         {GOAL_KINDS.map(({ kind, label }) => (
@@ -195,7 +196,7 @@ export function GoalForm({
       </div>
 
       <div role="group" aria-label="3 · By when" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ fontSize: 12, color: L_T.muted }}>3 · By when</span>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>3 · By when</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {quick.map((n) => {
             const v = addMonths(today, n);
@@ -205,7 +206,7 @@ export function GoalForm({
               </LChip>
             );
           })}
-          <span style={{ fontSize: 12, color: L_T.muted, margin: '0 4px' }}>or</span>
+          <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, margin: '0 4px' }}>or</span>
           <select aria-label="Month" value={tm} onChange={(e) => setYM(ty || String(today.getFullYear() + 1), e.target.value)} style={select}>
             <option value="">Month</option>
             {MONTH_NAMES_SHORT.map((m, i) => (
@@ -224,7 +225,7 @@ export function GoalForm({
           </select>
         </div>
         {show('targetMonth') && (
-          <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>
+          <span role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative }}>
             {show('targetMonth')}
           </span>
         )}
@@ -253,7 +254,7 @@ export function GoalForm({
       <div>
         <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
         {!more && (
-          <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+          <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
             {[
               !editing && 'already saved',
               goal.keptIn ? KEPT_IN_LABEL[goal.keptIn].toLowerCase() : 'where it’s kept',
@@ -324,18 +325,18 @@ export function GoalForm({
       )}
 
       {line && (
-        <div aria-live="polite" style={{ fontSize: 12, borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 10, lineHeight: 1.6 }}>
+        <div aria-live="polite" style={{ fontSize: 'var(--fs-dense)', borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 10, lineHeight: 1.6 }}>
           <strong>
             {line.state === 'funded'
               ? 'Already covered by what’s saved.'
               : `Put aside ${fmt(line.monthly)} a month${line.startIndex > 0 ? ` from ${monthLabel(addMonths(today, line.startIndex))}` : ''} until ${monthLabel(goal.targetMonth)}.`}
           </strong>{' '}
-          <span style={{ color: toneColor, fontWeight: 700, letterSpacing: '0.08em', fontSize: 11 }}>{GOAL_STATE_LABEL[line.state]}</span>
+          <span style={{ color: toneColor, fontWeight: 700, letterSpacing: '0.08em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>{GOAL_STATE_LABEL[line.state]}</span>
           {line.startIndex > 0 && (
-            <div style={{ color: L_T.muted, fontSize: 11 }}>Until then your spare cash clears debts first, which costs less interest.</div>
+            <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>Until then your spare cash clears debts first, which costs less interest.</div>
           )}
           {line.state === 'short' && (
-            <div style={{ color: L_T.muted, fontSize: 11 }}>
+            <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>
               Your spare cash covers {fmt(line.rec?.reachable ?? 0)} of {fmt(line.required)} by then. Save it, then open the goal for ways to close the gap.
             </div>
           )}
@@ -348,7 +349,7 @@ export function GoalForm({
           onClick={submit}
           style={{
             fontFamily: L_MONO,
-            fontSize: 11,
+            fontSize: 'var(--fs-label)',
             fontWeight: 700,
             letterSpacing: '0.12em',
             padding: '9px 14px',
@@ -358,7 +359,7 @@ export function GoalForm({
             cursor: 'pointer',
           }}
         >
-          [ {editing ? 'SAVE' : 'ADD GOAL'} ]
+          <span aria-hidden="true">[ </span>{editing ? 'SAVE' : 'ADD GOAL'}<span aria-hidden="true"> ]</span>
         </button>
         <LBracket onClick={onCancel}>CANCEL</LBracket>
       </div>
@@ -379,7 +380,9 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
   const user = useMemo(() => loadProfileClient().user, []);
   const loans = user.loans ?? [];
   const rule = ruleOf(goal.fundingRule);
-  const set = (r: Goal['fundingRule']) => patch({ fundingRule: r });
+  // Audit 80+: the limits (cap, floor, until) stay when the rule changes.
+  const limits = { until: rule.until, cap: rule.cap, pauseBelow: rule.pauseBelow };
+  const set = (r: NonNullable<Goal['fundingRule']>) => patch({ fundingRule: { ...limits, ...r } });
   const high = highInterestLoans(loans, user.country);
   const open = loans.map((l, i) => ({ l, i })).filter(({ l }) => Number(l.outstanding) > 0);
   return (
@@ -414,20 +417,90 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
         />
       )}
       {picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 'var(--fs-dense)' }}>
           Which loan
-          <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
+          <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ ...rule, kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
             {open.map(({ l, i }) => (
               <option key={i} value={i}>{l.bank ? `${l.bank} ` : ''}{l.loan_type.replace('_', ' ')} · {(Number(l.nominal_rate) * 100).toFixed(1)}%</option>
             ))}
           </select>
         </label>
       )}
-      <p style={{ fontSize: 11, color: L_T.muted, margin: '6px 0 0' }}>
+      {picked && rule.kind === 'after_debt' && (
+        <AfterDebtThen rule={rule} set={set} currency={currency} />
+      )}
+      {picked && <FundingLimits rule={rule} patch={(p) => patch({ fundingRule: { ...rule, ...p } })} currency={currency} />}
+      <p data-testid="goal-rule-label" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '6px 0 0' }}>
         {picked ? `${fundingRuleLabel(rule, loans, user.country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
         {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
       </p>
-      {error && <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>{error}</span>}
+      {error && <span role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative }}>{error}</span>}
     </div>
+  );
+}
+
+type Rule = NonNullable<Goal['fundingRule']>;
+
+/** Audit 80+ programmable diversion: once the debt is paid off, the pace to the
+ *  date (default), a fixed amount, or a share of spare cash. */
+export function AfterDebtThen({ rule, set, currency }: { rule: Rule; set: (r: Rule) => void; currency: AmountCurrency }) {
+  const then = rule.pct != null ? 'pct' : rule.amount != null ? 'fixed' : 'schedule';
+  const base: Rule = { kind: 'after_debt', afterLoanIndex: rule.afterLoanIndex ?? null };
+  return (
+    <div data-testid="goal-after-debt-then" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+      <LChipRow label="Once it’s paid off">
+        <LChip on={then === 'schedule'} onClick={() => set(base)}>The pace to the date</LChip>
+        <LChip on={then === 'fixed'} onClick={() => set({ ...base, amount: rule.amount ?? '' })}>A fixed amount</LChip>
+        <LChip on={then === 'pct'} onClick={() => set({ ...base, pct: rule.pct ?? '' })}>A share of spare cash</LChip>
+      </LChipRow>
+      {then === 'fixed' && (
+        <Field label="Then, a month" kind="money" currency={currency} value={rule.amount ?? ''} onChange={(v: string) => set({ ...base, amount: v })} />
+      )}
+      {then === 'pct' && (
+        <Field
+          label="Then, share of spare cash (%)"
+          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
+          onChange={(v: string) => set({ ...base, pct: v === '' ? '' : String(Number(v) / 100) })}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Audit 80+ programmable diversion (engine/goals.py): optional limits on any rule. */
+export function FundingLimits({ rule, patch, currency }: { rule: Rule; patch: (p: Partial<Rule>) => void; currency: AmountCurrency }) {
+  const set = Boolean(rule.cap || rule.pauseBelow || rule.until);
+  const thisYear = new Date().getFullYear();
+  return (
+    <details data-testid="goal-limits" open={set} style={{ marginTop: 8 }}>
+      <summary style={{ fontSize: 'var(--fs-dense)', cursor: 'pointer', minHeight: 24 }}>Limits (optional): a monthly most, a pause in lean months, a stop month</summary>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10, marginTop: 8 }}>
+        <Field
+          label="At most a month"
+          kind="money"
+          currency={currency}
+          value={rule.cap ?? ''}
+          onChange={(v: string) => patch({ cap: v })}
+          hint="Whatever the rule asks, it never takes more than this."
+        />
+        <Field
+          label="Pause when spare cash is under"
+          kind="money"
+          currency={currency}
+          value={rule.pauseBelow ?? ''}
+          onChange={(v: string) => patch({ pauseBelow: v })}
+          hint="That month’s spare cash goes to your debts instead."
+        />
+        <MonthYearPicker
+          label="Stop saving in"
+          value={rule.until ?? ''}
+          onChange={(v: string) => patch({ until: v })}
+          minYear={thisYear}
+          maxYear={thisYear + 40}
+          optional
+          hint="From this month on it takes nothing, full or not."
+        />
+      </div>
+    </details>
   );
 }

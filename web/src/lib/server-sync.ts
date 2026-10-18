@@ -21,15 +21,17 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onSignInPage, SESSION_CHANGED_EVENT } from './session-events';
+import { isGatedAppPath } from './app-routes';
 import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 import { migrateLegacyClientStorage } from './storage-migration';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 // finoptima_* → rightdue_* (critique #58): move this browser's keys before
 // any store reads them. The root layout loads this module on every page.
 migrateLegacyClientStorage();
 
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+// D16: cookie lifetimes come from readableCookieMaxAge() (readable-cookie-age.ts).
 
 /** Map of slice key (top-level in server blob) → its client storage location. */
 type StorageKind = 'cookie' | 'localStorage';
@@ -58,6 +60,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   decisions:         { kind: 'localStorage', name: 'rightdue_decisions' },
   ef_split:          { kind: 'cookie',       name: 'rightdue_ef_split' },
   debt_budget:       { kind: 'cookie',       name: 'rightdue_debt_budget' },
+  low_rate_share:    { kind: 'cookie',       name: 'rightdue_low_rate_share' },  // audit 80+ A4
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };
@@ -293,7 +296,11 @@ export function clearPendingSync(): void {
   try { localStorage.removeItem(DEVICE_KEY); } catch { /* storage blocked */ }
   for (const key of storageKeys(localStorage)) {
     if (key.startsWith('rightdue_pending_sync_') || key.startsWith('rightdue_state_version_') || key.startsWith('rightdue_sync_conflict_')) localStorage.removeItem(key);
+    else if (LOCAL_PER_USER_PREFIXES.some((p) => key.startsWith(p))) localStorage.removeItem(key);
   }
+  // The intros hidden on this page (lib/intro-seen) show again for whoever
+  // signs in next on this tab.
+  try { document.getElementById('rd-intro-seen')?.remove(); } catch { /* no DOM */ }
 }
 
 /** localStorage keys that hold one person's data but are not synced slices. */
@@ -309,7 +316,36 @@ export const LOCAL_PER_USER_KEYS = [
   // US golden journey visited Home before signing out.
   'rightdue_debt_free_marks',
   'rightdue_decision_log_migrated_v1',
+  // Audit 80+ (integration): A1's Loan Check findings (amounts + lender) and
+  // A4's typed return are this person's too.
+  'rightdue_loan_check_findings',
+  'rightdue_low_rate_return',
+  // Pre-existing gap found by the guard below: UPI "did it go through?"
+  // checks hold payee names, amounts, VPAs and UTRs.
+  'rightdue_upi_checks',
+  // A15 (W5): the month this person first had a plan here (drives the
+  // month-2 Plus door). It's about the person, not the device, and the US
+  // golden "sign out clears this browser" found it left behind (it's
+  // written even with the funnel off). return_month2 stays counted once per
+  // device by rightdue_funnel_once.
+  'rightdue_first_plan_ym',
+  // UX2 #23: the text of this person's last Home and Plan, kept for the
+  // offline page (lib/offline-snapshot.ts); the next person must not see it.
+  'rightdue_offline_snapshot',
+  // UX2 #23: when this browser last saved the profile (lib/tab-guard).
+  'rightdue_profile_saved_at',
 ] as const;
+
+/** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's
+ *  intro" marks (FirstVisitIntro), so the next person on a shared computer
+ *  sees the intros and the browser is left empty. */
+export const LOCAL_PER_USER_PREFIXES = ['rd_intro_seen_'] as const;
+
+/** Device-level keys kept on sign-out on purpose: counts-only funnel
+ *  dedupe (A15; no user data, clearing would double-count this browser)
+ *  and the page trail used for back links. */
+// UX2 #23: rightdue_theme (light/dark choice, lib/theme.ts) is the screen's, not the person's.
+export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail', 'rightdue_theme'] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 
@@ -338,8 +374,9 @@ export function serializeClientState(profile: StoredProfile): Record<string, unk
 }
 
 function writeCookie(name: string, value: string): void {
+  // D16: account copies live as long as the sign-in, not a year.
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
 }
 
 /**
@@ -503,6 +540,20 @@ export async function flushPendingState(): Promise<boolean> {
  * changes queued for that account: say so after a reload too, instead of
  * showing nothing until the next save fails.
  */
+/**
+ * audit80 D21: the session ended without a sign-out (it expired, or another
+ * device signed this one out). The readable profile copies must not outlive
+ * it on a shared phone, so clear them, unless changes are still waiting to
+ * reach the account (then they stay, and the notice asks to sign in again).
+ * Returns true when it cleared. Guests (no account cached) are untouched.
+ */
+export function forgetExpiredAccount(): boolean {
+  const account = activeAccount();
+  if (!account || Object.keys(pendingState(account)).length) return false;
+  clearAccountCache();
+  return true;
+}
+
 export function noteSignedOut(): void {
   const account = activeAccount();
   if (account && Object.keys(pendingState(account)).length) {
@@ -572,18 +623,18 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
     if (!isCurrent()) return;
     const write = goalSliceWrite(data.goals);
     localStorage.setItem(write.key, JSON.stringify(write.value));
-    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   if (Array.isArray(data.goal_contributions)) {
     const { contributionSliceWrite } = await import('./goal-contributions');
     if (!isCurrent()) return;
     const write = contributionSliceWrite(data.goal_contributions);
-    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   if (Array.isArray(data.monthly_spend)) {
     const { latestByMonth } = await import('./monthly-spend');
     if (!isCurrent()) return;
-    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
 }
 
@@ -667,10 +718,21 @@ export function SessionHydrator(): null {
         // (Plan's simulation too), and in WebKit the refresh cancelled a
         // link followed in the meantime.
         if (cookieSnapshot() !== before && !onSignInPage()) router.refresh();
-      } catch {
+      } catch (err) {
         // 401 (signed out): nothing to hydrate, but changes still queued for
         // the account that was signed in here are shown as such.
-        if (!cancelled) noteSignedOut();
+        if (cancelled) return;
+        noteSignedOut();
+        // D21: a definite "signed out" (not a network error) for a browser
+        // that was caching an account: drop that account's copies.
+        // The session cookie is still here (httpOnly), so refreshing an app
+        // page sent the person to Setup with an empty profile: the middleware
+        // saw a session and no profile. Ask them to sign in again instead,
+        // back to this page (account-persistence e2e, Chromium).
+        const expired = (err as { status?: number } | null)?.status === 401 && forgetExpiredAccount();
+        const { pathname, search } = window.location;
+        if (expired && isGatedAppPath(pathname)) router.replace(`/login?next=${encodeURIComponent(pathname + search)}`);
+        else if (expired && !onSignInPage()) router.refresh();
       }
     }
     void hydrate();

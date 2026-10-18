@@ -129,7 +129,7 @@ def test_an_empty_database_migrates_to_exactly_the_models(pg_url):
     # A model change without a migration fails here: add one under
     # api/db/migrations/versions (alembic revision --autogenerate -m "...").
     assert diff == [], diff
-    assert rev == '0003_sprint_tables'
+    assert rev == '0005_retention'  # W8 0004_trust_records -> W5 0005_retention
 
 
 def test_a_database_made_by_create_all_is_stamped_then_upgraded_keeping_its_data(pg_url):

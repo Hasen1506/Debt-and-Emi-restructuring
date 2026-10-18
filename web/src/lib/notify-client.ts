@@ -7,7 +7,7 @@
 import { browserApiBase } from './api-base';
 import { pageScoped } from './page-abort';
 
-export interface NotifyFlags { payday_email: boolean; deadline_reminders: boolean; reply_done: boolean }
+export interface NotifyFlags { payday_email: boolean; deadline_reminders: boolean; reply_done: boolean; rate_move?: boolean }
 export interface NotifyAnswer { id: number; kind: 'ack_all' | 'ack_some' | 'ack_cant' | 'reply_done' | 'reply_not'; month: string; day: string }
 
 const base = () => `${browserApiBase()}/api/notify`;
@@ -35,17 +35,20 @@ export function notifyFlags(): Promise<NotifyFlags> {
   // R10-3: the page-wide signal cuts this off when the page starts to unload.
   flagsCache ??= pageScoped((signal) => call<NotifyFlags>('/flags', signal ? { signal } : undefined)).catch((e: unknown) => {
     if ((e as { name?: string })?.name === 'AbortError') flagsCache = null; // cut off: ask again next time
-    return { payday_email: false, deadline_reminders: false, reply_done: false };
+    return { payday_email: false, deadline_reminders: false, reply_done: false, rate_move: false };
   });
   return flagsCache;
 }
 
 export const notifyApi = {
-  settings: () => call<{ payday: { on: boolean; day: number | null; list_month: string | null }; reminders: { on: boolean; count: number }; email: string }>('/settings'),
+  settings: () => call<{ payday: { on: boolean; day: number | null; list_month: string | null }; reminders: { on: boolean; count: number }; rate_move?: { available: boolean; on: boolean; count: number }; email: string }>('/settings'),
   payday: (body: { on: boolean; day?: number | null; snapshot?: unknown }) =>
     call<{ ok: boolean }>('/payday', { method: 'PUT', body: JSON.stringify(body) }),
   reminders: (body: { on: boolean; source: 'complaint' | 'closure'; items: { key: string; label: string; day: string; state?: string }[] }) =>
     call<{ ok: boolean; next: { send_on: string; text: string } | null }>('/reminders', { method: 'PUT', body: JSON.stringify(body) }),
+  /** A13: repo-linked loans to watch; an email after the next RBI move. */
+  rateMove: (body: { on: boolean; loans: { name: string; outstanding: number; rate: number; emi?: number | null; months_left?: number | null }[] }) =>
+    call<{ ok: boolean; on: boolean; count: number }>('/rate-move', { method: 'PUT', body: JSON.stringify(body) }),
   answers: () => call<{ answers: NotifyAnswer[] }>('/answers'),
   applied: (id: number) => call<{ ok: boolean }>(`/answers/${id}/applied`, { method: 'POST' }),
 };

@@ -165,7 +165,9 @@ test('UX50 A-12: IBM Plex Mono is self-hosted in three weights; no Google Fonts 
   assert.doesNotMatch(layout, /fonts\.googleapis|fonts\.gstatic/);
   assert.match(layout, /rel="preload" href="\/fonts\/ibm-plex-mono-400-latin\.woff2" as="font" type="font\/woff2" crossOrigin=""/);
   const css = src('styles/globals.css');
-  const faces = css.match(/@font-face \{[^}]*\}/g) || [];
+  // Audit 80+ B5: IBM Plex Sans (body) has its own faces; these are the mono's.
+  const faces = (css.match(/@font-face \{[^}]*\}/g) || []).filter((f) => /IBM Plex Mono/.test(f));
+  assert.ok(faces.length >= 3, 'mono faces');
   const weights = new Set(faces.map((f) => f.match(/font-weight: (\d+)/)[1]));
   assert.deepEqual([...weights].sort(), ['400', '600', '700'], 'three weights, 500 dropped');
   for (const f of faces) {

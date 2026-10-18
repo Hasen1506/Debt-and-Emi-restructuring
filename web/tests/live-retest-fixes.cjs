@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -64,12 +65,13 @@ test('NEW-3/NEW-4: an EMI at or below the monthly interest is blocked with the n
   // Cards have no EMI to check.
   assert.equal(emiBelowInterest({ ...tenX, loan_type: 'credit_card' }), null);
   assert.match(src('components/setup/QuickSetup.tsx'), /emiBelowInterest\(\{ \.\.\.loan, currency: ccy \}, country\)/);
-  assert.match(src('app/profile/ProfileClient.tsx'), /emiBelowInterest\(loan, country\) \?/);
+  assert.match(profileSource(), /emiBelowInterest\(loan, country\) \?/);
 });
 
 test('NEW-2/NEW-3: Plan never prints unbounded totals', () => {
   const plan = src('components/plan/LedgerPlan.tsx');
-  assert.match(plan, /MINIMUMS ALONE NEVER CLEAR IT'\n\s+: interestSaved >= 1 && sane\(interestSaved\)/);
+  // Audit 80 B4: the minimums comparison moved into the worst-case expander, still bounded.
+  assert.match(plan, /minimumsNeverClear\n\s+\? 'Paying only the minimums never clears these loans\.'\n\s+: `Paying only the minimums would cost \$\{interestSaved >= 1 && sane\(interestSaved\)/);
   assert.match(plan, /return <NeverClears plan=\{plan\} fc=\{fc\} \/>/);
   assert.match(plan, /never repaid: it grows without limit/);
   const tw = src('components/plan/TenureWhatIf.tsx');

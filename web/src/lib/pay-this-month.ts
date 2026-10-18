@@ -6,12 +6,15 @@
  */
 import type { PlanData } from '@/components/plan/PlanData';
 import { loanCurrency, loanToUser, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { GST_RATE_IN } from '@/lib/gst';
+import { homeTaxReserve } from '@/lib/salaried-advance-tax';
+import { getCountryToday, localIsoDate } from '@/lib/today';
+import { debtStatus, isSettled } from '@/lib/loan-status-core';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
-export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals';
+export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals' | 'tax' | 'pot';
 
 export interface PayRow {
   /** The loan's id (its position when it has none), or 'ef' / 'goals'. */
@@ -40,6 +43,22 @@ export interface PayRow {
   /** A payoff: the balance, the month's interest and (India, cards) GST
    *  that make up `amount`, in `currency`. */
   payoff?: { owed: number; interest: number; gst: number };
+  /** Round 3 (#21): the EMI comes out of pay before it reaches the bank, so
+   *  only the plan's extra on top is listed (minimum 0). */
+  fromSalary?: boolean;
+  /** Round 3 (#13): with collectors. Shown, never ticked: Home points to the
+   *  steps on /cant-pay instead of "mark paid". (Behind loans were held too
+   *  until the founder's 17 Oct 2026 catch-up decision.) */
+  held?: 'collections';
+  /** Behind on payments: ticked as usual, with the catch-up line. */
+  behind?: true;
+  /** Founder 17 Oct 2026 (engine/debt_status.py): a behind loan's overdue the
+   *  plan pays this month, inside `amount` (its currency), and whether that
+   *  overdue figure is the one-EMI estimate. */
+  catchUp?: number;
+  estimated?: boolean;
+  /** A 'pot' row: the collections loan's position its settlement pot is for. */
+  potFor?: number;
 }
 
 export interface PayThisMonth {
@@ -58,28 +77,37 @@ export interface PayThisMonth {
   duesUser: number;
   /** The user's own monthly total for debts; 0 = all spare cash. */
   budget: number;
+  /** Loans whose whole payment this month comes out of salary (not listed). */
+  fromSalary: string[];
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Null when the plan didn't come from the engine (offline sample). */
-export function payThisMonth(plan: PlanData): PayThisMonth | null {
+export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(getCountryToday(plan.user.country))): PayThisMonth | null {
   if (!plan.live) return null;
   const first = plan.monthlyPayments.find((p) => p.month === 1);
   if (!first) return null;
   // What each loan still owes once this month's interest and payment are in.
   const after = plan.trajectory.find((p) => p.month === 1)?.balancesByLoanIndex;
   const { loans, country } = plan.user;
+  const named = disambiguateLoans(loans);
   const userCcy = userDefaultCurrency(country);
   const loanRows: PayRow[] = [];
+  const salaryOnly: string[] = [];
+  const labelOf = (i: number) => loanNickname(named[i]) || (loans[i].bank ? `${loans[i].bank} ${LOAN_TYPE_NAME[loans[i].loan_type]}` : cap(LOAN_TYPE_NAME[loans[i].loan_type]));
   for (const [k, v] of Object.entries(first.perLoan)) {
     const index = Number(k);
     const loan = loans[index];
     const paid = Number(v);
     const amount = Math.round(paid);
     if (!loan || !(amount >= 1)) continue;
-    const minimum = Math.min(amount, Math.round(Number(plan.firstMonthMinimums[index] ?? 0)));
-    const extra = amount - minimum;
+    const fromSalary = !!loan.salary_deducted && !isSettled(loan);
+    const fullMin = Math.min(amount, Math.round(Number(plan.firstMonthMinimums[index] ?? 0)));
+    // #21: a salary-deducted EMI is already gone from take-home; only an
+    // extra on top is the user's to send.
+    const minimum = fromSalary ? 0 : fullMin;
+    const extra = amount - fullMin;
     // Paid off only when the engine leaves nothing owing after this month's
     // interest. Against the opening balance, ₹80,500 on an ₹80,000 card
     // looked like a payoff while the interest kept ₹2,300 owing.
@@ -94,21 +122,35 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
     const charge = Math.max(0, amount - owedNow);
     const gstShare = isCard && country === 'IN' ? GST_RATE_IN.toNumber() : 0;
     const gst = Math.round((charge * gstShare) / (1 + gstShare));
-    const payoff = clears ? { owed: Math.round(Math.min(owedNow, amount)), interest: Math.round(charge) - gst, gst } : undefined;
+    const status = debtStatus(loan);
+    // Founder 17 Oct 2026: a behind loan is paid (the plan clears its overdue
+    // first), so it is ticked like any other; only a collections loan is held.
+    const held = status === 'collections' ? status : undefined;
+    const catchUp = status === 'behind' ? Math.round(Number(plan.debtStatusMonth1?.catchUp[k] ?? 0)) : 0;
+    const label = labelOf(index);
+    if (fromSalary && !(extra >= 1)) {
+      salaryOnly.push(label);
+      continue;
+    }
+    const payoff = clears && !fromSalary ? { owed: Math.round(Math.min(owedNow, amount)), interest: Math.round(charge) - gst, gst } : undefined;
     loanRows.push({
       key: loan.id ?? `loan-${index}`,
       loanIndex: index,
-      name: loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]),
+      // UX walkthrough fix 7: "Card 1" / "Card 2", the names the loan list uses.
+      name: label,
       kind: clears ? 'clears' : extra >= 1 ? 'extra' : isCard ? 'minimum' : 'emi',
       card: isCard,
-      amount,
+      amount: amount - (fromSalary ? fullMin : 0),
       currency: loanCurrency(loan, country),
-      amountUser: Math.round(loanToUser(amount, loan, country, plan.fxRatesUsed) ?? amount),
+      amountUser: Math.round(loanToUser(amount - (fromSalary ? fullMin : 0), loan, country, plan.fxRatesUsed) ?? amount),
       minimum,
       extra: extra >= 1 ? extra : 0,
       ...(isCard && loan.due_day ? { dueDay: loan.due_day } : {}),
       ...(owedAfter != null ? { owedAfter: Math.max(0, Math.round(Number(owedAfter))) } : {}),
       ...(payoff ? { payoff } : {}),
+      ...(fromSalary ? { fromSalary } : {}),
+      ...(held ? { held } : {}),
+      ...(status === 'behind' ? { behind: true, ...(catchUp >= 1 ? { catchUp, estimated: !loan.overdue_amount } : {}) } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not
@@ -126,14 +168,30 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   if (goals >= 1) {
     setAside.push({ key: 'goals', loanIndex: null, name: 'Goals', kind: 'goals', card: false, amount: goals, currency: userCcy, amountUser: goals, minimum: 0, extra: goals });
   }
-  const rows = [...loanRows, ...setAside];
-  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals);
-  const total = duesUser + extraUser + ef + goals;
+  // A collections loan's share is kept back for a settlement, not paid to it.
+  for (const [k, v] of Object.entries(plan.debtStatusMonth1?.pot ?? {})) {
+    const add = Math.round(Number(v));     // month 1: the pot starts empty, so all of it is this month's
+    // The loan may have no payment row this month (nothing due, or paid from salary): the pot still shows.
+    const i = Number(k);
+    const held = loanRows.find((r) => r.loanIndex === i) ?? (loans[i] ? { key: loans[i].id ?? `loan-${i}`, name: labelOf(i) } : null);
+    if (held && add >= 1) setAside.push({ key: `pot-${held.key}`, loanIndex: null, name: `Settlement pot · ${held.name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: i });
+  }
+  const pots = setAside.reduce((s, r) => s + (r.kind === 'pot' ? r.amount : 0), 0);
   const surplus = Math.round(a?.surplus ?? plan.surplus);
-  const unplaced = surplus - extraUser - ef - goals;
+  // Round 3 (ux-walkthrough fix 10): a salaried user's next advance-tax
+  // instalment is set aside before any extra goes to a loan.
+  const reserve = plan.user.income_type === 'salaried' && !(plan.shortfall > 0) ? homeTaxReserve(plan.advanceTaxSchedule, todayIso) : null;
+  const tax = reserve ? Math.min(reserve.amount, Math.max(0, surplus - ef - goals - pots)) : 0;
+  if (reserve && tax >= 1) {
+    setAside.push({ key: 'tax', loanIndex: null, name: `Advance tax due ${reserve.due}`, kind: 'tax', card: false, amount: tax, currency: userCcy, amountUser: tax, minimum: 0, extra: tax });
+  }
+  const rows = [...loanRows, ...setAside];
+  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals + tax + pots);
+  const total = duesUser + extraUser + ef + goals + tax + pots;
+  const unplaced = surplus - extraUser - ef - goals - tax - pots;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
-  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0) };
+  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0), fromSalary: salaryOnly };
 }
 
 /**
@@ -154,6 +212,7 @@ function reconcileMonth(
   const { loans, country } = plan.user;
   const minimumsUser = loanRows.reduce((s, r) => {
     const loan = loans[r.loanIndex as number];
+    if (r.fromSalary) return s; // #21: already out of take-home
     // Unrounded, as the cash flow adds them (a ₹5,200.40 EMI is not ₹5,200).
     const raw = Math.min(Number(perLoan[String(r.loanIndex)] ?? r.amount), Number(plan.firstMonthMinimums[r.loanIndex as number] ?? 0));
     return s + (loanToUser(raw, loan, country, plan.fxRatesUsed) ?? raw);

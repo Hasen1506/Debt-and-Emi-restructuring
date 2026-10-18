@@ -83,7 +83,3 @@ export const BANKS_US: readonly string[] = [
   'Navy Federal Credit Union',
   'SoFi',
 ] as const;
-
-export function banksForCountry(country: string): readonly string[] {
-  return country === 'US' ? BANKS_US : BANKS_IN;
-}

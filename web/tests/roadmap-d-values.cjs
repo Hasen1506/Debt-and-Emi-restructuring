@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -51,11 +52,8 @@ test('the defaults shown are the engine\'s (asset returns, selling costs, prepay
 test('each value takes the user\'s own figure, else the default', () => {
   const a = lib('assumptions.ts');
   const u = { country: 'IN' };
-  assert.equal(a.prepayHurdle(u), 0.005);
-  assert.equal(a.prepayHurdle({ ...u, prepay_hurdle: '0.02' }), 0.02);
   assert.equal(a.assetReturn(u, 'equity_mf'), 0.11);
   assert.equal(a.assetReturn({ ...u, asset_returns: { equity_mf: '0.08' } }, 'equity_mf'), 0.08);
-  assert.equal(a.liquidationCost({ ...u, liquidation_costs: { gold_physical: '0.05' } }, 'gold_physical'), 0.05);
   assert.equal(a.efMonths(u), 6);
   assert.equal(a.efMonths({ ...u, assumptions: { ef_months: 4 } }), 4);
   assert.equal(a.efMonths({ ...u, assumptions: { ef_months: 40 } }), 6);
@@ -82,7 +80,7 @@ test('wired: Plan\'s top-up, a new goal\'s buffer, the EF tier, goal projections
   // the buffer came from the preset, and returns/costs/margin were constants.
   assert.match(src('components/plan/load-plan.ts'), /efTopUpShare\(adjustedUser, efSplit, surplus\)/);
   assert.match(src('components/goals/GoalForm.tsx'), /bufferPct: goalBuffer\(loadProfileClient\(\)\.user, p\.bufferPct\)/);
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /ownMonths=\{ownEfMonths\}/);
   assert.match(profile, /id: 'own' as const, label: 'Yours', months: ownMonths/);
   assert.match(profile, /href="\/profile\/assumptions"/);

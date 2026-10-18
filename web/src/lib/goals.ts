@@ -113,8 +113,18 @@ export interface GoalFundingRule {
   amount?: string;
   /** surplus_pct: share of spare cash, decimal string 0–1. */
   pct?: string;
-  /** after_debt: the loan's position in user.loans; null = every high-interest loan. */
+  /** after_debt: the loan's position in user.loans; null = every high-interest loan.
+   *  With `amount` or `pct` set, that is what it takes once the debt clears
+   *  (instead of the run-rate to the date). */
   afterLoanIndex?: number | null;
+  // Programmable diversion (audit 80+, engine/goals.py). Each one optional,
+  // on any rule; the plan applies them month by month.
+  /** "Until": no money from this month on (YYYY-MM), full or not. */
+  until?: string;
+  /** The most it takes in any month (decimal string, user's currency). */
+  cap?: string;
+  /** Skip any month whose spare cash is under this (decimal string), so a lean month goes to the debts. */
+  pauseBelow?: string;
 }
 
 /** "Debt first": the default for a new goal. */
@@ -414,15 +424,45 @@ export interface GoalSimulateInput {
   funding_amount?: string | null;
   funding_pct?: string | null;
   after_loan_index?: number | null;
+  funding_end_month_index?: number | null;
+  funding_cap?: string | null;
+  pause_below?: string | null;
 }
 
 /** The engine's funding-rule fields for a goal; a missing or half-filled
  *  rule is 'schedule' (the run-rate to the date). */
-export function fundingRuleForEngine(rule: GoalFundingRule | undefined): Pick<GoalSimulateInput, 'funding_rule' | 'funding_amount' | 'funding_pct' | 'after_loan_index'> {
-  if (rule?.kind === 'fixed' && Number(rule.amount) > 0) return { funding_rule: 'fixed', funding_amount: Number(rule.amount).toFixed(2) };
-  if (rule?.kind === 'surplus_pct' && Number(rule.pct) > 0 && Number(rule.pct) <= 1) return { funding_rule: 'surplus_pct', funding_pct: String(Number(rule.pct)) };
-  if (rule?.kind === 'after_debt') return { funding_rule: 'after_debt', after_loan_index: typeof rule.afterLoanIndex === 'number' && rule.afterLoanIndex >= 0 ? rule.afterLoanIndex : null };
+export function fundingRuleForEngine(rule: GoalFundingRule | undefined): Pick<GoalSimulateInput, 'funding_rule' | 'funding_amount' | 'funding_pct' | 'after_loan_index' | 'funding_cap' | 'pause_below'> {
+  return { ...baseRuleForEngine(rule), ...fundingLimitsForEngine(rule) };
+}
+
+function baseRuleForEngine(rule: GoalFundingRule | undefined): Pick<GoalSimulateInput, 'funding_rule' | 'funding_amount' | 'funding_pct' | 'after_loan_index'> {
+  const amountOk = Number(rule?.amount) > 0;
+  const pctOk = Number(rule?.pct) > 0 && Number(rule?.pct) <= 1;
+  if (rule?.kind === 'fixed' && amountOk) return { funding_rule: 'fixed', funding_amount: Number(rule.amount).toFixed(2) };
+  if (rule?.kind === 'surplus_pct' && pctOk) return { funding_rule: 'surplus_pct', funding_pct: String(Number(rule.pct)) };
+  if (rule?.kind === 'after_debt') {
+    const after = { funding_rule: 'after_debt' as const, after_loan_index: typeof rule.afterLoanIndex === 'number' && rule.afterLoanIndex >= 0 ? rule.afterLoanIndex : null };
+    // Audit 80+: what it takes once the debt clears; the run-rate when neither is set.
+    if (amountOk) return { ...after, funding_amount: Number(rule.amount).toFixed(2) };
+    if (pctOk) return { ...after, funding_pct: String(Number(rule.pct)) };
+    return after;
+  }
   return { funding_rule: 'schedule' };
+}
+
+/** Audit 80+ programmable diversion: the monthly cap and the spare-cash floor,
+ *  sent only when set (a goal without them is unchanged). */
+export function fundingLimitsForEngine(rule: GoalFundingRule | undefined): Pick<GoalSimulateInput, 'funding_cap' | 'pause_below'> {
+  const out: Pick<GoalSimulateInput, 'funding_cap' | 'pause_below'> = {};
+  if (rule?.cap != null && rule.cap !== '' && Number(rule.cap) > 0) out.funding_cap = Number(rule.cap).toFixed(2);
+  if (rule?.pauseBelow != null && rule.pauseBelow !== '' && Number(rule.pauseBelow) > 0) out.pause_below = Number(rule.pauseBelow).toFixed(2);
+  return out;
+}
+
+/** The "until" month as a 0-based plan month (engine funding_end_month_index), or null. */
+export function fundingEndIndex(rule: GoalFundingRule | undefined, today: Date): number | null {
+  if (!rule?.until || !/^\d{4}-\d{2}$/.test(rule.until)) return null;
+  return targetMonthIndex(rule.until, today);
 }
 
 /** The engine payload for open goals with an amount and a future date,
@@ -446,8 +486,12 @@ export function goalsForSimulate(
       const rule = fundingRuleForEngine(r.fundingRule);
       // A deferred start only applies to the run-rate rule; the others
       // say when to save themselves. Dropped when it has slid past the date.
+      const endIdx = fundingEndIndex(r.fundingRule, today);
       const fundingStart =
         rule.funding_rule === 'schedule' && rawFundingStart !== null && targetIdx > 0 && rawFundingStart >= 0 && rawFundingStart < targetIdx
+          // An "until" at or before the deferred start ends it first (the engine
+          // rejects end <= start), so the start is dropped.
+          && (endIdx === null || endIdx > rawFundingStart)
           ? rawFundingStart
           : null;
       return {
@@ -459,6 +503,7 @@ export function goalsForSimulate(
         order_index: typeof r.orderIndex === 'number' ? r.orderIndex : null,
         funding_start_month_index: fundingStart,
         ...rule,
+        ...(endIdx !== null ? { funding_end_month_index: endIdx } : {}),
       };
     })
     .filter((g) => g.target_month_index > 0);
@@ -496,13 +541,6 @@ export async function goalsForSimulateServer(
   const raw = (await cookies()).get(DIGEST_COOKIE)?.value;
   const rows = parseDigestCookie(raw);
   return goalsForSimulate(rows, today, currentlySaved);
-}
-
-export async function readGoalsServer(): Promise<Goal[]> {
-  // No server-side reads yet — slice persistence happens client-first
-  // via syncSliceToServer. Server pages that need goals can re-hydrate
-  // via the profile API once auth lands. Pre-auth: empty.
-  return [];
 }
 
 // ─── Factories ─────────────────────────────────────────────────────────────

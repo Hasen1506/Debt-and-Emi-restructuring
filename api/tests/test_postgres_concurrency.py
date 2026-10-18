@@ -71,7 +71,7 @@ def test_concurrent_first_requests_create_one_usable_code_and_no_user_until_veri
                 # Grill #59: requesting a code creates no account.
                 assert (await session.execute(select(User))).scalars().all() == []
                 active = (await session.execute(select(OtpChallenge).where(OtpChallenge.used_at.is_(None)))).scalar_one()
-                usable = next(code for code in codes if hash_otp(code) == active.code_hash)
+                usable = next(code for code in codes if hash_otp(code, email) == active.code_hash)
             # Race two consumers of exactly the same latest challenge.
             results = await asyncio.gather(*(client.post('/api/auth/verify-otp', json={'email': email, 'code': usable}) for _ in range(2)))
             assert sorted(r.status_code for r in results) == [200, 400]

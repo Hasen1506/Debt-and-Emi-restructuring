@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { UserPayload } from '@/lib/api';
-import { userDefaultCurrency } from '@/lib/currency';
+import { fxPerDollar, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { foreignCurrencies, fxAsOfLabel, fxIsStale } from '@/lib/fx-refresh';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { refreshProfileFx } from './FxAutoRefresh';
@@ -29,14 +29,14 @@ export function FxRateLine({ user, nowMs }: { user: UserPayload; nowMs: number }
     if (res.refreshed.length > 0) router.refresh();
   };
   return (
-    <div role="note" aria-label="Exchange rates" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'baseline', fontSize: 11, color: L_T.muted, margin: '0 0 10px' }}>
+    <div role="note" aria-label="Exchange rates" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'baseline', fontSize: 'var(--fs-small)', color: L_T.muted, margin: '0 0 10px' }}>
       {ccys.map((c) => {
         const rate = user.fx_to_user_currency?.[c];
         const meta = user.fx_meta?.[c];
         const warn = failed.includes(c) || fxIsStale(meta, nowMs);
         return (
           <span key={c} style={{ color: warn ? L_T.negative : L_T.muted }}>
-            {Number(rate) > 0 ? `1 ${c} = ${Number(rate).toPrecision(4)} ${own} · ${fxAsOfLabel(meta)}` : `No ${c} rate yet`}
+            {Number(rate) > 0 ? `${fxPerDollar(c as CurrencyCode, own as CurrencyCode, Number(rate)) ?? `1 ${c} = ${Number(rate).toPrecision(4)} ${own}`} · ${fxAsOfLabel(meta)}` : `No ${c} rate yet`}
             {failed.includes(c) ? ' · couldn’t refresh, using this rate until you enter one in Profile' : warn ? ' · may be out of date' : ''}
           </span>
         );

@@ -224,7 +224,8 @@ def _bodies(user: dict) -> dict:
         "/api/windfall": {"amount": "100000", "user": user},
         "/api/quick-recompute": {"user": user, "extra_payment": "10000", "horizon_months": 60},
         "/api/restructuring": {"user": user, "plan_balances": {"0": ["100000", "90000"], "1": ["50000", "0"]}},
-        "/api/portfolio/liquidation-rankings": {"user": user, "debt_effective_rates": {"0": "0.085", "1": "0.42"}},
+        # /api/portfolio/liquidation-rankings is off by default (audit 80 W10,
+        # LIQUIDATION_RANKER): test_a80_w10_api.py fuzzes it with the flag on.
         "/api/new-debt": {"list_price": "50000", "cash_price_elsewhere": "45000",
                           "emi_offer_months": 12, "emi_offer_monthly_payment": "4500"},
         "/api/cash-yield": {"idle_balance": "500000", "current_yield": "0.025", "country": "IN"},
@@ -299,7 +300,9 @@ def test_hostile_values_never_crash(client, india_user_payload):
 
 @pytest.mark.parametrize("mutate, field, words", [
     (lambda b: b["user"]["loans"][0].update(outstanding="-500000"), "user.loans.0.outstanding", "negative"),
-    (lambda b: b["user"]["loans"][0].update(nominal_rate="9.5"), "user.loans.0.nominal_rate", "send 0.095 for 9.5%"),
+    # Audit C12: loan rates are accepted up to 1,000% a year (10), so 9.5
+    # (950%) is now a valid instant-loan rate; the typo guard bites above 10.
+    (lambda b: b["user"]["loans"][0].update(nominal_rate="10.5"), "user.loans.0.nominal_rate", "send 0.105 for 10.5%"),
     (lambda b: b["user"].update(loans=b["user"]["loans"] * 250), "user.loans", "at most 50"),
     (lambda b: b["user"]["loans"][0].update(outstanding="1E+999999"), "user.loans.0.outstanding", "1,000,000,000,000"),
     (lambda b: b["user"]["loans"][0].update(tenure_months_remaining=10**18), "user.loans.0.tenure_months_remaining", ""),

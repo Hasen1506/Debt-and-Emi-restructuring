@@ -29,6 +29,7 @@ import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
 import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
+import { paymentState } from './payment-state';
 import { overdueAmount, daysLate, extraPrincipal, readActivityClient } from './activity';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { localIsoDate, getCountryToday } from './today';
@@ -79,6 +80,24 @@ interface CookiePayload {
   deltas: ActivityDelta[];
   /** What was logged on each loan in the last three months (lib/pace). */
   pace?: PaceMonth[];
+  /** UX fix 4: this month's EMIs marked paid in Activity (loan ids, else
+   *  positions), so the engine's owed_today is the balance Home shows. */
+  paidNow?: { month: string; loans: (string | number)[] };
+}
+
+/** EMI loans whose payment for `month` is marked paid (as Home reads it,
+ *  lib/owed-now): ids where the loans have them, else positions. */
+export function paidEmisMarked(entries: ActivityEntry[], loans: LoanPayload[], month: string): (string | number)[] {
+  const aligned = alignToLoans(entries, loans);
+  return loans.flatMap((loan, i) => {
+    const emi = Number(loan.scheduled_emi) || 0;
+    const owed = Number(loan.outstanding) || 0;
+    if (loan.loan_type === 'credit_card' || !(emi > 0) || !(owed > 0) || (loan.first_emi_month && loan.first_emi_month > month)) return [];
+    const mine = aligned.filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month);
+    const minimum = Math.min(emi, owed * (1 + (Number(loan.nominal_rate) || 0) / 12));
+    const state = paymentState(mine, minimum, emi);
+    return state === 'paid' || state === 'emi_paid' ? [loan.id ?? i] : [];
+  });
 }
 
 // ─── Client write ──────────────────────────────────────────────────────────
@@ -102,6 +121,8 @@ export function syncActivityCookieClient(
     deltas: activityDeltas(entries, loans, country),
     ...(pace.some((m) => m.paid.length > 0) ? { pace } : {}),
   };
+  const paidNow = paidEmisMarked(entries, loans, thisMonth);
+  if (paidNow.length > 0) payload.paidNow = { month: thisMonth, loans: paidNow };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   const saved = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] === encoded;
@@ -176,7 +197,7 @@ export function activityDeltas(
       continue; // This balance already includes this payment and every older entry.
     }
 
-    if (e.kind === 'paid_full') continue;
+    if (e.kind === 'paid_full' || e.kind === 'balance_correction') continue;
 
     if (e.kind === 'closed') {
       const cur = acc(e.loanIndex);
@@ -281,11 +302,6 @@ export function refreshActivityCookieClient(loans: LoanPayload[], country: Count
   return (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
 }
 
-export function clearActivityCookieClient(): void {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
-}
-
 // ─── Server read ───────────────────────────────────────────────────────────
 
 export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
@@ -300,6 +316,25 @@ export async function loadActivityPaceServer(): Promise<PaceMonth[]> {
   const { cookies } = await import('next/headers');
   const raw = (await cookies()).get(COOKIE_NAME)?.value;
   return raw ? parseActivityPace(raw) : [];
+}
+
+/** UX fix 4: positions in `loans` whose EMI for `month` is marked paid. */
+export async function loadPaidNowServer(loans: LoanPayload[], month: string): Promise<number[]> {
+  const { cookies } = await import('next/headers');
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
+  return raw ? parsePaidNow(raw, loans, month) : [];
+}
+
+export function parsePaidNow(raw: string, loans: LoanPayload[], month: string): number[] {
+  try {
+    if (!raw.startsWith(COMPRESSED)) return [];
+    const p: CookiePayload = JSON.parse(decompressFromEncodedURIComponent(raw.slice(COMPRESSED.length)) ?? '');
+    if (p?.paidNow?.month !== month || !Array.isArray(p.paidNow.loans)) return [];
+    const marked = new Set(p.paidNow.loans);
+    return loans.flatMap((l, i) => (marked.has(l.id ?? i) ? [i] : []));
+  } catch {
+    return [];
+  }
 }
 
 export function parseActivityPace(raw: string): PaceMonth[] {

@@ -17,7 +17,7 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from engine.decisions import allocate_windfall
-from engine.fee_order import plan_net_cost, rate_only_order
+from engine.fee_order import order_tolerance, plan_net_cost, rate_only_order
 from engine.formulas import effective_rate, emi
 from engine.marginal_cost import (
     LOCKED_OFFSET, compounded, loan_marginal_cost, marginal_cost, marginal_shield,
@@ -292,10 +292,18 @@ def test_property_marginal_order_is_at_least_as_good_as_the_best_fixed_order(cas
     up to 5 loans) and keeps the cheapest; without one it is the greedy
     marginal-cost order of PR J."""
     user, marg = case
-    ours = _net_cost(user, simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg), marg)
+    res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg)
+    ours = _net_cost(user, res, marg)
     best = _best_fixed_order_cost(user, marg)
-    # One rupee/cent per loan of rounding slack; nothing more.
-    assert ours <= best + D(len(user.loans)), (ours, best)
+    assert ours <= best + _slack(user, res), (ours, best)
+
+
+def _slack(user, res) -> D:
+    """One rupee/cent per loan of rounding slack, or the Audit 80+ C18 order
+    tolerance (max ₹500 / $10, 0.5% of the plan's interest) when larger: by
+    design the plan only leaves the rate order for a fixed order that saves
+    more than that, and says a smaller saving is within rounding."""
+    return max(D(len(user.loans)), order_tolerance(user, res.total_interest_paid))
 
 
 def test_fee_regressions_beat_or_match_the_best_fixed_order():
@@ -304,7 +312,7 @@ def test_fee_regressions_beat_or_match_the_best_fixed_order():
         res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg)
         ours = _net_cost(user, res, marg)
         best = _best_fixed_order_cost(user, marg)
-        assert ours <= best + D(len(user.loans)), (ours, best)
+        assert ours <= best + _slack(user, res), (ours, best)
         assert res.payoff_order_method == "exact"
 
 

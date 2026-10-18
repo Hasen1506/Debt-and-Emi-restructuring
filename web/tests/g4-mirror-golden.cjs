@@ -80,15 +80,6 @@ test('#24: payoff range copy gives the exact month, the range and a reason per s
   for (const t of Object.values(RANGE_TERMS)) assert.match(t, /: /); // every term is explained
 });
 
-test('#39: the spending line says what the plan assumes, both ways', () => {
-  const { spendingAssumptionLine, INFLATION_LONG_RUN } = lib('inflation-modeling.ts');
-  assert.match(spendingAssumptionLine('off', '₹45,000'), /stays at ₹45,000 a month/);
-  assert.match(spendingAssumptionLine('on', '₹45,000', '5.2'), /grows 5.2% a year/);
-  assert.doesNotMatch(spendingAssumptionLine('on', '₹45,000'), / % /);
-  assert.equal(INFLATION_LONG_RUN.IN.rate, '0.04');
-  assert.equal(INFLATION_LONG_RUN.US.rate, '0.02');
-});
-
 test('#35: constants that quote a dated figure agree with the freshness registry', () => {
   const { INFLATION_LONG_RUN } = lib('inflation-modeling.ts');
   const { REMITTANCE_REFERENCE } = lib('payoff-range.ts');

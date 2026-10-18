@@ -21,9 +21,13 @@ ARG NEXT_PUBLIC_DISABLE_AUTH=false
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 # Left empty on purpose: the browser calls the API on its own origin.
 ARG NEXT_PUBLIC_API_BASE_URL=
+# Counts-only funnel beacons (web/src/lib/funnel.ts); "1" = on. Without this
+# ARG, setting NEXT_PUBLIC_FUNNEL on Render never reached the bundle (r2-web).
+ARG NEXT_PUBLIC_FUNNEL=
 ENV NEXT_PUBLIC_DISABLE_AUTH=$NEXT_PUBLIC_DISABLE_AUTH \
     NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY \
     NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_FUNNEL=$NEXT_PUBLIC_FUNNEL \
     NEXT_OUTPUT_STANDALONE=1 \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build \

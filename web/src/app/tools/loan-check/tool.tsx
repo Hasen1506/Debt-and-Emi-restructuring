@@ -1,5 +1,6 @@
 'use client';
 
+import { LoanCheckSignals } from '@/components/retention/LoanCheckSignals';
 import { whereToFind } from '@/lib/where-to-find';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
@@ -9,6 +10,9 @@ import { EMPTY_CHOICE, LenderPicker, choiceFromName, resolveChoice, useLoanCheck
 import { OfferPanel } from './offers';
 import { LenderRecord } from './outcome';
 import { RateProblem } from './rate-problem';
+import { HikeQuestions, PassThroughCard, PlanBridge, RateHistoryRows, RateRiseCard, ResetChoicePanel } from './hike';
+import { historyToRequest, type HistoryRow } from '@/lib/loan-check-hike';
+import { rememberLoanCheck } from '@/lib/loan-check-memory';
 import {
   Field,
   Select,
@@ -21,6 +25,7 @@ import {
   api,
   formatCurrency,
   formatPct,
+  type LoanBankAction,
   type LoanBenchmark,
   type LoanCheckFinding,
   type LoanCheckRequest,
@@ -52,6 +57,9 @@ const FIELDS: Record<string, string> = {
   tenure_months_remaining: 'months',
   emi: 'emi',
   last_reset: 'lastReset',
+  rate_history: 'rateHistory',
+  switch_rate: 'switchRate',
+  switch_cost: 'switchCost',
 };
 
 const BENCHMARK_OPTIONS: { value: LoanBenchmark; label: string }[] = [
@@ -117,6 +125,12 @@ export function LoanCheckTool() {
   );
   const [emi, setEmi] = useState(homeLoan?.scheduled_emi ?? '');
   const [lastReset, setLastReset] = useState('');
+  // Hike cycle (audit 80+ A11).
+  const [bankAction, setBankAction] = useState<LoanBankAction>('unknown');
+  const [choiceOffered, setChoiceOffered] = useState<'yes' | 'no' | 'unsure'>('unsure');
+  const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
+  const [switchRate, setSwitchRate] = useState('');
+  const [switchCost, setSwitchCost] = useState('');
 
   function pickLoan(i: number | null) {
     setLoanIdx(i);
@@ -132,7 +146,7 @@ export function LoanCheckTool() {
   useEffect(() => { if (loanIdx != null) pickLoan(loanIdx); }, [profile.user.loans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [resultValue, setResult] = useState<LoanCheckResponse | null>(null);
-  const fingerprint = JSON.stringify([loanIdx,choice,spreadChanged,spreadChange,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,profile.user]);
+  const fingerprint = JSON.stringify([loanIdx,choice,spreadChanged,spreadChange,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,bankAction,choiceOffered,historyRows,switchRate,switchCost,profile.user]);
   const [checkedKey, setCheckedKey] = useState('');
   const result = checkedKey === fingerprint ? resultValue : null;
   // The request behind `result`, reused by the complaint panel.
@@ -145,6 +159,9 @@ export function LoanCheckTool() {
   const pBench = parsePercentInput(startBench, { min: 1, max: 20 });
   const pSpread = parseSpreadInput(startSpread);
   const pCurrent = parsePercentInput(currentRate);
+  const pSwitch = parsePercentInput(switchRate);
+  const parsedHistory = historyToRequest(historyRows);
+  const onOldBenchmark = benchmark === 'mclr' || benchmark === 'base_rate';
   const pSpreadChange = parseSpreadChange(spreadChange);
 
   // What is still missing before the check can run. Shown next to the
@@ -167,7 +184,9 @@ export function LoanCheckTool() {
   const hasInputError =
     (startMode === 'headline' ? !!pStart.error : !!pBench.error || !!pSpread.error) ||
     !!pCurrent.error ||
-    (spreadChanged === 'yes' && !!pSpreadChange.error);
+    (spreadChanged === 'yes' && !!pSpreadChange.error) ||
+    !!parsedHistory.error ||
+    (onOldBenchmark && !!pSwitch.error);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
@@ -200,9 +219,17 @@ export function LoanCheckTool() {
         emi: emi ? emi.replace(/,/g, '') : undefined,
         benchmark,
         last_reset: lastReset || undefined,
+        bank_action: bankAction,
+        choice_offered: choiceOffered,
+        rate_history: parsedHistory.history.length ? parsedHistory.history : undefined,
+        switch_rate: onOldBenchmark ? (pSwitch.fraction ?? undefined) : undefined,
+        switch_cost: onOldBenchmark && switchCost ? switchCost.replace(/,/g, '') : undefined,
       };
       const res = await api.loanCheck(req);
       setResult(res);
+      // Audit 80+ A1: keep the findings on this device so the plan's
+      // "where we disagree, worth ₹X" card can count them.
+      rememberLoanCheck(res);
       setChecked(req);
       setCheckedKey(fingerprint);
       requestAnimationFrame(() => resultRef.current?.focus());
@@ -218,17 +245,18 @@ export function LoanCheckTool() {
 
   if (country !== 'IN') {
     return (
-      <LNote style={{ margin: 0, fontSize: 13, color: L_T.ink }}>
-        Loan check covers Indian floating-rate home loans for now. The US
-        version (adjustable-rate mortgages and card billing errors) is on
-        the way.
+      <LNote style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.ink }}>
+        {/* UX2B-24: a US user was told only "Indian floating-rate home loans". */}
+        Loan check reads an Indian floating-rate home loan&apos;s rate resets. For a US card billing error or a
+        mortgage servicing error, draft the letter on <LBracket href="/cant-pay/us-letters">US LETTERS →</LBracket>; an
+        adjustable-rate mortgage check isn&apos;t here yet.
       </LNote>
     );
   }
 
   const picked = loanIdx !== null ? profile.user.loans[loanIdx] : null;
   const loanSummary = (
-    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+    <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
       {formatCurrency(outstanding || '0', 'INR')} left at {currentRate || '—'}%, {months || '—'} months to go
       {lender ? ` · ${lender}` : ''}.{' '}
       <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
@@ -306,9 +334,9 @@ export function LoanCheckTool() {
           </LFieldGrid>
           <div>
             {/* UX50 C-16: the KFS has the starting rate; the import was hidden in Profile → Loans → [EDIT]. */}
-            <p data-testid="loan-check-import-link" style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.5 }}>
+            <p data-testid="loan-check-import-link" style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
               Have the KFS or sanction letter? It shows the starting rate.{' '}
-              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>[IMPORT IT ON PROFILE →]</a>
+              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}><span aria-hidden="true">[</span>IMPORT IT ON PROFILE →<span aria-hidden="true">]</span></a>
             </p>
             <LChipRow label="The rate it started at">
               <LChip on={startMode === 'headline'} onClick={() => setStartMode('headline')}>
@@ -361,7 +389,7 @@ export function LoanCheckTool() {
               <LChip on={spreadChanged === 'yes'} onClick={() => setSpreadChanged('yes')}>Yes</LChip>
               <LChip on={spreadChanged === 'unsure'} onClick={() => setSpreadChanged('unsure')}>Not sure</LChip>
             </LChipRow>
-            <p style={{ fontSize: 11, margin: '6px 0 0', color: L_T.muted }}>
+            <p style={{ fontSize: 'var(--fs-small)', margin: '6px 0 0', color: L_T.muted }}>
               The spread (margin) is what your bank adds on top of the repo rate. A bank may
               raise it only if your credit assessment changed substantially, as your loan
               contract says, or the operating-cost part once in three years. A raised spread
@@ -381,10 +409,37 @@ export function LoanCheckTool() {
             )}
           </div>
 
+          <HikeQuestions
+            action={bankAction}
+            onAction={setBankAction}
+            offered={choiceOffered}
+            onOffered={setChoiceOffered}
+          />
+
+          {onOldBenchmark && (
+            <div data-testid="lc-switch-fields">
+              <LStepSub>Switching to the repo-linked rate (optional)</LStepSub>
+              <LFieldGrid min={200}>
+                <div>
+                  <Field
+                    label="Repo-linked rate your bank quotes (%)"
+                    value={switchRate}
+                    onChange={setSwitchRate}
+                    placeholder="8.15"
+                    error={at('switchRate') ?? pSwitch.error}
+                    hint="Blank: the top of its published range"
+                  />
+                  <RateProblem parsed={pSwitch} onFix={setSwitchRate} fixOnly />
+                </div>
+                <Field label="Switch charge (₹)" kind="money" currency="INR" value={switchCost} onChange={setSwitchCost} error={at('switchCost')} hint="Its administrative or legal charge, if quoted" />
+              </LFieldGrid>
+            </div>
+          )}
+
           <div>
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
-              <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+              <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
                 {lastReset ? `Rate last changed ${lastReset}` : 'When your rate last changed'}
               </span>
             )}
@@ -401,12 +456,17 @@ export function LoanCheckTool() {
                 />
               </div>
             )}
+            {more && (
+              <div style={{ marginTop: 14 }}>
+                <RateHistoryRows rows={historyRows} onChange={setHistoryRows} error={at('rateHistory') ?? parsedHistory.error} />
+              </div>
+            )}
           </div>
 
           <div>
             <SubmitBar busy={busy} error={err} label="Check my loan" />
             {!err && stillNeeded.length > 0 && (
-              <div style={{ marginTop: 8, fontSize: 12, color: L_T.muted }}>Still needed: {stillNeeded.join(', ')}.</div>
+              <div style={{ marginTop: 8, fontSize: 'var(--fs-dense)', color: L_T.muted }}>Still needed: {stillNeeded.join(', ')}.</div>
             )}
           </div>
         </form>
@@ -414,8 +474,14 @@ export function LoanCheckTool() {
 
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
+        {result && <LoanCheckSignals r={result} />}
       </div>
+      {result?.rate_rise && <RateRiseCard rr={result.rate_rise} />}
       {result?.reset_watch && <ResetWatchCard w={result.reset_watch} />}
+      {result?.pass_through && <PassThroughCard pt={result.pass_through} />}
+      {result && checked && result.findings.some((f) => f.kind === 'choice_not_offered') && (
+        <ResetChoicePanel request={checked} />
+      )}
       {result && checked && result.findings.some((f) => f.claimable) && (
         <>
           <LenderRecord lender={checked.lender} />
@@ -423,6 +489,7 @@ export function LoanCheckTool() {
         </>
       )}
       {result && checked && <OfferPanel request={checked} />}
+      {result && <PlanBridge r={result} />}
     </LSteps>
   );
 }
@@ -451,7 +518,7 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
           ]}
         />
         {r.stale_rates_warning && (
-          <p role="note" style={{ fontSize: 12, color: L_T.accent, margin: '12px 0 0' }}>
+          <p role="note" style={{ fontSize: 'var(--fs-dense)', color: L_T.accent, margin: '12px 0 0' }}>
             {r.stale_rates_warning}
           </p>
         )}
@@ -459,7 +526,7 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
           <FindingCard key={i} f={f} />
         ))}
         {r.new_borrower_note && (
-          <p data-testid="lc-new-borrower-note" style={{ fontSize: 12, margin: '14px 0 0', color: L_T.muted }}>
+          <p data-testid="lc-new-borrower-note" style={{ fontSize: 'var(--fs-dense)', margin: '14px 0 0', color: L_T.muted }}>
             {r.new_borrower_note}
           </p>
         )}
@@ -508,13 +575,13 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
       />
 
       {(r.repo_changes_since_start.length > 0 || r.assumptions.length > 0) && (
-        <details style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '12px 16px', fontSize: 12 }}>
-          <summary style={{ cursor: 'pointer', letterSpacing: '0.12em', fontSize: 11 }}>
+        <details style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '12px 16px', fontSize: 'var(--fs-dense)' }}>
+          <summary style={{ cursor: 'pointer', letterSpacing: '0.12em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
             REPO RATE MOVES AND ASSUMPTIONS
           </summary>
           {r.repo_changes_since_start.length > 0 && (
             <div role="region" aria-label="RBI repo rate changes" tabIndex={0} style={{ overflowX: 'auto', marginTop: 10 }}>
-              <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 300 }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-dense)', minWidth: 300 }}>
                 <thead>
                   <tr>
                     <th scope="col" style={th}>DATE</th>
@@ -560,7 +627,7 @@ const th: React.CSSProperties = {
   padding: '6px 12px 6px 0',
   borderBottom: '1px solid var(--border)',
   fontWeight: 500,
-  fontSize: 10,
+  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
   letterSpacing: '0.12em',
   color: 'var(--muted)',
 };
@@ -607,15 +674,15 @@ function ResetWatchCard({ w }: { w: LoanCheckResetWatch }) {
   return (
     <LStep no="03" id="lc-reset" title="Reset watch">
       <div data-testid="lc-reset-watch">
-        <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>{w.headline}</p>
-        <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{w.detail}</p>
+        <p style={{ fontSize: 'var(--fs-body)', fontWeight: 700, margin: '0 0 6px' }}>{w.headline}</p>
+        <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, margin: 0 }}>{w.detail}</p>
         {w.check_by && (
           <p style={{ margin: '10px 0 0' }}>
             <LBracket onClick={() => downloadIcs(w)}>ADD A REMINDER TO MY CALENDAR (.ICS)</LBracket>
           </p>
         )}
         {w.citations.map((c, i) => (
-          <div key={i} style={{ fontSize: 12, marginTop: 8 }}>
+          <div key={i} style={{ fontSize: 'var(--fs-dense)', marginTop: 8 }}>
             {c.requirement}
             <RuleQuote c={c} />
           </div>
@@ -635,20 +702,26 @@ function FindingCard({ f }: { f: LoanCheckFinding }) {
           ? 'In your favour, nothing to claim'
           : f.kind === 'rule_not_binding'
             ? 'Information, not a refund claim'
-            : 'A switch, not a refund claim';
+            : f.kind === 'rate_rise'
+              ? 'The rate rise: your choice, not a refund claim'
+              : f.kind === 'choice_not_offered'
+                ? 'Your right to choose: a letter, not a refund claim'
+                : f.kind === 'asymmetric_pass_through'
+                  ? 'Worth asking about, not a refund claim yet'
+                  : 'A switch, not a refund claim';
   return (
     <div style={{ marginTop: 18 }}>
       <LStepSub>{tag}</LStepSub>
-      <p style={{ fontSize: 13, fontWeight: 700, margin: '8px 0 6px' }}>{f.headline}</p>
-      <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{f.detail}</p>
+      <p style={{ fontSize: 'var(--fs-body)', fontWeight: 700, margin: '8px 0 6px' }}>{f.headline}</p>
+      <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, margin: 0 }}>{f.detail}</p>
       {f.citations.map((c, i) => (
-        <div key={i} style={{ margin: '10px 0 0', padding: '6px 12px', borderLeft: `3px solid ${L_T.ruleSoft}`, fontSize: 12 }}>
+        <div key={i} style={{ margin: '10px 0 0', padding: '6px 12px', borderLeft: `3px solid ${L_T.ruleSoft}`, fontSize: 'var(--fs-dense)' }}>
           <div>{c.requirement}</div>
-          <div style={{ fontSize: 11, marginTop: 4, color: L_T.muted }}>{c.rule}</div>
+          <div style={{ fontSize: 'var(--fs-small)', marginTop: 4, color: L_T.muted }}>{c.rule}</div>
           <RuleQuote c={c} />
         </div>
       ))}
-      <p style={{ fontSize: 12, margin: '10px 0 0' }}>
+      <p style={{ fontSize: 'var(--fs-dense)', margin: '10px 0 0' }}>
         <strong>Next step:</strong> {f.next_step}
       </p>
     </div>

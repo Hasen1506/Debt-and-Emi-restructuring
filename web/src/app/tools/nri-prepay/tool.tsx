@@ -23,14 +23,16 @@ import {
   type CrossBorderResponse,
   type LoanType,
 } from '@/lib/api';
-import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
+// UX fix 4: balances as owed today (after EMIs already paid), as Home shows.
+import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanBlocker, addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { residenceCurrency } from '@/lib/tax-setup';
 
-type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
+type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED' | 'SAR' | 'QAR' | 'OMR' | 'KWD' | 'BHD';
 
 const CURRENCIES: { value: Currency; label: string }[] = [
   { value: 'INR', label: 'INR (₹)' },
@@ -41,6 +43,8 @@ const CURRENCIES: { value: Currency; label: string }[] = [
   { value: 'CAD', label: 'CAD' },
   { value: 'SGD', label: 'SGD' },
   { value: 'AED', label: 'AED' },
+  // Round 3: the other Gulf currencies (lib/tax-setup GULF).
+  ...(['SAR', 'QAR', 'OMR', 'KWD', 'BHD'] as const).map((c) => ({ value: c, label: c })),
 ];
 
 const VERDICT_LABEL: Record<CrossBorderResponse['verdict'], string> = {
@@ -76,7 +80,7 @@ export function NriPrepayTool() {
   const profileUserCurrency: Currency =
     profileIsNriUs ? 'USD'
       : profile.user.country === 'US' ? 'USD'
-        : 'INR';
+        : ((residenceCurrency(profile.user.nri_residence) ?? 'INR') as Currency);
   // The profile's own loan, not a sample: this used to open on a ₹35 lakh
   // loan whatever the user had entered. The first open instalment loan,
   // preferring one in a currency other than the user's (the NRI case).
@@ -329,7 +333,7 @@ export function NriPrepayTool() {
             </LChipRow>
           )}
           {picked && !editLoan ? (
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+            <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
               {formatCurrency(loanBalance, loanCurrency)} left at {pct(loanRate)}, {loanTenure} months to go.{' '}
               <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
             </p>
@@ -392,7 +396,7 @@ export function NriPrepayTool() {
             <div>
               <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
               {!more && (
-                <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+                <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
                   How the exchange rate moves{manualDrift ? `: ${manualDrift}% a year` : ': its long-run trend'}
                 </span>
               )}
@@ -424,6 +428,8 @@ export function NriPrepayTool() {
         <LStep no="02" id="nri-out" title="The answer" answer>
           <LVerdict tone={VERDICT_TONE[v.verdict]}>{VERDICT_LABEL[v.verdict]}</LVerdict>
           <LNote>{v.rationale}</LNote>
+          {/* E5 (audit 80): the transfer cost is shown, never silent. */}
+          {v.comparison_line && <LNote>{v.comparison_line}</LNote>}
           <LKpi
             items={[
               { l: 'THE LOAN COSTS YOU', v: pct(v.effective_loan_cost_in_user_currency), s: `a year, in ${userCurrency}`, tone: L_T.negative },
@@ -486,7 +492,7 @@ export function NriPrepayTool() {
                 label={`I paid it off · log it on the ${loanLabel(profile.user.loans[Number(targetIdx)])}`}
               />
             ) : addBlocker ? (
-              <p style={{ marginTop: 14, fontSize: 12, color: L_T.muted, lineHeight: 1.55 }}>
+              <p style={{ marginTop: 14, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.55 }}>
                 {addBlocker}
               </p>
             ) : (
@@ -560,12 +566,12 @@ function NriNotes({ spread, remitPct, loanCurrency, userCurrency }: { spread: nu
               : `Sending it costs ${(cost * 100).toFixed(2)}% once, on top of the gap above.`}
         </LNote>
       )}
-      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: L_T.muted }}>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.7, color: L_T.muted }}>
         <li>The loan&apos;s rate is before any tax break. If you deduct its interest (in India, the old regime&apos;s home-loan deduction, or against rent from a let-out home), it costs you less, and prepaying saves less.</li>
         <li>If you are taxed in the US, interest your savings earn anywhere is US income, including an NRE account in India that is tax-free there. Use your US rate above.</li>
         <li>The exchange-rate trend is the last 20 years&apos;, not a forecast.</li>
       </ul>
-      <p style={{ margin: '8px 0 0', fontSize: 12, color: L_T.muted }}>
+      <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted }}>
         Terms: <Term id="remittance_cost" /> · <Term id="fx_drift" /> · <Term id="nre_nro" /> · <Term id="tax_shield" />
       </p>
     </div>

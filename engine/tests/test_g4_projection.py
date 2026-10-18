@@ -79,11 +79,14 @@ from engine.formulas import emi as _emi
 from engine.models import LifecycleEvent, LifecycleEventKind, Loan, LoanType
 
 
-def _home_after(events, months=36):
+def _home_after(events, months=36, mode="raise_emi"):
+    # These tests pin the "raise_emi" choice (the borrower picked a higher
+    # EMI; RBI reset circular para 2(iii)). The Indian default since Audit
+    # 80+ C1 is tenure-first: see test_default_rise_holds_the_emi below.
     u = _user()
     home = Loan(loan_type=LoanType.HOME, bank="SBI", outstanding=D("3000000"),
                 nominal_rate=D("0.085"), rate_type="floating", tenure_months_remaining=240,
-                scheduled_emi=_emi(D("3000000"), D("0.085"), 240), currency="INR")
+                scheduled_emi=_emi(D("3000000"), D("0.085"), 240), currency="INR", on_rate_rise=mode)
     u.loans = [home]
     res = simulate_plan(u, Strategy.AVALANCHE, months, minimums_only=True,
                         lifecycle_events=[LifecycleEvent(kind=LifecycleEventKind.FLOATING_RATE_RESET,
@@ -116,3 +119,11 @@ def test_small_rise_after_a_cut_keeps_the_emi():
     base = _emi(D("3000000"), D("0.085"), 240)
     res = _home_after([(13, "0.075"), (25, "0.080")])
     assert abs(res.months[25].payments_by_loan_index[0] - base) < D("1")
+
+
+def test_default_rise_holds_the_emi():
+    """Audit 80+ C1: an Indian floating loan holds its EMI on a rise and the
+    tenure absorbs it (founder decision)."""
+    base = _emi(D("3000000"), D("0.085"), 240)
+    res = _home_after([(13, "0.095")], months=36, mode=None)
+    assert abs(res.months[13].payments_by_loan_index[0] - base) < D("1")

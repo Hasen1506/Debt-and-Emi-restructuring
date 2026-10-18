@@ -279,17 +279,19 @@ def _card(balance, usual="0"):
 def test_card_interest_avoided_runs_to_the_card_clearing():
     """₹85,000 off a 34% card was "₹2,408 over the loan's remaining life":
     one month's interest, because a card (no tenure) was treated as cleared
-    in a month. Paying the bank's minimum (5%, ₹200 floor) it takes years."""
+    in a month. Paying the bank's minimum it takes years. Axis's minimum is
+    its MITC rule since W2 C14: interest in full + 2% of the balance, ₹100
+    at least (it was modelled as a flat 5% / ₹200 before)."""
     from engine.decisions import interest_basis
     card = _card("85000")
     saved = interest_saved_by_prepaying(card, D("85000"))
     assert saved > 12 * D("2408")
-    # Worked by hand: 34%/12 interest, then the larger of 5% and ₹200 paid.
+    # Worked by hand: 34%/12 interest, then interest + 2% (₹100 floor) paid.
     bal, total = D("85000"), D("0")
     while bal > 0:
         i = bal * D("0.34") / 12
         total += i
-        pay = max(bal * D("0.05"), D("200"), i + bal * D("0.01"))
+        pay = max(i + bal * D("0.02"), D("100"))
         bal = bal + i - min(pay, bal + i)
     assert abs(saved - total) <= 1
     assert interest_basis(card) == "until the card is cleared, paying the bank's minimum each month"

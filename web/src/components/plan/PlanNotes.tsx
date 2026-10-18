@@ -11,17 +11,22 @@
  * The notes Activity used to carry (the real rate of the dearest loan,
  * the monthly surplus) are on Home now; a generic no-cost-EMI tip went.
  */
+import { ALL_IN } from '@/lib/card-rate';
 import type { ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
 import { userMarginalCosts } from '@/lib/marginal-cost';
-import { usMortgageShieldShare } from '@/lib/deductions';
+import { grossFromTakeHome, usMortgageShieldShare } from '@/lib/deductions';
+import { readIncome, regimeInputsFromUser, taxSlabShort } from '@/lib/tax-profile';
+import { compareRegimes } from '@/lib/regime-compare';
+import { countryMonthKey } from '@/lib/today';
 import { compareToLoan, formatAsOf, pct, safeBenchmarks } from '@/lib/invest-vs-prepay';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanToUserDecimal } from '@/lib/currency';
 import { LBracket, LMathBlock, LSectionHeader, L_T } from '@/components/ledger/primitives';
+import { taxType } from '@/lib/loan-types';
 
 interface Note {
   eyebrow: string;
@@ -40,6 +45,31 @@ function loanName(l: PlanData['user']['loans'][number]): string {
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** C21: when the stored regime is new but old would cost less tax this
+ *  year with the loans counted (lib/regime-compare, the Tax page's own
+ *  comparison), a note with the amount and a link to Tax. Gross pay comes
+ *  from Profile, else is estimated from take-home (labelled). */
+export function oldRegimeWouldSave(user: PlanData['user']): Note | null {
+  if (user.country !== 'IN' || (user.tax_regime ?? 'new') !== 'new') return null;
+  if (!user.loans.some((l) => taxType(l) === 'home_loan' || l.loan_type === 'education_loan')) return null;
+  const { inputs, hasBusiness } = regimeInputsFromUser(user, countryMonthKey('IN'));
+  const typed = readIncome(user).source !== 'none';
+  if (!typed) {
+    const gross = grossFromTakeHome(user);
+    if (gross.lte(0)) return null;
+    if (user.income_type === 'business_owner') inputs.businessIncome = gross;
+    else inputs.salary = gross;
+  }
+  const cmp = compareRegimes(inputs, hasBusiness);
+  if (cmp.better !== 'old' || cmp.oldSaves.lt(1000)) return null;
+  return {
+    eyebrow: 'TAX REGIME',
+    title: `The old regime would cost you about ${formatCurrencyWhole(cmp.oldSaves.toFixed(0), 'INR')} less tax this year${typed ? '' : ' (estimated from take-home)'}`,
+    body: `Your plan runs on the new regime, where home-loan (self-occupied) and education-loan interest lower no tax, so the payoff order gives them no tax break. Counted in the old regime, your loans are worth ${formatCurrencyWhole(cmp.loansWorthInOld.toFixed(0), 'INR')} of tax a year. Nothing changes until you choose.${hasBusiness ? ' With business income you can move back to the new regime only once.' : ' Salaried: you choose each year in your return.'}`,
+    link: { href: '/tax', label: 'COMPARE ON TAX' },
+  };
+}
+
 function buildNotes(plan: PlanData): Note[] {
   const { user } = plan;
   const ccy = plan.displayCurrency;
@@ -52,9 +82,15 @@ function buildNotes(plan: PlanData): Note[] {
   const costs = userMarginalCosts(user, plan.marginalRate, openIdx);
   const ranked = openIdx
     .filter((i) => costs.has(i))
-    .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises) }))
+    .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises, user.loans) }))
     .sort((a, b) => b.mc.orderKey.cmp(a.mc.orderKey));
   const notes: Note[] = [];
+
+  // 0. C21: the plan's own regime comparison disagrees with the regime it
+  // runs on. Shown, never switched: the choice is the user's (and a
+  // business owner can switch back only once).
+  const regimeNote = oldRegimeWouldSave(user);
+  if (regimeNote) notes.push(regimeNote);
 
   // 1. Prepay or put it aside: the dearest loan against the best safe rate.
   const top = ranked[0];
@@ -66,10 +102,12 @@ function buildNotes(plan: PlanData): Note[] {
     notes.push({
       eyebrow: 'PREPAY OR SAVE',
       title:
+        // Audit 80 B13/E2: the loan's one all-in rate against the saving
+        // rate, never their difference shown as if it were a rate.
         r.verdict === 'prepay'
-          ? `Paying off the ${loanName(top.loan)} earns ${gap} a year more than ${best.name}`
+          ? `Paying off the ${loanName(top.loan)} (about ${fmtPct(top.mc.annualCost)} ${ALL_IN}) beats ${best.name} (${pct(best.afterTaxEffective)} after tax)`
           : r.verdict === 'invest_safe'
-            ? `${best.name} earns ${gap} a year more than paying off the ${loanName(top.loan)}`
+            ? `${best.name} (${pct(best.afterTaxEffective)} after tax) beats paying off the ${loanName(top.loan)} (about ${fmtPct(top.mc.annualCost)} ${ALL_IN})`
             : `Paying off the ${loanName(top.loan)} and ${best.name} come out about even`,
       body:
         r.verdict === 'prepay'
@@ -78,7 +116,7 @@ function buildNotes(plan: PlanData): Note[] {
             ? 'This loan is cheap enough that a safe saving rate beats it after tax. The plan still pays it down; the tool shows what parking the cash instead would do.'
             : 'Within half a point either way. Paying the loan is certain; saving keeps the cash to hand.',
       math: [
-        { k: `${cap(loanName(top.loan))}, cost a year`, v: fmtPct(top.mc.annualCost), note: 'compounded monthly, after tax' },
+        { k: `${cap(loanName(top.loan))}, cost a year ${ALL_IN}`, v: fmtPct(top.mc.annualCost), note: 'compounded monthly, after tax' },
         {
           k: `${best.name}, after tax`,
           v: pct(best.afterTaxEffective),
@@ -91,7 +129,7 @@ function buildNotes(plan: PlanData): Note[] {
   }
 
   // 2. The tax a home loan's interest saves.
-  const home = ranked.find(({ loan }) => loan.loan_type === 'home_loan');
+  const home = ranked.find(({ loan }) => taxType(loan) === 'home_loan');
   if (home) {
     const shield = home.b.lines.find((l) => l.label === 'Tax shield')?.value ?? new Decimal(0);
     const yearly = loanToUserDecimal(
@@ -126,7 +164,9 @@ function buildNotes(plan: PlanData): Note[] {
       notes.push({
         eyebrow: 'TAX',
         title: `The ${name}'s interest doesn't lower your tax`,
-        body: 'Your itemised deductions come to less than the standard deduction, so the plan counts the mortgage at its full rate.',
+        body: user.itemises === true
+          ? 'Your itemised deductions come to less than the standard deduction, so the plan counts the mortgage at its full rate.'
+          : 'You take the standard deduction, so mortgage interest saves no tax and the plan counts the mortgage at its full rate. Itemize? Say so on the Tax page.',
       });
     }
   }
@@ -136,7 +176,8 @@ function buildNotes(plan: PlanData): Note[] {
   if (t) {
     notes.push({
       eyebrow: 'TAX BRACKET',
-      title: `Pay rises take you from the ${(t.from.marginalRate * 100).toFixed(0)}% to the ${(t.to.marginalRate * 100).toFixed(0)}% bracket in year ${t.year}`,
+      // E9: name the slab ("25% slab"), not slab × cess ("26%").
+      title: `Pay rises take you from the ${taxSlabShort(t.from.marginalRate, user.country)} to the ${taxSlabShort(t.to.marginalRate, user.country)} in year ${t.year}`,
       body: `At about ${formatCurrencyWhole(t.incomeAtTransition.toFixed(0), ccy)} a year. Each rise above that keeps less after tax, which the plan allows for.${plan.bracketTransitions.length > 1 ? ` ${plan.bracketTransitions.length - 1} more change${plan.bracketTransitions.length > 2 ? 's' : ''} later in the plan.` : ''}`,
     });
   }
@@ -164,11 +205,11 @@ export function PlanNotes({ plan }: { plan: PlanData }) {
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.accent, fontWeight: 700 }}>
+            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.accent, fontWeight: 700 }}>
               {String(i + 1).padStart(2, '0')} · {n.eyebrow}
             </span>
-            <strong style={{ fontSize: 13, lineHeight: 1.45 }}>{n.title}</strong>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.65, color: L_T.inkSoft }}>{n.body}</p>
+            <strong style={{ fontSize: 'var(--fs-body)', lineHeight: 1.45 }}>{n.title}</strong>
+            <p style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.65, color: L_T.inkSoft }}>{n.body}</p>
             {n.math && (
               <div style={{ maxWidth: 560 }}>
                 <LMathBlock rows={n.math} />

@@ -208,7 +208,7 @@ export function GoalsPage({
   }
 
   function applyTemplate(kind: TemplateKind) {
-    const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63 };
+    const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63, '80_plus': 82 };
     const spend = Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0');
     const t = expandTemplate({ kind, currentAge: user.age_bracket ? ages[user.age_bracket] : 30, monthlyExpenses: spend || undefined });
     if (!updateGoals([...goals, ...t.goals])) return;
@@ -284,7 +284,7 @@ export function GoalsPage({
         {form?.mode === 'new' && (
           <div style={{ marginBottom: 14 }}>
             {goals.length === 0 && (
-              <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted }}>
+              <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', color: L_T.muted }}>
                 No goals yet. Add what you&apos;re saving for, and the plan sets money aside for it.
               </p>
             )}
@@ -293,9 +293,9 @@ export function GoalsPage({
         )}
 
         {openGoals.length > 0 && (
-          <div role="table" aria-label="Goals" style={{ fontSize: 12 }}>
+          <div role="table" aria-label="Goals" style={{ fontSize: 'var(--fs-dense)' }}>
             {wide && (
-              <div role="row" style={{ ...gridWide, padding: '6px 0', borderBottom: `1px solid ${L_T.ink}`, fontSize: 10, color: L_T.muted, letterSpacing: '0.08em', fontWeight: 700 }}>
+              <div role="row" style={{ ...gridWide, padding: '6px 0', borderBottom: `1px solid ${L_T.ink}`, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em', fontWeight: 700 }}>
                 <span role="columnheader">#</span>
                 <span role="columnheader">GOAL</span>
                 <span role="columnheader" style={{ textAlign: 'right' }}>TARGET</span>
@@ -354,7 +354,7 @@ export function GoalsPage({
         )}
 
         {closedGoals.length > 0 && (
-          <div style={{ marginTop: 12, fontSize: 12 }}>
+          <div style={{ marginTop: 12, fontSize: 'var(--fs-dense)' }}>
             <LBracket onClick={() => setShowClosed((s) => !s)}>
               {showClosed ? '−' : '+'} CLOSED · {closedGoals.length}
             </LBracket>
@@ -362,7 +362,7 @@ export function GoalsPage({
               closedGoals.map((g) => (
                 <div key={g.id} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'baseline', padding: '8px 0', borderBottom: `1px dashed ${L_T.faint}` }}>
                   <span style={{ fontWeight: 700, flex: '1 1 180px', color: L_T.muted }}>{g.label}</span>
-                  <span style={{ fontSize: 10, letterSpacing: '0.12em', fontWeight: 700, color: L_T.muted }}>
+                  <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', fontWeight: 700, color: L_T.muted }}>
                     {g.status === 'archived' ? 'ARCHIVED' : 'CANCELLED'}
                     {g.closedAt ? ` ${g.closedAt}` : ''}
                   </span>
@@ -381,7 +381,7 @@ export function GoalsPage({
         )}
 
         {templateNote && (
-          <div role="status" style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, padding: '10px 12px', ...lStrip('accent'), background: L_T.paper }}>
+          <div role="status" style={{ marginTop: 12, fontSize: 'var(--fs-dense)', lineHeight: 1.6, padding: '10px 12px', ...lStrip('accent'), background: L_T.paper }}>
             <strong>{templateNote.summary}</strong>
             {templateNote.caveats.map((c) => (
               <div key={c} style={{ color: L_T.muted }}>· {c}</div>
@@ -391,7 +391,7 @@ export function GoalsPage({
         )}
 
         {/* Rows 14px apart, so each bracket's hit area stays its own. */}
-        <div style={{ marginTop: 14, fontSize: 11, color: L_T.muted, display: 'flex', gap: '14px 10px', flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <div style={{ marginTop: 14, fontSize: 'var(--fs-small)', color: L_T.muted, display: 'flex', gap: '14px 10px', flexWrap: 'wrap', alignItems: 'baseline' }}>
           <span>Or start from a template:</span>
           {TEMPLATE_CATALOGUE.map((t) => (
             <LBracket key={t.kind} onClick={() => applyTemplate(t.kind)} label={`${t.label}: ${t.description}`}>
@@ -449,14 +449,14 @@ function GoalRow({
       <span>
         <span style={{ fontWeight: 700, color: line.state === 'short' ? L_T.negative : L_T.ink }}>{fmt(line.monthly)}</span>
         {start && (
-          <span style={{ display: 'block', fontSize: 10, color: L_T.muted }}>
+          <span style={{ display: 'block', fontSize: 'var(--fs-small)', color: L_T.muted }}>
             from {monthLabel(`${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`)}
           </span>
         )}
       </span>
     );
   const status = (
-    <span style={{ fontSize: 9, letterSpacing: '0.12em', fontWeight: 700, color: toneColor }}>{GOAL_STATE_LABEL[line.state]}</span>
+    <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', fontWeight: 700, color: toneColor }}>{GOAL_STATE_LABEL[line.state]}</span>
   );
   const actions = (
     <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap', justifyContent: wide ? 'flex-end' : 'flex-start' }}>
@@ -508,7 +508,7 @@ function GoalRow({
     <div role="row" style={{ ...gridNarrow, ...rowStyle }}>
       <span role="cell" style={{ minWidth: 0 }}>
         {name}
-        <span style={{ display: 'block', fontSize: 11, color: L_T.muted, marginTop: 2 }}>
+        <span style={{ display: 'block', fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 2 }}>
           {fmt(line.saved)} of {line.required > 0 ? fmt(line.required) : '—'}
           {line.required > 0 ? ` (${pct}%)` : ''} · by {monthLabel(goal.targetMonth)}
         </span>
@@ -517,7 +517,7 @@ function GoalRow({
       </span>
       <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         <span style={{ display: 'block' }}>{monthly}</span>
-        {!funded && line.state !== 'no_amount' && <span style={{ display: 'block', fontSize: 9, color: L_T.muted }}>A MONTH</span>}
+        {!funded && line.state !== 'no_amount' && <span style={{ display: 'block', fontSize: 'var(--fs-small)', color: L_T.muted }}>A MONTH</span>}
         {status}
       </span>
     </div>

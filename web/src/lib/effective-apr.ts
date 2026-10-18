@@ -20,6 +20,7 @@
 import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
 import { GST_RATE_IN, gstApplies } from './gst';
+import { taxType } from '@/lib/loan-types';
 const GST_PCT = GST_RATE_IN.mul(100).toFixed(0);
 
 export interface BreakdownLine {
@@ -76,6 +77,10 @@ export function computeBreakdown(
    *  `usMortgageShieldShare(user)`. true = all of it: screens without a
    *  user (the onboarding preview) show the itemiser's figure, as labelled. */
   itemises: boolean | Decimal = true,
+  /** C7 (audit 80): the user's other loans, so a let-out home's loss gets
+   *  only the part of the one ₹2L set-off (s.109(1)(b)) that self-occupied
+   *  homes leave, plus 70% of its rent. Without it the loan is alone. */
+  allLoans?: LoanPayload[],
 ): Breakdown {
   const usShare = itemises === true ? D(1) : itemises === false ? D(0) : Decimal.min(1, Decimal.max(0, itemises));
   const nominal = D(loan.nominal_rate || '0');
@@ -110,15 +115,28 @@ export function computeBreakdown(
     shieldNote = annualInterest.gt(US_STUDENT_LOAN_INTEREST_MAX)
       ? 'IRC §221: up to $2,500 of interest a year is deductible (phases out at higher incomes)'
       : 'IRC §221: student-loan interest deduction (phases out at higher incomes)';
-  } else if (loan.loan_type === 'home_loan' && country === 'US' && usShare.lte(0)) {
+  } else if (taxType(loan) === 'home_loan' && country === 'US' && usShare.lte(0)) {
     shieldNote = 'Standard deduction: mortgage interest saves no tax';
-  } else if (deductible.has(loan.loan_type) && annualInterest.gt(0)) {
+  } else if (deductible.has(taxType(loan)) && annualInterest.gt(0)) {
     let cap: Decimal;
-    if (loan.loan_type === 'home_loan' && country === 'IN') {
+    if (taxType(loan) === 'home_loan' && country === 'IN') {
       cap = homeLoan24bCap(taxRegime ?? 'new', loan.property_use ?? 'self_occupied');
+      if (loan.property_use === 'let_out') {
+        // Engine let_out_room: rent after municipal tax and 30%, plus what
+        // is left of the ₹2L set-off after self-occupied homes (old regime).
+        const share = Decimal.min(1, Decimal.max(0, D(loan.tax_share ?? '1')));
+        const rentPart = D(loan.annual_rent || '0').mul(share).mul('0.7');
+        const soPool = (allLoans ?? [])
+          .filter((l) => l !== loan && taxType(l) === 'home_loan' && (l.property_use ?? 'self_occupied') !== 'let_out' && D(l.outstanding || '0').gt(0))
+          .reduce((a, l) => a.add(D(l.outstanding || '0').mul(D(l.nominal_rate || '0')).mul(D(l.tax_share ?? '1'))), D(0));
+        const setOff = (taxRegime ?? 'new') === 'old' ? Decimal.max(0, D('200000').sub(Decimal.min(soPool, D('200000')))) : D(0);
+        cap = rentPart.add(setOff);
+      }
       if (cap.isZero()) {
         shieldPct = D('0');
-        shieldNote = 'New regime: section 24b cap is ₹0';
+        shieldNote = loan.property_use === 'let_out'
+          ? 'No rent entered and no house-property set-off left: the interest lowers no tax'
+          : 'New regime: section 24b cap is ₹0';
       } else if (cap.eq(D('Infinity'))) {
         shieldPct = marginal;
       } else {
@@ -130,7 +148,7 @@ export function computeBreakdown(
       shieldPct = marginal;
       if (loan.loan_type === 'education_loan' && country === 'IN') {
         shieldNote = 'Sec 80E: interest fully deductible';
-      } else if (loan.loan_type === 'home_loan' && country === 'US') {
+      } else if (taxType(loan) === 'home_loan' && country === 'US') {
         shieldPct = marginal.mul(usShare);
         if (outstanding.gt(US_MORTGAGE_DEBT_LIMIT)) {
           shieldPct = shieldPct.mul(US_MORTGAGE_DEBT_LIMIT).div(outstanding);
@@ -151,7 +169,7 @@ export function computeBreakdown(
       sign: '−',
       note: shieldNote,
     });
-  } else if (deductible.has(loan.loan_type) && shieldNote) {
+  } else if (deductible.has(taxType(loan)) && shieldNote) {
     // Still surface why the shield is 0 even though the loan type qualifies.
     lines.push({
       label: 'Tax shield',

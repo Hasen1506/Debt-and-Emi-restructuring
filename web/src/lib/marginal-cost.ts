@@ -19,10 +19,21 @@ import type { LoanPayload, UserPayload } from './api';
 import { usMortgageShieldShare } from './deductions';
 import { GST_RATE_IN, gstApplies } from './gst';
 import { taxShare } from './india-tax-loans';
+import { lockInMonthsLeft } from './roll-forward';
 import TAX from './tax-tables.json';
+import { getCountryToday, localIsoDate } from './today';
 import { usMortgageMarginalRate } from './us-loans';
+import { fullCap24, taxType } from '@/lib/loan-types';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
+
+/** Audit 80+ C4: lock-in months still to run (from the stamped
+ *  `prepay_lock_in_until`), not the months as first typed, so a loan whose
+ *  lock-in has ended stops being ranked last. */
+function lockLeft(loan: LoanPayload, country: string): number {
+  const c = (country === 'US' ? 'US' : 'IN') as Parameters<typeof getCountryToday>[0];
+  return lockInMonthsLeft(loan, localIsoDate(getCountryToday(c)).slice(0, 7));
+}
 
 /** India's GST on card interest: the one rate in lib/gst.ts (engine/tax/gst.py). */
 export const GST_ON_CARD_INTEREST_IN = GST_RATE_IN;
@@ -43,6 +54,9 @@ export interface MarginalCost {
    *  prepaying, not of owing, so it comes off only in `total`. */
   annualCost: Decimal;
   total: Decimal;
+  /** Round 2 (item 4): the earner's-currency adjustment for a loan in
+   *  another currency (drift + transfer cost); 0 for a same-currency loan. */
+  fxAdjust?: Decimal;
   locked: boolean;
   /** Sort key, highest first: the total, with locked loans last. */
   orderKey: Decimal;
@@ -64,7 +78,8 @@ export function marginalCost(
   // GST is 18% of the year's interest and is never itself charged interest:
   // RBI Credit Card Master Direction 2022, para 9(b)(ii) and FAQ 7 ("unpaid
   // charges/levies/taxes shall not be capitalized"). 42% → 51.11% + 9.20% = 60.31%.
-  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12); C22: now in the
+  // consolidated card Directions 2025, id=13155 (NBFC id=12956), checked 14 Oct 2026.
   const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
@@ -131,12 +146,12 @@ function indiaOwnInterest(l: LoanPayload): Decimal {
 /** As the engine's _india_shield_kwargs, for today (sim month 1). */
 export function indiaShieldOptions(l: LoanPayload, regime: string, homeInterest: Decimal.Value, month = 1): IndiaShieldOptions {
   const o: IndiaShieldOptions = { share: taxShare(l) };
-  if (l.loan_type === 'home_loan') {
+  if (taxType(l) === 'home_loan') {
     if (l.property_use === 'let_out') {
       const used = regime === 'old' ? Decimal.min(D(homeInterest), D(TAX.in.deductions.sec24b_self_occupied_cap)) : D(0);
       o.letOut = true;
       o.cap = letOutRoom(regime, l.annual_rent, taxShare(l), used);
-    } else if (l.sec24_full_cap === false) {
+    } else if (!fullCap24(l)) {
       o.cap = D(TAX.in.deductions.sec24b_other_cap);
     }
   } else if (l.loan_type === 'education_loan' && l.tax_deduction_months_left != null) {
@@ -167,7 +182,7 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
   const idx = indices ?? user.loans.map((_, i) => i).filter((i) => open(user.loans[i]));
   const loans = user.loans;
   const sameMarket = (l: LoanPayload) => marketOf(l, own) === own && open(l);
-  const homes = loans.filter((l) => l.loan_type === 'home_loan' && sameMarket(l));
+  const homes = loans.filter((l) => taxType(l) === 'home_loan' && sameMarket(l));
   const edu = loans.filter((l) => l.loan_type === 'education_loan' && sameMarket(l));
   const interestOf = (ls: LoanPayload[]) => ls.reduce((s, l) => s.plus(D(l.outstanding || 0).times(D(l.nominal_rate || 0))), D(0));
   // India: the user's share of self-occupied interest + pre-construction
@@ -186,20 +201,48 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
     if (!l || !open(l)) continue;
     const regime = user.tax_regime ?? 'new';
     const india = own === 'IN' ? indiaShieldOptions(l, regime, homeInterest) : {};
-    const total = india.letOut ? indiaOwnInterest(l) : l.loan_type === 'home_loan' ? homeInterest : eduInterest;
+    const total = india.letOut ? indiaOwnInterest(l) : taxType(l) === 'home_loan' ? homeInterest : eduInterest;
     // A US mortgage saves no state tax in a no-income-tax state or one that
     // disallows mortgage interest (lib/us-loans, engine _home_rate, #79).
-    const rate = own === 'US' && l.loan_type === 'home_loan'
+    const rate = own === 'US' && taxType(l) === 'home_loan'
       ? usMortgageMarginalRate(marginalRate, user.state, user.state_marginal_rate ?? 0).toString()
       : marginalRate;
     const shield = marginalShield(
-      l.loan_type, own, rate, regime, itemisedShare.gt(0), itemisedShare,
+      taxType(l), own, rate, regime, itemisedShare.gt(0), itemisedShare,
       total, homeDebt, 1, india,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
+    const mc = marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), lockLeft(l, own));
+    out.set(i, withFx(mc, fxAdjust(l, user, mc.annualCost, Number(l.tenure_months_remaining || 0))));
   }
   return out;
+}
+
+/** World Bank average US → India cost of sending money ($500, Q3 2025);
+ *  engine/cross_border.REMITTANCE_COST_DEFAULT. */
+export const REMITTANCE_COST_DEFAULT: Record<string, string> = { USD: '0.0245' };
+
+/** Round 2 (item 4, engine marginal_cost._fx_adjust): a loan in another
+ *  currency than the user's pay, valued in the user's currency:
+ *  ((1 − c)^(1/years) · (1 + k) · (1 + drift)) − 1 − k. */
+export function fxAdjust(l: LoanPayload, user: Pick<UserPayload, 'country' | 'fx_drift_annualized'> & { remittance_cost?: string }, annualCost: Decimal, monthsLeft: number): Decimal {
+  const home = user.country === 'US' ? 'USD' : 'INR';
+  const ccy = (l.currency || home).toUpperCase();
+  if (ccy === home) return D(0);
+  const drift = D(user.fx_drift_annualized?.[ccy] ?? 0);
+  const c = user.remittance_cost != null && user.remittance_cost !== ''
+    ? D(user.remittance_cost)
+    : ccy === 'INR' ? D(REMITTANCE_COST_DEFAULT[home] ?? 0) : D(0);
+  if (drift.isZero() && c.isZero()) return D(0);
+  const years = Math.max(1, Math.ceil(Math.max(0, monthsLeft) / 12));
+  const kept = D(String(Math.pow(1 - c.toNumber(), 1 / years)));
+  return kept.times(D(1).plus(annualCost)).times(D(1).plus(drift)).minus(1).minus(annualCost);
+}
+
+function withFx(mc: MarginalCost, fx: Decimal): MarginalCost {
+  if (fx.isZero()) return mc;
+  const total = mc.total.plus(fx);
+  return { ...mc, fxAdjust: fx, annualCost: mc.annualCost.plus(fx), total, orderKey: mc.locked ? total.minus(LOCKED_OFFSET) : total };
 }
 
 /** One loan on its own (Profile's preview while a loan is typed in): its
@@ -216,10 +259,10 @@ export function loanMarginalCost(
   const interest = D(loan.outstanding || 0).times(D(loan.nominal_rate || 0));
   const own = marketOf(loan, country) === country;
   const india = own && country === 'IN' ? indiaShieldOptions(loan, regime, loan.property_use === 'let_out' ? 0 : indiaOwnInterest(loan)) : {};
-  const total = country === 'IN' && loan.loan_type === 'home_loan' ? indiaOwnInterest(loan) : interest;
-  const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, total, D(loan.outstanding || 0), 1, india) : D(0);
+  const total = country === 'IN' && taxType(loan) === 'home_loan' ? indiaOwnInterest(loan) : interest;
+  const shield = own ? marginalShield(taxType(loan), country, marginalRate, regime, share.gt(0), share, total, D(loan.outstanding || 0), 1, india) : D(0);
   const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
-  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), lockLeft(loan, country));
 }
 
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;

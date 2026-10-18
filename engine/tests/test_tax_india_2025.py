@@ -37,23 +37,8 @@ def _user(loans, regime=TaxRegimeIN.OLD) -> User:
 
 # ── section numbers ─────────────────────────────────────────────────────────
 
-def test_section_map_has_the_2025_numbers():
-    assert india.SECTION_MAP["80C"].startswith("123")
-    assert india.SECTION_MAP["80E"] == "129"
-    assert india.SECTION_MAP["115BAC"] == "202"
-    assert india.SECTION_MAP["87A"] == "156"
-    assert india.SECTION_MAP["24(b)"].startswith("22(1)(b)")
-    assert india.section_label("80E") == "s.80E (Income-tax Act 2025: s.129)"
-
 
 # ── #31: 80E window ─────────────────────────────────────────────────────────
-
-def test_80e_window_is_the_initial_tax_year_and_seven_more():
-    # First interest Jul 2020 → initial tax year 2020-21; window ends 31 Mar 2028.
-    assert india.sec80e_months_left(2020, 7, 2026, 10) == 18
-    # First interest Feb 2020 → initial tax year 2019-20; ended 31 Mar 2027.
-    assert india.sec80e_months_left(2020, 2, 2026, 10) == 6
-    assert india.sec80e_months_left(2015, 5, 2026, 10) == 0
 
 
 def test_education_loan_in_year_9_gets_no_shield():

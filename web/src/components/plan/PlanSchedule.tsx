@@ -10,10 +10,12 @@
 import { paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { PlanData } from './PlanData';
-import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
+import { formatCurrencyWhole, formatPct, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
+import { owedTodayLine } from '@/lib/owed-today';
+import { localTerms } from '@/lib/terms';
 import { loanCurrency } from '@/lib/currency';
-import { CSV_START_LABEL, scheduleCsvFilename, scheduleCsvHeader } from '@/lib/schedule-csv';
+import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type ScheduleCsvRow } from '@/lib/schedule-csv';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears, owedAtStart } from './plan-milestones';
@@ -37,16 +39,6 @@ const LOAN_SHORT: Record<string, string> = {
 /** "HDFC home loan" (not "HDFC Bank home loan"), or "Home loan" without a lender. */
 const loanName = (l: LoanPayload): string => loanLabel(l);
 
-type ScheduleCsvRow = {
-  mo: number;
-  date: string;
-  perLoan: Record<number, string>;
-  extra: number;
-  interest: number;
-  principal: number;
-  balance: number;
-  event: string;
-};
 
 function csvCell(v: string | number): string {
   const t = String(v);
@@ -62,20 +54,9 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: Schedule
   // UX50 B-33: headers in words, a dated filename, the opening row named.
   const header = scheduleCsvHeader(loans, country, ccy);
   // The first line is what's owed at the start, as on screen.
-  const lines = [start, ...rows].map((r) =>
-    [
-      r === start ? 0 : r.mo,
-      r === start ? CSV_START_LABEL : r.date,
-      ...loans.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
-      Math.round(r.extra),
-      Math.round(r.interest),
-      Math.round(r.principal),
-      Math.round(r.balance),
-      r.event,
-    ]
-      .map(csvCell)
-      .join(','),
-  );
+  // Audit 80+ C19: balances go in their own "owed at start" columns, so a
+  // SUM down a loan's paid column adds payments only.
+  const lines = [start, ...rows].map((r) => scheduleCsvCells(r, r === start, loans.length).map(csvCell).join(','));
   const blob = new Blob([[header.map(csvCell).join(','), ...lines].join('\n') + '\n'], {
     type: 'text/csv;charset=utf-8',
   });
@@ -122,6 +103,8 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
     const money = (v: number) => formatCurrencyWhole(Math.round(v), plan.displayCurrency);
     for (const [m, e] of gapEvents(plan.gap, money, gapRateWords(plan.gap.rate))) add(m, e);
   }
+  const nf = plan.scheduleCut?.notFundableFrom;
+  if (nf != null) add(nf, '✕ NOT FUNDABLE FROM HERE · THE GAP CAN’T BE BORROWED');
   const last = plan.monthlyPayments.at(-1)?.month ?? 0;
   for (let m = 12; m < last; m += 12) {
     if (!events.has(m)) add(m, `⊙ END OF YEAR ${m / 12}`);
@@ -211,11 +194,45 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   });
   const rows = stop.lastMonth == null ? allRows : allRows.filter((r) => r.mo <= stop.lastMonth!);
   const stopRow = stop.lastMonth != null ? rows.find((r) => r.mo === stop.lastMonth) : undefined;
+  // Integration phase 5 (C11): a capped plan stops at its first unfundable
+  // month, and the heading and stop line say "not fundable from <month>"
+  // (there is no debt-free date: plan.debtFreeMonth is null).
+  const notFundableFrom = plan.scheduleCut?.notFundableFrom ?? null;
+  const nfLabel = (() => {
+    if (notFundableFrom == null) return null;
+    const d = monthIndexToDate(notFundableFrom, today);
+    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+  })();
   const money = (v: number) => fc(v.toFixed(0));
   const cell = (v: number) => boundedMoney(v, cap, money);
   const eventRows = rows.filter((r) => r.event || r.mo === stop.lastMonth);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
+  // Audit 80+ E13: every column has its own name ("CARD", "CARD" for two
+  // cards with no lender was read twice the same); scope="col" below.
+  const loanHeads = uniqueLabels(
+    loanCols.map(
+      (l) =>
+        // Type first: two loans from one bank used to show as two
+        // identical "HDFC BAN" columns.
+        `${LOAN_SHORT[l.loan_type] ?? 'LOAN'}${l.bank ? ` · ${l.bank.split(' ')[0].slice(0, 6)}` : ''}`.toUpperCase() +
+        // A loan in another currency says so: its column is in it.
+        (loanCurrency(l, plan.user.country) !== ccy ? ` (${loanCurrency(l, plan.user.country)})` : ''),
+    ),
+  );
+  const headers = [
+    'MO',
+    'DATE',
+    // Next to the date: in the collapsed view it's why the row is there.
+    'EVENT',
+    ...loanHeads,
+    ...(mixed ? [`TOTAL (${ccy})`] : []),
+    'EXTRA',
+    'INTEREST',
+    'PRINCIPAL',
+    'BALANCE',
+    ...(showGap ? ['GAP OWED'] : []),
+  ];
 
   return (
     <section id="schedule" style={{ scrollMarginTop: 16 }}>
@@ -248,34 +265,48 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </span>
         }
       >
-        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? ' · NEVER CLEARS' : ''} ·{' '}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''} ·{' '}
         {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
       </LSectionHeader>
       {visibleRows.length === 0 ? (
-        <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
+        <div style={{ padding: '14px 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
         </div>
       ) : (
         <>
-        <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
           The first row is what you owe on each loan at the start of {startLabel.charAt(0) + startLabel.slice(1, 3).toLowerCase()}, before
           this month&apos;s payments. Every row after it is what you pay that month: each loan&apos;s
           column is its {paymentWords(plan.user.country).one} or minimum plus any extra, not what&apos;s left on it. BALANCE is what&apos;s left on all of them
           at the month&apos;s end.
         </p>
         {mixed && (
-          <div role="note" style={{ padding: '6px 0 8px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+          <div role="note" style={{ padding: '6px 0 8px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>
             Loan columns marked ({foreign.join(', ')}) are in that loan&apos;s own currency. TOTAL, EXTRA, INTEREST,
             PRINCIPAL and BALANCE are in {ccy}, converted at the exchange rate saved on your profile.
           </div>
         )}
-        {/* Live re-test NEW-17: on a phone the table is wider than the screen;
-            say so, since the scroll bar is hidden until touched. */}
-        <style>{`.rd-scroll-hint{display:none}@media (max-width: 820px){.rd-scroll-hint{display:block}}`}</style>
-        <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 10, color: L_T.muted }}>
-          SWIPE SIDEWAYS FOR EVERY COLUMN →
-        </div>
+        {/* Audit 80+ B18: up to 820px the months are cards, one per month,
+            with each loan's split behind a tap; the full table (and the
+            CSV and print) from there up. No sideways swipe. */}
+        <style>{`.rd-month-cards{display:none}
+@media (max-width: 820px){.rd-month-table{display:none !important}.rd-month-cards{display:block}}
+@media print{.rd-month-table{display:block !important}.rd-month-cards{display:none !important}}`}</style>
+        <MonthCards
+          rows={visibleRows}
+          startLabel={startLabel}
+          owedToday={owedToday}
+          loans={loanCols}
+          loanHeads={loanHeads}
+          country={plan.user.country}
+          fc={fc}
+          cell={cell}
+          totalByMonth={totalByMonth}
+          finalMonth={finalMonth}
+          gapMonths={gapMonths}
+        />
         <div
+          className="rd-month-table"
           role="region"
           aria-label="Month-by-month schedule"
           tabIndex={0}
@@ -286,7 +317,10 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)', minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
+            <caption className="sr-only">
+              Month by month: what you pay on each loan, the extra, interest, principal and what is left at each month&apos;s end
+            </caption>
             <thead>
               <tr
                 style={{
@@ -298,35 +332,16 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   zIndex: 1,
                 }}
               >
-                {[
-                  'MO',
-                  'DATE',
-                  // Next to the date: in the collapsed view it's why the row
-                  // is there, and on a phone it's on screen without scrolling.
-                  'EVENT',
-                  // Type first: two loans from one bank used to show as
-                  // two identical "HDFC BAN" columns.
-                  ...loanCols.map(
-                    (l) =>
-                      `${LOAN_SHORT[l.loan_type] ?? 'LOAN'}${l.bank ? ` · ${l.bank.split(' ')[0].slice(0, 6)}` : ''}`.toUpperCase() +
-                      // A loan in another currency says so: its column is in it.
-                      (loanCurrency(l, plan.user.country) !== ccy ? ` (${loanCurrency(l, plan.user.country)})` : ''),
-                  ),
-                  ...(mixed ? [`TOTAL (${ccy})`] : []),
-                  'EXTRA',
-                  'INTEREST',
-                  'PRINCIPAL',
-                  'BALANCE',
-                  ...(showGap ? ['GAP OWED'] : []),
-                ].map((h, i) => (
+                {headers.map((h, i) => (
                   <th
                     key={i}
+                    scope="col"
                     title={help[h]}
                     style={{
                       padding: '6px 10px',
                       textAlign: i < 3 ? 'left' : 'right',
                       fontWeight: 700,
-                      fontSize: 9,
+                      fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                       color: L_T.muted,
                       letterSpacing: '0.06em',
                     }}
@@ -342,7 +357,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
                 <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
-                <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
+                <td style={{ padding: '7px 10px', fontSize: 'var(--fs-small)', fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
                 {loanCols.map((l, idx) => {
                   const owed = Number(l.outstanding) || 0;
                   const later = (l.planned_effective_month ?? 1) > 1;
@@ -366,7 +381,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                 >
                   <td style={{ padding: '7px 10px' }}>{String(r.mo).padStart(2, '0')}</td>
                   <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{r.date}</td>
-                  <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, minWidth: 180, maxWidth: 260, lineHeight: 1.5 }}>
+                  <td style={{ padding: '7px 10px', fontSize: 'var(--fs-small)', fontWeight: 700, minWidth: 180, maxWidth: 260, lineHeight: 1.5 }}>
                     {r.event}
                   </td>
                   {loanCols.map((l, idx) => (
@@ -375,7 +390,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                         ? formatCurrencyWhole(Number(r.perLoan[idx]).toFixed(0), loanCurrency(l, plan.user.country))
                         : '—'}
                       {r.perLoan[idx] && finalMonth.get(idx) === r.mo ? (
-                        <div style={{ fontSize: 9, letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
+                        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
                       ) : null}
                     </td>
                   ))}
@@ -384,17 +399,19 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       {fc((totalByMonth.get(r.mo) ?? 0).toFixed(0))}
                     </td>
                   )}
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.accent, fontWeight: 700 }}>
+                  {/* Audit 80+ B19: planned extra and interest are ink, not
+                      alarm colours; red is kept for short months and gap debt. */}
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.ink, fontWeight: 700 }}>
                     {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
                   </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative }}>{cell(r.interest)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.ink }}>{cell(r.interest)}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.positive }}>{cell(r.principal)}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{cell(r.balance)}</td>
                   {showGap && (
                     <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative, whiteSpace: 'nowrap' }}>
                       {gapMonths[r.mo]?.debt ? cell(gapMonths[r.mo].debt) : '—'}
                       {gapMonths[r.mo]?.repaid ? (
-                        <div style={{ fontSize: 9, letterSpacing: '0.06em', color: L_T.positive }}>
+                        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', color: L_T.positive }}>
                           {cell(gapMonths[r.mo].repaid)} REPAID
                         </div>
                       ) : null}
@@ -406,11 +423,20 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </table>
         </div>
         {stopRow ? (
-          <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 11, lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
-            {scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
+          <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
+            {nfLabel ? scheduleStopLine(false, nfLabel, true) : scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
           </div>
         ) : (
-          <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
+          <ScheduleFooter
+            totals={totals}
+            fc={fc}
+            gstApplies={gstApplies}
+            gapReason={scheduleGapReason(plan.runArgs?.user.fx_drift_annualized)}
+            owedLine={(() => {
+              const line = owedTodayLine(plan.owedToday, MONTH_NAMES[getCountryToday(plan.user.country).getMonth()], (v) => fc(Math.round(v)));
+              return line ? localTerms(line, plan.user.country) : null;
+            })()}
+          />
         )}
         </>
       )}
@@ -419,16 +445,136 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   );
 }
 
-/** Principal + interest = cash paid, and principal against today's balance. */
-function ScheduleFooter({ totals, fc, gstApplies }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean }) {
+/** "CARD", "CARD" → "CARD 1", "CARD 2"; unique labels are left alone. */
+export function uniqueLabels(labels: string[]): string[] {
+  const count = new Map<string, number>();
+  for (const l of labels) count.set(l, (count.get(l) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return labels.map((l) => {
+    if ((count.get(l) ?? 0) < 2) return l;
+    const n = (seen.get(l) ?? 0) + 1;
+    seen.set(l, n);
+    return `${l} ${n}`;
+  });
+}
+
+/** Audit 80+ B18: the schedule on a phone, one card per month: the date and
+ *  what happens, then paid, interest and what's left; each loan's share
+ *  behind a tap. Same rows as the table (events only, or every month). */
+function MonthCards({
+  rows,
+  startLabel,
+  owedToday,
+  loans,
+  loanHeads,
+  country,
+  fc,
+  cell,
+  totalByMonth,
+  finalMonth,
+  gapMonths,
+}: {
+  rows: ScheduleCsvRow[];
+  startLabel: string;
+  owedToday: number;
+  loans: LoanPayload[];
+  loanHeads: string[];
+  country: PlanData['user']['country'];
+  fc: (v: string | number) => string;
+  cell: (v: number) => string;
+  totalByMonth: Map<number, number>;
+  finalMonth: Map<number, number>;
+  gapMonths: Record<number, { debt?: number; repaid?: number }>;
+}) {
+  const sentence = (d: string) => d.charAt(0) + d.slice(1).toLowerCase();
+  const term: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-label)', letterSpacing: '0.08em', textTransform: 'uppercase', color: L_T.muted };
+  const fig: React.CSSProperties = { margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)', fontWeight: 700, color: L_T.ink };
   return (
-    <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 10, color: L_T.muted, lineHeight: 1.6 }}>
+    <ol className="rd-month-cards" aria-label="Month by month" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+      <li style={{ padding: '10px 0', borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
+        <h3 style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 600 }}>Owed at the start of {sentence(startLabel)}</h3>
+        <p style={{ ...fig, fontSize: 'var(--fs-body)', marginTop: 2 }}>{fc(Math.round(owedToday))}</p>
+      </li>
+      {rows.map((r) => {
+        const paid = totalByMonth.get(r.mo) ?? r.interest + r.principal;
+        const shares = loans
+          .map((l, i) => ({ name: loanHeads[i], v: r.perLoan[i], ccy: loanCurrency(l, country), final: finalMonth.get(i) === r.mo }))
+          .filter((x) => x.v && Number(x.v) > 0);
+        const gap = gapMonths[r.mo];
+        return (
+          <li key={r.mo} data-testid="month-card" style={{ padding: '10px 0', borderBottom: `1px dashed ${L_T.faint}` }}>
+            <h3 style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 600 }}>
+              {sentence(r.date)} <span style={{ color: L_T.muted, fontWeight: 400, fontSize: 'var(--fs-small)' }}>· month {r.mo}</span>
+            </h3>
+            {r.event && <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-small)', fontWeight: 700, lineHeight: 1.45 }}>{r.event}</p>}
+            <dl style={{ margin: '6px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              <div>
+                <dt style={term}>Paid</dt>
+                <dd style={fig}>{fc(Math.round(paid))}</dd>
+              </div>
+              <div>
+                <dt style={term}>Interest</dt>
+                <dd style={fig}>{cell(r.interest)}</dd>
+              </div>
+              <div>
+                <dt style={term}>Left</dt>
+                <dd style={fig}>{cell(r.balance)}</dd>
+              </div>
+            </dl>
+            {(shares.length > 0 || r.extra > 0 || gap?.debt) && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-small)', color: L_T.inkSoft }}>Each loan{r.extra > 0 ? ` · ${fc(Math.round(r.extra))} extra` : ''}</summary>
+                <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)' }}>
+                  {shares.map((x) => (
+                    <li key={x.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>{x.name}</span>
+                      <span>
+                        {formatCurrencyWhole(Math.round(Number(x.v)), x.ccy)}
+                        {x.final ? <span style={{ color: L_T.positive }}> · final</span> : null}
+                      </span>
+                    </li>
+                  ))}
+                  {gap?.debt ? (
+                    <li style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: L_T.negative }}>
+                      <span>Gap owed</span>
+                      <span>{cell(gap.debt)}</span>
+                    </li>
+                  ) : null}
+                </ul>
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Principal + interest = cash paid, and principal against today's balance. */
+/** UX walkthrough fix 14: why principal repaid differs from what's owed. An
+ *  NRI's rupee loan shrinks in dollars as the plan assumes the rupee slides;
+ *  that is the gap, not "a balance the plan doesn't clear". */
+export function scheduleGapReason(drift: Record<string, string> | undefined | null): string {
+  const slide = Object.entries(drift ?? {}).filter(([, r]) => Number(r) > 0);
+  if (slide.length === 0) return "loans that start later, or a balance the plan doesn't clear";
+  const [ccy, r] = slide[0];
+  const name = ccy === 'INR' ? 'rupee' : ccy;
+  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${formatPct(r, 1).replace(/\.0%$/, '%')} a year`;
+}
+
+function ScheduleFooter({ totals, fc, gstApplies, owedLine, gapReason = "loans that start later, or a balance the plan doesn't clear" }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean; owedLine?: string | null; gapReason?: string }) {
+  // UX walkthrough fix 4: with EMIs already paid this month, the schedule
+  // starts before them; say so beside what you owe today (engine/owed_today).
+  const owed = owedLine ? 'owed at the start of the plan' : 'you owe today';
+  return (
+    <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
       <strong style={{ color: L_T.ink, letterSpacing: '0.06em' }}>OVER THE PLAN · </strong>
       PRINCIPAL {fc(totals.principal.toFixed(0))} + INTEREST {fc(totals.interest.toFixed(0))}
       {gstApplies ? ' (GST ON CARD INTEREST INCLUDED)' : ''} = {fc(totals.cash.toFixed(0))} PAID.{' '}
       {totals.tiesOut
-        ? `Principal repaid matches the ${fc(totals.outstanding.toFixed(0))} you owe today.`
-        : `Principal repaid differs from the ${fc(totals.outstanding.toFixed(0))} you owe today by ${fc(Math.abs(totals.gap).toFixed(0))}: loans that start later, or a balance the plan doesn't clear.`}{' '}
+        ? `Principal repaid matches the ${fc(totals.outstanding.toFixed(0))} ${owed}.`
+        : `Principal repaid differs from the ${fc(totals.outstanding.toFixed(0))} ${owed} by ${fc(Math.abs(totals.gap).toFixed(0))}: ${gapReason}.`}{' '}
+      {owedLine ? <span data-testid="owed-today-line">{owedLine} </span> : null}
       A payoff month is more than the balance because that month&apos;s interest is added first.
     </div>
   );
@@ -468,7 +614,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
         alignItems: 'baseline',
         gap: 12,
         flexWrap: 'wrap',
-        fontSize: 11,
+        fontSize: 'var(--fs-small)',
         lineHeight: 1.6,
       }}
     >

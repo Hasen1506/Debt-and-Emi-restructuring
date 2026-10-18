@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Iterable, Optional
+from typing import Iterable
 
 # Keys are the milestone keys engine/complaint_deadlines.py and
 # engine/closure_letter.py already emit.
@@ -105,28 +105,3 @@ def schedule(items: Iterable[Item], *, today: date) -> list[Reminder]:
     return out
 
 
-def due_on(reminders: Iterable[Reminder], day: date) -> list[Reminder]:
-    return [r for r in reminders if r.send_on == day]
-
-
-def from_milestones(milestones: Iterable[dict], source: str = "complaint") -> list[Item]:
-    """Read the timeline milestones the API already returns
-    ({key, label, day: 'YYYY-MM-DD', state}). 'done' and 'missed' states
-    need no reminder."""
-    items = []
-    for m in milestones:
-        try:
-            d = date.fromisoformat(str(m["day"]))
-        except (KeyError, ValueError):
-            continue
-        key = str(m.get("key", ""))[:40]
-        label = " ".join(str(m.get("label", "")).split())[:120]
-        if not key or not label:
-            continue
-        items.append(Item(key, label, d, source, done=m.get("state") in ("done", "missed")))
-    return items
-
-
-def next_reminder(reminders: Iterable[Reminder]) -> Optional[Reminder]:
-    rs = list(reminders)
-    return rs[0] if rs else None

@@ -411,7 +411,7 @@
       "first_month_due": [
         {
           "loan": "Credit card",
-          "payment": "360"
+          "payment": "358"
         },
         {
           "loan": "Personal loan",
@@ -880,7 +880,7 @@
     "vs_smallest_first": {
       "debt_free": "Nov 2035",
       "months_sooner": 0,
-      "interest_saved": "753"
+      "interest_saved": "754"
     },
     "vs_only_whats_due": {
       "debt_free": "Sep 2050",

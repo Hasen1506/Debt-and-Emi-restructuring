@@ -5,14 +5,15 @@ from decimal import ROUND_HALF_UP, Decimal, localcontext
 from fastapi import APIRouter, HTTPException
 
 from engine.simulation import simulate_plan, baseline_minimums_only, goal_tradeoff, non_amortising_loans
-from engine.models import LifecycleEvent, LifecycleEventKind, User
+from engine.models import LifecycleEvent, LifecycleEventKind, LoanType, User
 from engine.goals import GoalState, debt_gate, serial_fill_allocation
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
 )
-from engine.surplus import allocate_surplus, compute_available_surplus
+from engine.surplus import allocate_surplus, compute_available_surplus, from_user_currency
 from engine.tenure_whatif import stretch_tenure
+from engine.prepay_choice import PREPAY_MODES, REDUCE_TENURE, prepay_effect
 
 from api.engine_cache import engine_cache
 from api.schemas import (
@@ -20,8 +21,9 @@ from api.schemas import (
     GoalTradeoffResponse, SimulateRequest,
     SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
-    GapClosedOut, NonAmortisingOut,
+    GapClosedOut, NonAmortisingOut, SeasonalOut, SeasonalRunOut,
 )
+from api.prepay_schema import PrepayOption
 
 
 def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
@@ -40,6 +42,9 @@ def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
             funding_amount=g.funding_amount,
             funding_pct=g.funding_pct,
             after_loan_index=g.after_loan_index,
+            funding_end_month_index=g.funding_end_month_index,
+            funding_cap=g.funding_cap,
+            pause_below=g.pause_below,
         )
         for g in goals
     ]
@@ -272,6 +277,10 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             gap_borrowed=q(row.gap_borrowed),
             gap_repaid=q(row.gap_repaid),
             gap_from_savings=q(row.gap_from_savings),
+            held_for_lock_in=q(row.held_for_lock_in),
+            catch_up_by_loan_index=qd(row.catch_up_by_loan_index),
+            settlement_pot_by_loan_index=qd(row.settlement_pot_by_loan_index),
+            unfunded_shortfall=q(row.unfunded_shortfall),
         ))
     return points
 
@@ -310,14 +319,44 @@ def _bounded(points: list[TrajectoryPoint], never_clears: bool) -> tuple[list[Tr
     return kept, None, False
 
 
-def _gap_fields(result) -> dict:
-    """Gap borrowing summary for a SimulateResponse (grill #38)."""
+def _gap_fields(result, user_in=None) -> dict:
+    """Gap borrowing summary for a SimulateResponse (grill #38, Audit C11)."""
     g = result.gap_rate
     return dict(
         gap_rate=g.annual_rate if g else None,
         gap_rate_basis=g.basis if g else None,
         gap_rate_source=g.source if g else None,
         total_gap_interest=_cents(result.total_gap_interest),
+        gap_limit=_cents(result.gap_limit) if result.gap_limit is not None else None,
+        gap_limit_assumed=user_in is not None and user_in.gap_credit_limit is None and result.gap_limit is not None,
+        infeasible_from_month=result.infeasible_from_month,
+        unfunded_shortfall=_cents(result.unfunded_shortfall_total),
+    )
+
+
+def _contract_fields(result, user_in) -> dict:
+    """Audit C1-C3/C15: rate-rise options, maturities, loan warnings."""
+    from api.schemas import LoanWarningOut, MaturityOut, RateRiseEventOut, RateRiseOptionOut
+    rises = []
+    for ev in result.rate_rise_events:
+        o = ev.options
+        rises.append(RateRiseEventOut(
+            month=ev.month_index, loan_index=ev.loan_index, old_rate=o.old_rate, new_rate=o.new_rate,
+            old_emi=_cents(o.old_emi), months_left_before=o.months_left_before, applied=o.applied,
+            options=[RateRiseOptionOut(mode=x.mode, emi=x.emi, months_left=x.months_left,
+                                       total_interest=x.total_interest, emi_change=x.emi_change,
+                                       months_change=x.months_change, capped=x.capped)
+                     for x in o.options.values()],
+            extra_interest_if_extended=_cents(o.extra_interest_if_extended),
+            recommended=o.recommended, reason=o.reason,
+        ))
+    warnings = [LoanWarningOut(loan_index=i, message=msg)
+                for i, l in enumerate(user_in.loans) for msg in l.contract_warnings()]
+    return dict(
+        rate_rise_events=rises,
+        maturities=[MaturityOut(loan_index=x.loan_index, month=x.month_index, kind=x.kind,
+                                amount_due=x.amount_due, short=x.short) for x in result.maturities],
+        loan_warnings=warnings,
     )
 
 
@@ -337,7 +376,9 @@ def _gap_closed(user, req, kwargs, result) -> GapClosedOut | None:
     )
     return GapClosedOut(
         cut=cut.quantize(_CENT, rounding=ROUND_HALF_UP),
-        debt_free_month=closed.debt_free_month,
+        # Integration phase 5 (C11): a gap-closed run that is itself capped
+        # (a later month can't be borrowed) clears only on paper: no date.
+        debt_free_month=None if getattr(closed, "infeasible_from_month", None) is not None else closed.debt_free_month,
         total_interest_paid=closed.total_interest_paid.quantize(_CENT, rounding=ROUND_HALF_UP),
     )
 
@@ -363,13 +404,34 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         goals=_build_goal_states(req.goals) if req.goals else None,
         debt_budget=req.debt_budget,
         gap_as_debt=req.gap_as_debt,
+        **_low_rate_kwargs(req),
     )
 
 
+def _low_rate_kwargs(req) -> dict:
+    """Audit 80+ A4: the user's own prepay/keep split, once only cheap debt is left."""
+    share = getattr(req, "low_rate_invest_share", None)
+    if share is None:
+        return {}
+    # Round 2 (item 3): the trigger is the user's own assumed return after
+    # tax (default 6.5% IN / 4% US) + 1 point, not a fixed 10%.
+    from engine.prepay_invest import DEFAULT_ASSUMED_RETURN, SPLIT_MARGIN
+    u = getattr(req, "user", None)
+    own = getattr(u, "assumed_post_tax_return", None)
+    country = getattr(getattr(u, "country", None), "value", "IN")
+    base = own if own is not None else DEFAULT_ASSUMED_RETURN.get(country, DEFAULT_ASSUMED_RETURN["US"])
+    return {"low_rate_invest": (base + SPLIT_MARGIN, share)}
+
+
 def _never_clears(result, user) -> bool:
-    """Not cleared within the horizon while something is owed."""
+    """Not cleared within the horizon while something is owed, or cleared
+    only on paper: from `infeasible_from_month` the plan pays with money
+    that could be neither found nor borrowed (gap limit hit, Audit C11), so
+    its debt-free date and totals aren't a result to show as normal."""
     owed = any(l.outstanding > 0 for l in user.loans)
-    return owed and result.debt_free_month is None
+    if not owed:
+        return False
+    return result.debt_free_month is None or getattr(result, "infeasible_from_month", None) is not None
 
 
 def _bounded_fields(result, user) -> dict:
@@ -416,12 +478,79 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
     return engine_cache.get_or_run("simulate", req, lambda: _simulate_uncached(req))
 
 
+def _seasonal_setup(req: SimulateRequest, user, kwargs: dict):
+    """Round 2 (item 4): with a seasonal pattern on the profile, run the plan
+    month by month on it (engine/income_scenarios: the pattern, scaled by
+    each year's hike, as salary resets with the flat hike off). Returns the
+    user and kwargs to run, the income path (None when not applied) and why
+    it was skipped. A planned salary change can't be combined with a
+    pattern (income_scenarios rule), so the pattern is then skipped and the
+    response says so."""
+    si = getattr(req.user, "seasonal_income", None)
+    if si is None:
+        return user, kwargs, None, None
+    from engine.income_scenarios import (
+        IncomeScenario, SeasonalIncome, build_income_path, plan_user, to_lifecycle_events,
+    )
+    events = list(kwargs.get("lifecycle_events") or [])
+    if any(e.kind == LifecycleEventKind.SALARY_RESET for e in events):
+        return user, kwargs, None, "salary_change_planned"
+    path = build_income_path(
+        user, req.horizon_months, IncomeScenario(seasonal=SeasonalIncome(tuple(si.pattern))),
+        simulation_start_month=req.simulation_start_month,
+    )
+    kw = dict(kwargs)
+    kw["lifecycle_events"] = events + to_lifecycle_events(path)
+    if si.reserve:
+        kw["income_lookahead"] = list(path)
+    return plan_user(user, path), kw, path, None
+
+
+def _seasonal_out(req, user, kwargs, path, skipped, result) -> Optional[SeasonalOut]:
+    """Both versions (reserve on / off) for an honest interest line."""
+    si = getattr(req.user, "seasonal_income", None)
+    if si is None:
+        return None
+    if path is None:
+        return SeasonalOut(applied=False, reserve_on=si.reserve, skipped_reason=skipped)
+    avg = sum(si.pattern, D("0")) / 12
+    lean = [i + 1 for i, v in enumerate(si.pattern) if v < avg]
+    kw = {k: v for k, v in kwargs.items() if k != "income_lookahead"}
+    if kw.get("goals") is not None:
+        kw["goals"] = deepcopy(kw["goals"])
+    if not si.reserve:
+        kw["income_lookahead"] = list(path)
+    other = simulate_plan(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate, stop_owed_multiple=ENGINE_STOP_MULTIPLE, **kw,
+    )
+    on, off = (result, other) if si.reserve else (other, result)
+
+    def run(r) -> SeasonalRunOut:
+        return SeasonalRunOut(
+            debt_free_month=None if r.infeasible_from_month is not None else r.debt_free_month,
+            total_interest_paid=_cents(r.total_interest_paid),
+            total_gap_interest=_cents(r.total_gap_interest),
+            infeasible_from_month=r.infeasible_from_month,
+        )
+
+    peak = max((a.efund_balance - b.efund_balance for a, b in zip(on.months, off.months)), default=D("0"))
+    return SeasonalOut(
+        applied=True, reserve_on=si.reserve, lean_months=lean,
+        with_reserve=run(on), without_reserve=run(off),
+        reserve_interest_difference=_cents(on.total_interest_paid) - _cents(off.total_interest_paid),
+        peak_reserve=_cents(max(D("0"), peak)),
+    )
+
+
 def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
     # simulate_plan mutates these goal states (saved_so_far, saved_at_target);
     # afterwards they carry the end-of-trajectory state for the fill rates.
     # The snapshot builder below gets its own fresh copy.
     kwargs = _plan_kwargs(req)
+    user, kwargs, season_path, season_skipped = _seasonal_setup(req, user, kwargs)
+    season_kwargs = {**kwargs, "goals": deepcopy(kwargs["goals"])}
     goal_states = kwargs["goals"]
     # A fresh copy for the gap-closed run (simulate_plan fills goal states).
     closed_kwargs = {**kwargs, "goals": deepcopy(goal_states)}
@@ -433,7 +562,9 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     if stop is not None:
         return stop
     return SimulateResponse(
-        **_gap_fields(result),
+        **_gap_fields(result, req.user),
+        **_contract_fields(result, req.user),
+        **_owed_today_fields(user, req),
         gap_closed=_gap_closed(user, req, closed_kwargs, result),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
@@ -462,7 +593,15 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
         payoff_order_note=result.payoff_order_note,
         pmi_events=_pmi_events(result, user),
         never_clears=_never_clears(result, user),
+        seasonal=_seasonal_out(req, user, season_kwargs, season_path, season_skipped, result),
     )
+
+
+def _owed_today_fields(user, req) -> dict:
+    """UX walkthrough fix 4: the one "what you owe today" figure."""
+    from engine.owed_today import owed_today
+    o = owed_today(user, req.paid_emi_this_month)
+    return dict(owed_today=o.total, owed_start_of_month=o.start_of_month, owed_today_interest_in_paid=o.interest_in_paid)
 
 
 def _pmi_events(result, user) -> list:
@@ -518,7 +657,7 @@ def _baseline_uncached(req: BaselineRequest) -> SimulateResponse:
     if stop is not None:
         return stop
     return SimulateResponse(
-        **_gap_fields(result),
+        **_gap_fields(result, req.user),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
@@ -555,6 +694,7 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
     scenario_user = deepcopy(user)
     scenario_result = base
     tenure = None
+    prepay_options, prepay_mode_used = None, None
     if req.surplus_delta is not None:
         scenario_result = with_surplus_delta(
             scenario_user, req.surplus_delta, strategy=req.strategy,
@@ -596,12 +736,14 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
             marginal_rate=req.marginal_rate, simulation_start_month=sm, **kw,
         )
     elif req.lump_sum_amount is not None and req.lump_sum_target_loan_index is not None:
+        prepay_mode_used = req.lump_sum_mode or REDUCE_TENURE
         scenario_result = with_lump_sum(
             scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index,
             strategy=req.strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
-            simulation_start_month=sm, plan=plan,
+            simulation_start_month=sm, plan=plan, mode=prepay_mode_used,
         )
+        prepay_options = _prepay_options(scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index)
 
     if non_amortising_loans(user) and base.debt_free_month is None:
         # Live re-test NEW-3: a loan that never clears; no unbounded totals.
@@ -611,6 +753,7 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
             baseline_total_interest=D("0"), scenario_total_interest=D("0"),
             baseline_never_clears=True,
             scenario_never_clears=_never_clears(scenario_result, user),
+            scenario_infeasible_from_month=getattr(scenario_result, "infeasible_from_month", None),
         )
     diff = compare(base, scenario_result)
     t = tenure
@@ -621,6 +764,8 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
         tenure_new_emi=t.new_emi.quantize(_CENT, rounding=ROUND_HALF_UP) if t else None,
         tenure_old_months=t.old_tenure if t else None,
         tenure_new_months=t.new_tenure if t else None,
+        prepay_options=prepay_options,
+        prepay_mode_used=prepay_mode_used,
         baseline_debt_free_month=diff["debt_free_month_baseline"],
         scenario_debt_free_month=diff["debt_free_month_scenario"],
         months_pulled_forward=diff["months_pulled_forward"],
@@ -630,8 +775,31 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
         scenario_total_interest=scenario_result.total_interest_paid,
         baseline_never_clears=_never_clears(base, user),
         scenario_never_clears=_never_clears(scenario_result, user),
+        scenario_infeasible_from_month=getattr(scenario_result, "infeasible_from_month", None),
         **_scenario_trajectory(req, scenario_result, scenario_user if tenure is None else stretched, user),
     )
+
+
+def _prepay_options(user, amount, index) -> Optional[list[PrepayOption]]:
+    """UX2 #20: the target loan alone under each answer to "lower your EMI or
+    finish sooner?" (engine/prepay_choice). None for a card, a loan that
+    can't take a prepayment yet, or one the payment clears."""
+    if not 0 <= index < len(user.loans):
+        return None
+    loan = user.loans[index]
+    if (loan.loan_type == LoanType.CREDIT_CARD or loan.scheduled_emi <= 0 or loan.outstanding <= 0
+            or loan.pre_emi_months_remaining > 0 or loan.prepay_lock_in_months > 0):
+        return None
+    paid = from_user_currency(amount, loan, user) * (Decimal("1") - (loan.prepayment_penalty_pct or Decimal("0")))
+    if paid >= loan.outstanding:
+        return None
+    out = []
+    for mode in PREPAY_MODES:
+        e = prepay_effect(loan.outstanding, loan.nominal_rate, loan.scheduled_emi,
+                          loan.tenure_months_remaining, paid, mode)
+        out.append(PrepayOption(mode=mode, old_emi=e.old_emi, new_emi=e.new_emi, old_months=e.old_months,
+                                new_months=e.new_months, interest_saved=e.interest_saved))
+    return out
 
 
 def _scenario_trajectory(req, result, scenario_user, user) -> dict:

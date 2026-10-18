@@ -9,7 +9,10 @@ import { useId, useState, type ReactNode } from 'react';
 import { GLOSSARY } from '@/lib/glossary';
 import { L_T } from '@/components/ledger/primitives';
 
-export function Term({ id, children }: { id: keyof typeof GLOSSARY | string; children?: ReactNode }) {
+/** UX2B-24: `about` names what the term is on (a loan's name), so six
+ *  "ALL-IN" buttons on Home read "ALL-IN, Axis Bank credit card" to a
+ *  screen reader, not six identical "ALL-IN"s. */
+export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | string; children?: ReactNode; about?: string }) {
   const entry = GLOSSARY[id];
   const [open, setOpen] = useState(false);
   const boxId = useId();
@@ -25,6 +28,7 @@ export function Term({ id, children }: { id: keyof typeof GLOSSARY | string; chi
           if (e.key === 'Escape') setOpen(false);
         }}
         title={`What is ${entry.term}?`}
+        aria-label={about ? `${typeof children === 'string' ? children : entry.term}, ${about}: what it means` : undefined}
         style={{
           background: 'none',
           border: 'none',
@@ -50,7 +54,7 @@ export function Term({ id, children }: { id: keyof typeof GLOSSARY | string; chi
             border: `1px solid ${L_T.ink}`,
             background: L_T.paper,
             color: L_T.inkSoft,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             lineHeight: 1.55,
             fontWeight: 400,
             textTransform: 'none',

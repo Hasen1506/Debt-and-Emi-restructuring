@@ -22,7 +22,8 @@ US:
   holidays, Saturdays and Sundays; the servicer may extend the response by
   15 such days once, with notice.
 - card billing error (FCBA, Reg Z 12 CFR 1026.13): the notice must reach
-  the issuer within 60 days of the statement that first showed the error;
+  the issuer, at the billing-error address on the statement (s.13(b)(1)),
+  within 60 days of the statement that first showed the error;
   acknowledgement within 30 days; resolution within two complete billing
   cycles and never later than 90 days. Billing cycles are not known here,
   so the 90-day outer limit is shown.
@@ -359,6 +360,16 @@ def us_billing_error_timeline(
             "Dates are counted from the day the notice was sent. Enter the "
             "delivery date to count from receipt."
         )
+    # Audit 80+ D11: Reg Z 12 CFR 1026.13(b)(1): the notice must be "received
+    # by a creditor at the address disclosed under § 1026.7(a)(9) or (b)(9)"
+    # (the billing-rights address on the statement), not the payment address.
+    # https://www.consumerfinance.gov/rules-policy/regulations/1026/13/ (read 14 Oct 2026)
+    notes.append(
+        "Send it to the billing-error (\"billing rights\") address printed on "
+        "the statement, not the payment address; a notice sent elsewhere may "
+        "not start these protections. Send it in writing (or electronically "
+        "only if the statement says the issuer accepts that)."
+    )
     notes.append(
         "Resolution is due within two complete billing cycles, and never later "
         "than 90 days; the 90-day limit is shown."

@@ -109,7 +109,7 @@ test('R3-2, R3-3, NEW-18, R3-5: tools validate as you type', async ({ page }) =>
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/plan');
     await expect(page).toHaveURL(/\/plan/);
-    await page.getByRole('button', { name: /MENU/ }).click();
+    await page.getByRole('button', { name: /menu/i }).click();
     const nav = page.locator('#rd-main-nav');
     await expect(nav).toBeVisible();
     const lefts = await nav.evaluate((el) => {

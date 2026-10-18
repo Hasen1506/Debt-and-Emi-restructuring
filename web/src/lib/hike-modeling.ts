@@ -20,15 +20,6 @@ function isHikeModeling(v: string | null | undefined): v is HikeModeling {
   return v === 'on' || v === 'off';
 }
 
-// ─── Client-side ────────────────────────────────────────────────────────────
-
-export function readHikeModelingClient(): HikeModeling {
-  if (typeof document === 'undefined') return DEFAULT_HIKE_MODELING;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
-  const v = match ? decodeURIComponent(match[1]) : null;
-  return isHikeModeling(v) ? v : DEFAULT_HIKE_MODELING;
-}
-
 export function writeHikeModelingClient(value: HikeModeling) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;

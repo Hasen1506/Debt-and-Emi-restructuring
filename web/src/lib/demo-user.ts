@@ -2,17 +2,7 @@
  * Demo user the /plan and /tools screens consume until onboarding lands.
  * Mirrors the engine.api conftest fixture so backend + frontend agree.
  */
-import type { AssetPayload, UserPayload } from './api';
-
-export const DEMO_ASSET: AssetPayload = {
-  asset_type: 'real_estate',
-  purchase_price: '6000000',
-  purchase_date: '2018-06-15',
-  current_market_value: '9000000',
-  rental_income_annual: '180000',
-  holding_costs_annual: '60000',
-  state: 'Maharashtra',
-};
+import type { UserPayload } from './api';
 
 export const DEMO_USER: UserPayload = {
   country: 'IN',

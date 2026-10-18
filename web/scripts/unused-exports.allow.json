@@ -1,0 +1,9 @@
+{
+  "dead": [
+    "src/lib/tax-brackets.ts#TAX_SLABS_AS_OF",
+    "src/lib/tax-projection.ts#LoanYear1Interest"
+  ],
+  "orphans": [
+    "src/components/home/HomeDebtFreeRange.tsx"
+  ]
+}

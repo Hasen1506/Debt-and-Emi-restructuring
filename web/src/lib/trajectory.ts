@@ -11,7 +11,7 @@ import type { SimulateResponse, TrajectoryPointRaw } from './api';
 import type { TrajectoryPoint } from './mock-data';
 import type { MonthlyPaymentBreakdown, PlanData } from '@/components/plan/PlanData';
 import type { CompareResponse } from './api';
-import { planGap } from './plan-gap';
+import { planEnd, planGap } from './plan-gap';
 
 /** Each month's payments from a /simulate response (the schedule's rows). */
 export function extractMonthlyPayments(
@@ -86,12 +86,17 @@ export function planWithWhatIf(
     user: { ...plan.user, loans },
     trajectory,
     monthlyPayments: extractMonthlyPayments(sim),
-    debtFreeMonth: r.scenario_debt_free_month,
     gap: planGap({ ...sim, gap_rate: plan.gap ? String(plan.gap.rate) : undefined } as SimulateResponse),
-    scheduleCut:
-      r.scenario_debt_free_month == null
-        ? { month: r.scenario_trajectory_cut_month ?? null, growsWithoutLimit: !!r.scenario_grows_without_limit }
-        : null,
+    // Integration phase 5 (C11): the same mapping as the plan (load-plan): a
+    // capped what-if has no date and stops at its first unfundable month.
+    ...planEnd({
+      debt_free_month: r.scenario_debt_free_month,
+      infeasible_from_month: r.scenario_infeasible_from_month,
+      trajectory_cut_month: r.scenario_trajectory_cut_month,
+      // As before: no date means the schedule stops (cut or 30 years).
+      never_clears: r.scenario_debt_free_month == null,
+      grows_without_limit: r.scenario_grows_without_limit,
+    }),
   };
 }
 

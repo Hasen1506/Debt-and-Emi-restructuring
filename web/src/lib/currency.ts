@@ -24,12 +24,6 @@ export function currencySymbol(currency: CurrencyCode): string {
   return currency === 'INR' ? '₹' : '$';
 }
 
-/** Convenience: prefix derived directly from country, when the caller doesn't
- *  already have a CurrencyCode in scope. */
-export function countryCurrencySymbol(country: Country): string {
-  return currencySymbol(userDefaultCurrency(country));
-}
-
 /** Each loan's display currency: explicit tag if present, else user default. */
 export function loanCurrency(loan: LoanPayload, country: Country): CurrencyCode {
   return (loan.currency as CurrencyCode | undefined) ?? userDefaultCurrency(country);
@@ -195,10 +189,14 @@ export function derivePerCurrencyMetrics(
   return out as Record<CurrencyCode, PerCurrencyMetrics>;
 }
 
-/** Convenience: true when the loan list spans more than one currency. */
-export function isHybridCurrency(loans: LoanPayload[], country: Country): boolean {
-  return currenciesInPlay(loans, country).length > 1;
-}
-
 // ensureFxRates moved to lib/fx-refresh.ts, where it is wired to app open
 // (FxAutoRefresh) and never leaves a foreign loan at parity.
+
+/** UX walkthrough fix 14: one direction for every exchange rate shown,
+ *  per dollar ("1 USD = ₹83.25"), as people and banks quote it. `rate` is
+ *  1 `from` in `to` (how fx_to_user_currency is stored). */
+export function fxPerDollar(from: CurrencyCode, to: CurrencyCode, rate: number): string | null {
+  if (!(rate > 0) || from === to) return null;
+  const inrPerUsd = from === 'USD' ? rate : 1 / rate;
+  return `1 USD = ₹${inrPerUsd.toFixed(2)}`;
+}

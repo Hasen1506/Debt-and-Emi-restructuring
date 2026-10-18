@@ -83,6 +83,7 @@ export function convertForCountrySwitch(
   to: Country,
   rate: number,
   keepLoans: boolean,
+  newPay?: string,
 ): SwitchableAmounts {
   const oldCcy: CurrencyCode = userDefaultCurrency(from);
   const newCcy: CurrencyCode = userDefaultCurrency(to);
@@ -124,7 +125,8 @@ export function convertForCountrySwitch(
     : a.deductions;
   return {
     ...a,
-    monthlyIncome: c(a.monthlyIncome),
+    // UX2B-19: pay in a new country isn't the old pay converted; typed, it's used as is.
+    monthlyIncome: Number(newPay) > 0 ? String(newPay).trim() : c(a.monthlyIncome),
     fixedExpenses: c(a.fixedExpenses),
     variableExpenses: c(a.variableExpenses),
     annualGrossSalary: c(a.annualGrossSalary),
@@ -139,4 +141,12 @@ export function convertForCountrySwitch(
     loans,
     fxRates,
   };
+}
+
+/** UX2B-19: today's rate as a person reads it ("0.01201", not
+ *  "0.012012012012"): 4 significant figures below 1, else 2 decimals. */
+export function formatSwitchRate(rate: number | string): string {
+  const n = Number(rate);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return n < 1 ? String(Number(n.toPrecision(4))) : String(Number(n.toFixed(2)));
 }

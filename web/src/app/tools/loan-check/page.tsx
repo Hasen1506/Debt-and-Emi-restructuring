@@ -8,8 +8,9 @@ export const metadata: Metadata = {
   title: 'Loan check · RightDue',
   alternates: { canonical: '/tools/loan-check' },
   openGraph: {
-    title: 'Is your bank passing on RBI rate cuts? Check in 2 minutes',
-    description: 'Your home-loan rate against every RBI repo move since you borrowed. Free, no sign-in.',
+    // Audit 80+ A11: the hike-cycle pitch (RBI raised the repo rate on 7 Oct 2026).
+    title: 'RBI raised rates: your new EMI or tenure, and the choice your bank must offer',
+    description: 'Your home-loan rate against every RBI repo move: what the rise does to your EMI, whether past cuts reached you, and a letter if your bank skipped the choice. Free, no sign-in.',
     url: '/tools/loan-check',
     images: [{ url: '/og-loan-check.png', width: 1200, height: 630 }],
   },

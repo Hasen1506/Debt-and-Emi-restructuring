@@ -41,19 +41,21 @@ def test_expensive_card_clearing_early_does_not_make_costlier_consolidation_a_sa
 
 
 def test_beneficial_consolidation_matches_same_budget_repayment_and_charges_fee_once():
-    user = book(750, '100000')
+    user = book(750, '300000')  # E1: priced at the middle of HDFC's range, so a bigger card
     opts = {'debt_budget': D('50000')}
     old = simulate_plan(user, **opts)
     opportunity = next(o for o in scan(user, plan_options=opts).opportunities if o.kind == 'consolidation')
-    assert opportunity.target_rate == D('.1050')  # nominal quote, no amortised fee added to APR
+    # E1: the middle of HDFC's personal-loan range (10.50–24.00%), not its floor;
+    # nominal quote, no amortised fee added to APR.
+    assert opportunity.target_rate == D('.1725')
     changed = deepcopy(user)
-    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('600000'), opportunity.target_rate,
-                          'fixed', 36, emi(D('600000'), opportunity.target_rate, 36))]
+    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('800000'), opportunity.target_rate,
+                          'fixed', 36, emi(D('800000'), opportunity.target_rate, 36))]
     new = simulate_plan(changed, **opts)
     saving = sum((m.interest_paid_month for m in old.months[:12]), D('0')) - sum(
-        (m.interest_paid_month for m in new.months[:12]), D('0')) - D('6000')
+        (m.interest_paid_month for m in new.months[:12]), D('0')) - D('8000')
     assert abs(opportunity.estimated_annual_saving - saving) < D('.01')
-    assert opportunity.one_time_cost == D('6000')
+    assert opportunity.one_time_cost == D('8000')
     assert opportunity.detail['comparison'] == 'repayment'
     assert _inr(saving) in opportunity.headline
     assert _inr(saving) in opportunity.rationale
@@ -112,7 +114,7 @@ def test_refinance_keeps_future_benchmark_changes_and_does_not_mutate_events():
 
 
 def test_comparison_preserves_goals_emergency_fund_events_and_original_state():
-    user = book(750, '100000')
+    user = book(750, '300000')  # E1: priced at the middle of HDFC's range, so a bigger card
     user.efund_target = D('100000')
     goal = GoalState(id='g', target_month_index=12, required_amount=D('60000'))
     event = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 3, new_monthly_take_home=D('160000'))
@@ -120,8 +122,8 @@ def test_comparison_preserves_goals_emergency_fund_events_and_original_state():
     before = deepcopy((user, opts))
     opportunity = next(o for o in scan(user, plan_options=opts).opportunities if o.kind == 'consolidation')
     changed = deepcopy(user)
-    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('600000'), opportunity.target_rate,
-                          'fixed', 36, emi(D('600000'), opportunity.target_rate, 36))]
+    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('800000'), opportunity.target_rate,
+                          'fixed', 36, emi(D('800000'), opportunity.target_rate, 36))]
     old = simulate_plan(user, **deepcopy(opts))
     new = simulate_plan(changed, **deepcopy(opts))
     expected = sum((m.interest_paid_month for m in old.months[:12]), D('0')) - sum(
@@ -152,18 +154,18 @@ def test_foreign_refinance_money_is_converted_once():
 
 
 def test_known_closing_penalties_are_included_in_consolidation_costs():
-    user = book(750, '100000')
+    user = book(750, '300000')  # E1: priced at the middle of HDFC's range, so a bigger card
     user.loans[0].prepayment_penalty_pct = D('.02')
     opts = {'debt_budget': D('50000')}
     result = scan(user, plan_options=opts)
     opportunity = next(o for o in result.opportunities if o.kind == 'consolidation')
-    assert opportunity.one_time_cost == D('16000')  # 6k processing + 10k early repayment
+    assert opportunity.one_time_cost == D('18000')  # 8k processing + 10k early repayment
     assert opportunity.detail['closing_fee'] == '10000.00'
     old = simulate_plan(user, **opts)
     changed = deepcopy(user)
-    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('600000'), opportunity.target_rate,
-                          'fixed', 36, emi(D('600000'), opportunity.target_rate, 36))]
+    changed.loans = [Loan(LoanType.PERSONAL, 'HDFC Bank', D('800000'), opportunity.target_rate,
+                          'fixed', 36, emi(D('800000'), opportunity.target_rate, 36))]
     new = simulate_plan(changed, **opts)
     expected = sum((m.interest_paid_month for m in old.months[:12]), D('0')) - sum(
-        (m.interest_paid_month for m in new.months[:12]), D('0')) - D('16000')
+        (m.interest_paid_month for m in new.months[:12]), D('0')) - D('18000')
     assert abs(opportunity.estimated_annual_saving - expected) < D('.01')

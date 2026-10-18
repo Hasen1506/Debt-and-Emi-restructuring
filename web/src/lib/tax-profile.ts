@@ -15,6 +15,8 @@ import type { LoanPayload, UserPayload } from './api';
 import { activeStreams, streamSlabContribution } from './income-streams';
 import { nextYearSplit, sec80eMonthsLeft, taxShare } from './india-tax-loans';
 import type { HomeLoanYear, OldAge, RegimeInputs } from './regime-compare';
+import { fullCap24, principal80c, taxType } from '@/lib/loan-types';
+import { indiaSourcedIncome, livesAbroad } from './tax-setup';
 
 const D = (v: Decimal.Value | null | undefined) => new Decimal(v == null || v === '' ? 0 : v);
 
@@ -68,6 +70,19 @@ export const MIX_LABEL: Record<IncomeMix, string> = {
   unknown: 'Not given yet',
 };
 
+/** Round 3: "How you earn" on /tax. Pension, pay earned abroad (an NRI on a
+ *  rupee plan), US self-employment, and salary with other income (interest,
+ *  rent, gains: ux-walkthrough fix 10 said "Salary only" after the user had
+ *  entered tax on them) each get their own words. */
+export function earnLabel(user: UserPayload, income: IncomeReading = readIncome(user)): string {
+  if (livesAbroad(user)) return `Pay earned abroad, not taxed in India${indiaSourcedIncome(user).gt(0) ? ', and income from India' : ''}`;
+  if (user.income_kind === 'pension' && (income.mix === 'salary' || income.mix === 'unknown')) return 'Pension';
+  if (user.country === 'US' && income.mix === 'business') return 'Self-employed / gig';
+  const other = income.other.gt(0) || Number(user.extra_income_annual_tax || 0) > 0;
+  if (other && income.mix === 'salary') return 'Salary and other income (interest, rent or gains)';
+  return MIX_LABEL[income.mix];
+}
+
 /** Is the plan's tax rate worked out from gross income, or estimated from
  *  take-home pay? An estimate the user hasn't confirmed is labelled so
  *  wherever it can change the advice. */
@@ -76,18 +91,17 @@ export function taxRateStatus(user: UserPayload): 'from_income' | 'confirmed' | 
   return user.tax_rate_confirmed ? 'confirmed' : 'estimated';
 }
 
-/** Old-regime age table from the profile's age bracket. '60_plus' can't tell
- *  60-79 from 80+; it gets the 60-79 table (the 80+ one is kinder, so this
- *  never understates old-regime tax). */
+/** Old-regime age table from the profile's age bracket: '60_plus' is 60-79
+ *  (round 3: Setup and Profile ask 80+ apart). */
 export function oldRegimeAge(user: UserPayload): OldAge {
-  return user.age_bracket === '60_plus' ? '60_79' : undefined;
+  return user.age_bracket === '80_plus' ? '80_plus' : user.age_bracket === '60_plus' ? '60_79' : undefined;
 }
 
 /** The scheduled-year figures for each Indian home loan, in the shape the
  *  regime comparison takes. */
 export function homeLoanYears(loans: LoanPayload[], currentMonth: string): HomeLoanYear[] {
   return loans
-    .filter((l) => l.loan_type === 'home_loan' && (l.currency ?? 'INR') === 'INR' && D(l.outstanding).gt(0))
+    .filter((l) => taxType(l) === 'home_loan' && (l.currency ?? 'INR') === 'INR' && D(l.outstanding).gt(0))
     .map((l) => {
       const { interest, principal } = nextYearSplit(l);
       return {
@@ -97,8 +111,8 @@ export function homeLoanYears(loans: LoanPayload[], currentMonth: string): HomeL
         letOut: l.property_use === 'let_out',
         annualRent: l.annual_rent ? D(l.annual_rent) : null,
         preConstructionInstalment: D(l.pre_construction_interest_annual),
-        fullCap: l.sec24_full_cap !== false,
-        principal80cEligible: l.principal_80c_eligible !== false,
+        fullCap: fullCap24(l),
+        principal80cEligible: principal80c(l),
       };
     });
 }
@@ -126,8 +140,8 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
   const edu = eduInterestInWindow(user.loans, currentMonth);
   const assumptions: string[] = [];
   if (income.source === 'none') assumptions.push('No gross income in Profile yet, so there is nothing to compare. Add your gross salary or business income.');
-  if (user.age_bracket === '60_plus') assumptions.push('Aged 60+: the old regime’s 60-79 table is used (80+ pays less).');
-  if (user.loans.some((l) => l.loan_type === 'home_loan' && l.property_use === 'let_out' && !l.annual_rent)) {
+  if (oldRegimeAge(user)) assumptions.push(`Aged ${user.age_bracket === '80_plus' ? '80+' : '60-79'}: the old regime’s senior table is used.`);
+  if (user.loans.some((l) => taxType(l) === 'home_loan' && l.property_use === 'let_out' && !l.annual_rent)) {
     assumptions.push('A let-out home has no rent entered: its rent and interest are left out except for the old regime’s ₹2L loss set-off (simplified).');
   }
   if (!edu.anyLoan && D(ded.sec_80e_annual).gt(0)) assumptions.push('Education-loan interest is taken from your 80E entry.');
@@ -138,7 +152,7 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
     age: oldRegimeAge(user),
     hraExemption: D(ded.hra_claim_annual),
     sec80cOther: D(ded.sec_80c_annual),
-    sec80d: Decimal.min(D(ded.sec_80d_annual), user.age_bracket === '60_plus' ? 50_000 : 25_000),
+    sec80d: Decimal.min(D(ded.sec_80d_annual), oldRegimeAge(user) ? 50_000 : 25_000),
     sec80ccd1b: D(ded.sec_80ccd1b_annual),
     eduInterest: edu.anyLoan ? edu.amount : D(ded.sec_80e_annual),
     homeLoans: homeLoanYears(user.loans, currentMonth),
@@ -148,6 +162,51 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
 
 /** Live re-test 2 NEW-18: one way to print the tax rate everywhere (Home,
  *  Plan, Profile and Tax said 16% and 15.6% for the same 0.156). */
+/**
+ * B14 / E9: the marginal rate the way a taxpayer recognises it. India's
+ * rates are slab × (1 + surcharge) × 1.04 cess (engine/tax/india.py
+ * marginal_rate), so 26.0% is "25% slab + 4% cess" and 0 inside the s.156
+ * rebate is "no income tax on your pay". US: the federal bracket (plus the
+ * state rate when one is set). `estimated`: worked out from take-home.
+ */
+export function taxRateLabel(
+  rate: Decimal.Value | null | undefined,
+  country: 'IN' | 'US' | string,
+  opts: { estimated?: boolean; regime?: 'old' | 'new' | null; stateRate?: Decimal.Value | null } = {},
+): string {
+  const r = new Decimal(rate == null || rate === '' ? 0 : rate);
+  const est = opts.estimated ? ' (estimated)' : '';
+  if (country === 'IN') {
+    if (r.lte(0)) {
+      return `No income tax on your pay${opts.regime ? ` (${opts.regime} regime${opts.estimated ? ', estimated' : ''})` : est}`;
+    }
+    const base = r.div('1.04');
+    for (const sur of ['0', '0.10', '0.15', '0.25', '0.37']) {
+      const slab = base.div(new Decimal(1).add(sur));
+      const pct = slab.mul(100);
+      if (pct.sub(pct.round()).abs().lt('0.05') && [5, 10, 15, 20, 25, 30].includes(pct.round().toNumber())) {
+        const surTxt = sur === '0' ? '' : ` + ${new Decimal(sur).mul(100).toFixed(0)}% surcharge`;
+        return `${pct.round().toFixed(0)}% slab${surTxt} + 4% cess = ${r.mul(100).toFixed(1)}% on your next rupee${est}`;
+      }
+    }
+    return `${formatTaxRate(r)} on your next rupee${est}`;
+  }
+  const state = new Decimal(opts.stateRate == null || opts.stateRate === '' ? 0 : opts.stateRate);
+  if (r.lte(0)) return `No federal income tax at the margin${est}`;
+  if (state.gt(0) && r.gt(state)) {
+    return `${r.sub(state).mul(100).toFixed(0)}% federal bracket + ${state.mul(100).toFixed(1)}% state${est}`;
+  }
+  return `${r.mul(100).toFixed(0)}% federal bracket${est}`;
+}
+
+/** "25% slab" / "24% bracket": the slab inside a marginal rate (E9). */
+export function taxSlabShort(rate: Decimal.Value, country: 'IN' | 'US' | string): string {
+  const full = taxRateLabel(rate, country);
+  const m = full.match(/^(\d+)% (slab|federal bracket)/);
+  if (m) return country === 'IN' ? `${m[1]}% slab` : `${m[1]}% bracket`;
+  return country === 'IN' ? 'no-tax' : `${formatTaxRate(rate)}`;
+}
+
 export function formatTaxRate(rate: Decimal.Value | null | undefined): string {
   // One decimal, always: what Profile and Tax already showed ("10.0%").
   return `${new Decimal(rate == null || rate === '' ? 0 : rate).mul(100).toFixed(1)}%`;

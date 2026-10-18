@@ -4,14 +4,19 @@ description: >-
   bot's own data tests have passed (grill #65). Used by market-data,
   rate-disclosures and policy-rates. Run it AFTER the data tests.
 
-  Cost: a PR opened with the built-in GITHUB_TOKEN does not start other
-  workflows, so the full CI (Playwright and all) does not run on data PRs;
-  the data tests the calling job already ran are the gate.
+  audit80 D17: data never goes to main without CI.
+  * A PR opened with the built-in GITHUB_TOKEN does not start other
+    workflows, so this action starts the full CI on the PR branch itself
+    (`gh workflow run ci.yml --ref data/<bot>`; workflow_dispatch is the
+    one event GITHUB_TOKEN may trigger). Its checks land on the PR's commit.
+  * It then asks for auto-merge (`gh pr merge --auto --squash`): with
+    branch protection requiring the CI checks, GitHub merges only after
+    they pass. (Founder: protect main, require the CI checks, tick
+    Settings > General > "Allow auto-merge".)
+  * The old fallback that pushed straight to main when a PR could not be
+    opened is gone: the job fails and the workflow's failure step says why.
 
   Repo variable DATA_PR_MODE=review leaves the PR open for a person.
-  If Actions may not open PRs (Settings > Actions > General > "Allow GitHub
-  Actions to create and approve pull requests" unticked), it falls back to
-  the old direct push so the data never stops, and says so in the summary.
 inputs:
   bot:
     description: Short bot id; the PR branch is data/<bot>
@@ -63,11 +68,9 @@ runs:
           gh label create data-bot --color 0E8A16 --description "Opened by a scheduled data job" 2>/dev/null || true
           if ! gh pr create --base "$BASE" --head "$branch" --title "$TITLE" \
                  --body-file "$RUNNER_TEMP/pr-body.md" --label data-bot; then
-            echo "::warning::Could not open a PR (is 'Allow GitHub Actions to create and approve pull requests' ticked?). Pushing to $BASE directly, as before."
-            git push -q origin "HEAD:$BASE"
-            git push -q origin --delete "$branch" || true
-            echo "PR not allowed; pushed straight to $BASE (see DEPLOY.md, 'Data bots')." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "::error::Could not open a PR. Tick Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests'. Nothing was pushed to $BASE (audit80 D17)."
+            echo "PR not allowed; nothing merged. See DEPLOY.md, 'Data bots'." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
         else
           gh pr edit "$open" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
@@ -77,5 +80,13 @@ runs:
           echo "PR left open for review (DATA_PR_MODE=review)." | tee -a "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
-        gh pr merge "$branch" --squash --delete-branch
-        echo "Merged the data PR for $BOT after its data tests passed." | tee -a "$GITHUB_STEP_SUMMARY"
+        # Full CI on the PR's head commit (GITHUB_TOKEN PRs start no workflows).
+        if ! gh workflow run ci.yml --ref "$branch"; then
+          echo "::warning::Could not start CI on $branch; auto-merge will wait for the required checks."
+        fi
+        # GitHub merges once the required checks pass (branch protection).
+        if ! gh pr merge "$branch" --auto --squash --delete-branch; then
+          echo "::error::Auto-merge was refused. Tick Settings > General > 'Allow auto-merge' and protect $BASE with the CI checks (audit80 D17). The PR stays open."
+          exit 1
+        fi
+        echo "Auto-merge requested for the data PR for $BOT; it merges after CI passes." | tee -a "$GITHUB_STEP_SUMMARY"

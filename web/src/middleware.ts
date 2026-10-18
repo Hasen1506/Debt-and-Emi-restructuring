@@ -15,6 +15,9 @@
  *    users on a new device shouldn't see this redirect. Genuinely new
  *    users will, which is correct.
  *
+ * Can't pay (/cant-pay) is public too (Audit 80 A17): the rules and blank
+ * letters need no profile.
+ *
  * Loan Check (/tools/loan-check) is public: it needs only the loan's own
  * facts and is the first thing a new visitor should be able to try. It used
  * to sit behind the auth gate despite saying so (BUG_REPORT M5).
@@ -62,7 +65,20 @@ function gate(req: NextRequest, requestHeaders?: Headers): NextResponse {
   const url = req.nextUrl;
   const next = () => (requestHeaders ? NextResponse.next({ request: { headers: requestHeaders } }) : NextResponse.next());
 
-  if (isPublicTool(url.pathname) || isPublicPage(url.pathname)) return next();
+  if (isPublicTool(url.pathname) || isPublicPage(url.pathname)) {
+    const res = next();
+    // A17: signed-out Can't pay picks India or USA rules from the same
+    // non-identifying country cookie the landing page uses.
+    if (isCantPay(url.pathname) && !req.cookies.get(LANDING_COUNTRY_COOKIE)) {
+      res.cookies.set(LANDING_COUNTRY_COOKIE, senseCountry(req.headers), {
+        path: '/',
+        maxAge: 60 * 60 * 24,
+        sameSite: 'lax',
+        secure: url.protocol === 'https:',
+      });
+    }
+    return res;
+  }
 
   if (!AUTH_DISABLED && !req.cookies.get(SESSION_COOKIE)) {
     // Signed-out visitors to the root see the public landing page
@@ -118,8 +134,16 @@ export function isPublicTool(pathname: string): boolean {
   return (
     pathname === '/tools/loan-check' ||
     pathname.startsWith('/tools/loan-check/') ||
-    pathname === '/glossary'
+    pathname === '/rbi-decision' ||   // audit 80+ A19: the public MPC page
+    pathname === '/glossary' ||
+    isCantPay(pathname)
   );
+}
+
+/** Can't pay (Audit 80 A17/B3): its rules and blank letters are public, like
+ *  Loan Check; it personalises itself only when a saved profile exists. */
+export function isCantPay(pathname: string): boolean {
+  return pathname === '/cant-pay' || pathname.startsWith('/cant-pay/');
 }
 
 /** The privacy notice and terms (grill #51), readable before signing in
@@ -131,7 +155,7 @@ export function isPublicPage(pathname: string): boolean {
 
 export const config = {
   matcher: [
-    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|og\\.png$|apple-touch-icon\\.png$|apple-icon\\.png$|icon-(?:192|512|maskable-512)\\.png$|og-loan-check\\.png$|\\.well-known/|fonts/).*)',
+    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|offline\\.html$|sw\\.js$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|og\\.png$|apple-touch-icon\\.png$|apple-icon\\.png$|icon-(?:192|512|maskable-512)\\.png$|og-loan-check\\.png$|\\.well-known/|fonts/).*)',
   ],
 };
 

@@ -2,7 +2,8 @@
  * Monthly prompts (grill #9: "persistent state + monthly prompts"): the
  * few things worth doing once a month, worked out from what the app
  * already holds. At most three at a time; each can be put off until next
- * month. Nothing here is sent anywhere.
+ * month ("Hide until next month" hides it on this device; A12: it is not a
+ * reminder). Nothing here is sent anywhere.
  */
 import type { PendingUpi } from './upi-confirm';
 
@@ -12,7 +13,7 @@ export interface Prompt {
   key: PromptKey;
   text: string;
   href?: string;
-  action?: 'copy_plan' | 'upi_check';
+  action?: 'copy_plan' | 'check_advice' | 'upi_check';
 }
 
 export interface PromptInput {
@@ -27,6 +28,9 @@ export interface PromptInput {
   snoozed: string[];
   /** True once the debt-free date has moved since the last visit. */
   debtFreeMoved?: boolean;
+  /** "YYYY-MM" of the earliest balance on file (UX walkthrough fix 13): a
+   *  plan started this month has no last month to log. */
+  firstBalanceYm?: string | null;
 }
 
 export const PROMPTS_SNOOZE_KEY = 'rightdue_prompts_snoozed';
@@ -53,8 +57,11 @@ export function monthlyPrompts(i: PromptInput): Prompt[] {
   }
   // Early in the month: last month's payments, if none were logged.
   const last = lastMonthYm(i.today);
-  if (i.today.getDate() <= 10 && i.loansWithPayments > 0 && !i.activityDates.some((d) => d.startsWith(last))) {
-    add({ key: 'log_last_month', text: 'Nothing is logged for last month yet. Log what you paid so the plan starts from the right balances.', href: '/activity#activity-ledger' });
+  // Not in the plan's first month: there is no "last month" yet (fix 13).
+  const newPlan = !!i.firstBalanceYm && i.firstBalanceYm >= thisYm;
+  if (!newPlan && i.today.getDate() <= 10 && i.loansWithPayments > 0 && !i.activityDates.some((d) => d.startsWith(last))) {
+    const lastName = new Date(i.today.getFullYear(), i.today.getMonth() - 1, 1).toLocaleString('en-GB', { month: 'long' });
+    add({ key: 'log_last_month', text: `Did ${lastName}’s payments go out as planned? Tick them in Activity so this month starts from the right balances.`, href: '/activity#activity-ledger' });
   }
   if (i.debtFreeMoved) {
     add({ key: 'debt_free_moved', text: 'Your debt-free date moved since your last visit. See why on Plan.', href: '/plan' });
@@ -65,7 +72,16 @@ export function monthlyPrompts(i: PromptInput): Prompt[] {
   if (i.country === 'IN' && (m === 0 || m === 1 || m === 2)) {
     add({ key: 'regime_check', text: 'Before 31 March: compare the old and new tax regimes with your loans for next year.', href: '/profile#pf-tax' });
   }
-  add({ key: 'ask_assistant', action: 'copy_plan', text: 'Want a second opinion? Copy a summary of your plan to ask ChatGPT, Claude or another assistant. It has no names or account numbers.' });
+  // A8: RightDue is the checker, not the exit door. Copy my plan stays (with a
+  // link back); the paste box checks the answer against your loans and RBI rules.
+  // UX walkthrough fix 5: RBI and a bank RM are India's.
+  add({
+    key: 'ask_assistant',
+    action: 'check_advice',
+    text: i.country === 'US'
+      ? 'Got advice from an assistant or a lender? Paste it and we’ll check it against your loans.'
+      : 'Got advice from an assistant or a bank RM? Paste it and we’ll check it against your loans and RBI rules.',
+  });
   return out.slice(0, 3);
 }
 

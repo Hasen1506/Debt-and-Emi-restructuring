@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -41,17 +42,12 @@ test('C-18: the Profile slab popover lines come from the engine table (12–16, 
     'Above ₹24 lakh: 30%',
   ]);
   assert.match(engineSrc, /D\("2400000"\),\s+D\("0\.25"\)/);
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /inNewRegimeSlabLines\(\)/);
   assert.doesNotMatch(profile, /12–15L|Above ₹20L: 30%|New regime \(FY 2025-26\)/);
 });
 
-test('C-19: limits are written out in lakh, one formatter', () => {
-  const { formatScale } = lib('amount.ts');
-  assert.equal(formatScale(200000), '₹2 lakh');
-  assert.equal(formatScale(150000), '₹1.5 lakh');
-  assert.equal(formatScale(10000000), '₹1 crore');
-  assert.equal(formatScale(75000), '₹75,000');
+test('C-19: limits are written out in lakh, never "₹2L"', () => {
   assert.doesNotMatch(src('components/tax/TaxPage.tsx'), /₹2L|₹1\.5L/);
 });
 
