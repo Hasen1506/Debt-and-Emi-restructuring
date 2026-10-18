@@ -499,7 +499,9 @@ button.l-hit {
 }
 /* R6-2: a long label must never squeeze the box in a check row. */
 .l-check-row > input[type='checkbox'],
-.l-check-row > input[type='radio'] {
+.l-check-row > input[type='radio'],
+label > input[type='checkbox'],
+label > input[type='radio'] {
   flex-shrink: 0;
 }
 .l-check-row {
