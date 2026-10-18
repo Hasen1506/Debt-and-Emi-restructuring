@@ -185,7 +185,7 @@ export function CantPay() {
                           : `${fc(l.short)} SHORT`}
                     </span>
                     )}
-                    <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{l.reason}</div>
+                    <div style={{ color: L_T.muted, fontSize: 11 }}>{l.reason}</div>
                   </li>
                 ))}
               </ol>

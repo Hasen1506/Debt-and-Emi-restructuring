@@ -523,7 +523,7 @@ export function WhatIfPanel({
               />
             )}
             {lumpAsks && !lumpMode && lump.result && (
-              <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>
+              <span style={{ color: L_T.muted, fontSize: 12 }}>
                 Until you choose, the figures above keep the {user.country === 'US' ? 'payment' : 'EMI'}, which is what a bank does with no instruction.
               </span>
             )}

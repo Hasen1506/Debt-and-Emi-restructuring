@@ -192,7 +192,7 @@ export function LMasthead({
             }}
           >
             <span aria-hidden="true">[{menuOpen ? '✕ ' : '☰ '}</span>
-            {menuOpen ? 'Close' : 'Menu'}
+            {menuOpen ? 'CLOSE' : 'MENU'}
             <span aria-hidden="true">]</span>
           </button>
         )}

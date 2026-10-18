@@ -128,7 +128,7 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
           </div>
         </div>
       )}
-      {status === 'confirmed' && <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted }}>You confirmed this rate. Entering gross pay in Profile would make it exact.</p>}
+      {status === 'confirmed' && <p style={{ margin: '8px 0 0', fontSize: 12, color: L_T.muted }}>You confirmed this rate. Entering gross pay in Profile would make it exact.</p>}
     </section>
   );
 }

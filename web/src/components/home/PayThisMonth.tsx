@@ -348,7 +348,7 @@ export function PayThisMonth({
     <section aria-labelledby="home-pay">
       <LSectionHeader
         right={
-          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
+          <span style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
             {/* E10: held at its widest so the header doesn't wrap once Activity is read. */}
             <Reserve ghosts={[`${fmt(data.total)} OF ${fmt(data.total)} PAID · ALL DONE`]}>
               {ready ? `${fmt(paidUser)} OF ${fmt(tickTotal)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : '\u00a0'}

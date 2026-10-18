@@ -21,7 +21,7 @@ function when(iso: string | null): string {
 }
 
 const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
-const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
+const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
 const INPUT: React.CSSProperties = {
   padding: '8px 10px', fontSize: 14, border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: 360,
 };

@@ -30,7 +30,7 @@ export default async function PortfolioPage() {
       <AssetsTaxNav current="/portfolio" />
       <header style={{ marginBottom: 22, maxWidth: 820 }}>
         <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-h1)', fontWeight: 700, margin: 0, lineHeight: 1.25 }}>What you own</h1>
-        <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>
+        <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
           {PORTFOLIO_INTRO}{' '}
           <LBracket href="/profile/assets">+ ADD OR EDIT</LBracket>
         </p>

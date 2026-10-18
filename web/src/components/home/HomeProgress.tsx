@@ -175,7 +175,7 @@ export function HomeProgress({
           </ol>
         </div>
       )}
-      <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
         {s ? shavedLine(s) : ym ? `Debt-free in ${ymLabel(ym)}. Each extra payment you log moves it sooner, and this counter keeps score.` : shortLine ?? 'Once the plan has a debt-free date, this counts the months you take off it.'}
       </p>
       {ym && realMove && (
@@ -214,7 +214,7 @@ export function HomeProgress({
                 )}
                 {(p.action === 'copy_plan' || p.action === 'check_advice') && <button type="button" style={lPayBtn(false)} onClick={() => void copyPlan()}>COPY MY PLAN</button>}
                 {/* A12: it hides the prompt on this device; it never sent anything. */}
-                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 'var(--fs-small)' }}>
+                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
                   Hide until next month
                 </button>
                 {p.action === 'check_advice' && showCheck && (
@@ -227,7 +227,7 @@ export function HomeProgress({
           </ul>
         </div>
       )}
-      {said && <p role="status" style={{ fontSize: 'var(--fs-dense)', color: L_T.positive }}>{said}</p>}
+      {said && <p role="status" style={{ fontSize: 12, color: L_T.positive }}>{said}</p>}
       {country === 'IN' && <RateMoveEmail loans={rateLoans} />}
       {/* A18: after the first month on this device, a fake door for a paid tier (counts only). */}
       {sinceFirst !== null && sinceFirst >= 1 && <FakeDoor door="plus" />}

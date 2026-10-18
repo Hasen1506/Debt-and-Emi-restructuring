@@ -245,7 +245,7 @@ export function LoanCheckTool() {
 
   if (country !== 'IN') {
     return (
-      <LNote style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.ink }}>
+      <LNote style={{ margin: 0, fontSize: 13, color: L_T.ink }}>
         {/* UX2B-24: a US user was told only "Indian floating-rate home loans". */}
         Loan check reads an Indian floating-rate home loan&apos;s rate resets. For a US card billing error or a
         mortgage servicing error, draft the letter on <LBracket href="/cant-pay/us-letters">US LETTERS →</LBracket>; an
