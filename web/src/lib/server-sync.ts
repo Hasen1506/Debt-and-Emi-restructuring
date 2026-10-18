@@ -305,7 +305,7 @@ export function clearPendingSync(): void {
 
 /** localStorage keys that hold one person's data but are not synced slices. */
 export const LOCAL_PER_USER_KEYS = [
-  'rightdue_set_aside',
+  'rightdue_set_aside', 'rightdue_applied_change',
   'rightdue_balances_entered',
   'rightdue_stale_snooze_until',
   // A guest's last visit (guest-return LAST_SEEN_KEY): sign-out leaves this

@@ -102,6 +102,7 @@ test('fix 2: every component that renders a debt-free date is guarded against ca
     'components/insights/OfferCheck.tsx': 'engine offer_check shown_debt_free_month',
     'components/insights/PrepayKeepSplit.tsx': 'engine prepay_invest shown_debt_free_month',
     'components/WhatIfPanel.tsx': 'engine sensitivity.compare shown_debt_free_month',
+    'components/AppliedChangeCard.tsx': 'engine sensitivity.compare shown_debt_free_month (lib/applied-change planFigures)',
     'components/plan/TenureWhatIf.tsx': 'scenario_infeasible_from_month + engine compare',
     'lib/payoff-range.ts': 'engine debt_free_range shown_debt_free_month',
     'lib/seasonal-income.ts': 'API _seasonal_out drops capped dates',

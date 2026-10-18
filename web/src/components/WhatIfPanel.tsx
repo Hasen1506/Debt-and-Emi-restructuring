@@ -270,7 +270,7 @@ export function WhatIfPanel({
         : `today; what you owe drops now, and the schedule counts the extra from ${monthIndexToCountryLabel(2, user.country)}`,
       before: planFigures(r, 'baseline'), after: planFigures(r, 'scenario'),
       undo: { kind: 'lump_sum', activityId, commitmentId: next[0].id,
-        ...(emiSaved && newEmi ? { emi: { loanId: target.id, loanIndex: index, before: emiBefore, after: newEmi.toFixed(2) } } : {}) },
+        ...(emiSaved && newEmi ? { emi: { loanId: target.id, loanIndex: index, before: emiBefore, after: loadProfileClient().user.loans[index].scheduled_emi } } : {}) },
     });
     setLumpAmount(0);
     setToast(null);
