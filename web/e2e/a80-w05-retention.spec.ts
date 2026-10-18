@@ -17,32 +17,40 @@
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test } from './fixtures';
 
+/**
+ * Answer the browser's /api/notify calls inside the page: window.fetch is
+ * wrapped for /api/notify/* before any app script runs. Not page.route():
+ * WebKit (Linux) never hands requests to the API's other origin
+ * (127.0.0.1:8141) to Playwright's router, so they reached the real API with
+ * the flags off and the opt-ins rightly stayed hidden (integration-4).
+ * Returns a reader for the PUTs the page sent.
+ */
 async function stubNotify(page: Page) {
-  const puts: { path: string; body: unknown }[] = [];
-  await page.route('**/api/notify/**', async (route) => {
-    const req = route.request();
-    const path = new URL(req.url()).pathname.replace(/^.*\/api\/notify/, '');
-    // The API is another origin (credentials: include): a stubbed answer needs
-    // the CORS headers the real one sends, or WebKit refuses it ("access
-    // control checks") and the opt-ins stay hidden. Chromium and Firefox let
-    // a fulfilled response through without them.
-    const headers = { 'access-control-allow-origin': req.headers()['origin'] ?? 'http://localhost:3141', 'access-control-allow-credentials': 'true',
-      'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET, PUT, OPTIONS' };
-    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(body) });
-    if (path === '/flags') return json({ payday_email: true, deadline_reminders: true, reply_done: false, rate_move: true });
-    if (path === '/settings') {
-      return json({ payday: { on: false, day: null, list_month: null }, reminders: { on: false, count: 0 },
-        rate_move: { available: true, on: false, count: 0 }, email: 'x@rightdue.app' });
-    }
-    if (path === '/answers') return json({ answers: [] });
-    if (req.method() === 'PUT') {
-      puts.push({ path, body: req.postDataJSON() });
-      return json(path === '/rate-move' ? { ok: true, on: true, count: 1 } : { ok: true, next: null });
-    }
-    return route.fallback();
+  await page.addInitScript(() => {
+    const w = window as unknown as { __notifyPuts?: { path: string; body: unknown }[] };
+    w.__notifyPuts = [];
+    const real = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const m = /\/api\/notify(\/[^?]*)/.exec(url);
+      if (!m) return real(input, init);
+      const path = m[1];
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path === '/flags') return json({ payday_email: true, deadline_reminders: true, reply_done: false, rate_move: true });
+      if (path === '/settings') {
+        return json({ payday: { on: false, day: null, list_month: null }, reminders: { on: false, count: 0 },
+          rate_move: { available: true, on: false, count: 0 }, email: 'x@rightdue.app' });
+      }
+      if (path === '/answers') return json({ answers: [] });
+      if (method === 'PUT') {
+        w.__notifyPuts!.push({ path, body: typeof init?.body === 'string' ? JSON.parse(init.body) : null });
+        return json(path === '/rate-move' ? { ok: true, on: true, count: 1 } : { ok: true, next: null });
+      }
+      return real(input, init);
+    };
   });
-  return puts;
+  return async () => page.evaluate(() => (window as unknown as { __notifyPuts?: { path: string; body: unknown }[] }).__notifyPuts ?? []);
 }
 
 /** No horizontal scroll, and the element sits inside the viewport. */
@@ -60,7 +68,7 @@ test.describe('A80 W5 retention at 390px', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('opt-ins fit and turn on; "Hide until next month" hides the prompt; the payday link opens the check', async ({ page, browserName }) => {
-    const puts = await stubNotify(page);
+    const readPuts = await stubNotify(page);
     await signIn(page, `golden-a80-w05-${browserName}@rightdue.app`);
     await expect(page).toHaveURL(/\/onboarding$/);
     await page.getByLabel(/Take-home pay a month/).fill('150000');
@@ -90,7 +98,7 @@ test.describe('A80 W5 retention at 390px', () => {
     await payday.getByLabel('Day your salary is paid').selectOption('1');
     await payday.getByRole('button', { name: 'TURN ON' }).click();
     await expect(payday.getByRole('status')).toContainText('On.');
-    expect(puts.find((p) => p.path === '/payday')?.body).toMatchObject({ on: true, day: 1 });
+    expect((await readPuts()).find((p) => p.path === '/payday')?.body).toMatchObject({ on: true, day: 1 });
 
     // A13: rate-move opt-in lists the floating home loan.
     await expectOnScreen(page, 'rate-move-email');
@@ -98,7 +106,7 @@ test.describe('A80 W5 retention at 390px', () => {
     await expect(rate.getByRole('checkbox').first()).toBeChecked();
     await rate.getByRole('button', { name: 'TURN ON' }).click();
     await expect(rate.getByRole('status')).toContainText('On.');
-    const sent = puts.find((p) => p.path === '/rate-move')?.body as { on: boolean; loans: { rate: number }[] };
+    const sent = (await readPuts()).find((p) => p.path === '/rate-move')?.body as { on: boolean; loans: { rate: number }[] };
     expect(sent.on).toBe(true);
     expect(sent.loans).toHaveLength(1);
 
