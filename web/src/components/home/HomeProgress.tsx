@@ -214,8 +214,10 @@ export function HomeProgress({
                 )}
                 {(p.action === 'copy_plan' || p.action === 'check_advice') && <button type="button" style={lPayBtn(false)} onClick={() => void copyPlan()}>COPY MY PLAN</button>}
                 {/* A12: it hides the prompt on this device; it never sent anything. */}
-                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
-                  Hide until next month
+                {/* UI revert 2: a visible close (✕) in the ledger's outline
+                    button, so the notice is plainly dismissible. */}
+                <button type="button" className="l-hit" onClick={() => later(p)} aria-label="Hide until next month" title="Hide until next month" style={{ ...lPayBtn(false), fontSize: 11, padding: '6px 10px', color: L_T.muted, border: `1px solid ${L_T.muted}` }}>
+                  <span aria-hidden="true">✕ HIDE UNTIL NEXT MONTH</span>
                 </button>
                 {p.action === 'check_advice' && showCheck && (
                   <div style={{ flexBasis: '100%' }}>

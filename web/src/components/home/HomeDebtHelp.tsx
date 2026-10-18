@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 const CatchUpCheck = dynamic(() => import('./CatchUpCheck').then((m) => m.CatchUpCheck)); // only for a behind loan
 
 const STATUS_WORDS = { behind: 'BEHIND ON PAYMENTS', collections: 'WITH A COLLECTION AGENCY' } as const;
-const body = { fontSize: 'var(--fs-dense)', lineHeight: 1.55, margin: '4px 0' } as const;
+const body = { fontSize: 11, lineHeight: 1.55, margin: '4px 0' } as const;
 
 export function HomeDebtHelp({ loans, country }: { loans: LoanPayload[]; country: 'IN' | 'US' }) {
   const help = loans.filter(needsHelp);
@@ -27,7 +27,7 @@ export function HomeDebtHelp({ loans, country }: { loans: LoanPayload[]; country
       style={{ padding: '14px 0', borderBottom: `1px solid ${L_T.ruleSoft}` }}>
       {help.length > 0 && (
         <>
-          <h2 id="debt-help-head" style={{ fontSize: 'var(--fs-label)', letterSpacing: '0.1em', margin: '0 0 6px' }}>
+          <h2 id="debt-help-head" style={{ fontSize: 10, letterSpacing: '0.1em', margin: '0 0 6px' }}>
             {help.length === 1 ? 'ONE LOAN NEEDS A DIFFERENT STEP' : `${help.length} LOANS NEED A DIFFERENT STEP`}
           </h2>
           {help.map((l) => (

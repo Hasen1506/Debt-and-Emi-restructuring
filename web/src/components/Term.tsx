@@ -21,6 +21,7 @@ export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | stri
     <span style={{ display: 'inline' }}>
       <button
         type="button"
+        className="rd-term"
         aria-expanded={open}
         aria-controls={boxId}
         onClick={() => setOpen((o) => !o)}

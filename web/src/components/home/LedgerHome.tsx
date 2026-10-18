@@ -115,10 +115,12 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </FirstVisitIntro>
         {thisMonth}
-        {/* UX walkthrough fix 10/11: what to pay comes right after the
-            month's one line (on a phone it was ~3 screens down, under the
-            cash flow, the figures and the offers). */}
-        {register}
+        {/* UI revert 2 (Vijay, 18 Oct 2026): the 4bc3dc8 order. The month's
+            one line, the plan-from line, the cash flow and where you stand
+            come first; the pay list, progress and the loans follow; the
+            newer insight cards sit under the loans. */}
+        <ContextLine profile={profile} />
+        {cashFlow ?? <CashFlow profile={profile} />}
 
         <section aria-labelledby="home-status">
           <LSectionHeader>
@@ -158,18 +160,15 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
 
         {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
         <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
-        {cashFlow ?? <CashFlow profile={profile} />}
-        <ContextLine profile={profile} />
+        {register}
 
-        {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan
-            and can be ~1,500 px tall on a phone; above "This month" they
-            pushed the whole page down (Home CLS 0.81 at 390 px, budget 0.1,
-            E10). Here they land below the first screen. */}
+        <OpenPositions profile={profile} m={m} dues={dues} />
+
+        {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan;
+            under the loans they never push the first screen down (E10). */}
         {insights}
 
         {cheaper}
-
-        <OpenPositions profile={profile} m={m} dues={dues} />
 
         <ToolStrip user={profile.user} title="Something came up?" />
       </div>

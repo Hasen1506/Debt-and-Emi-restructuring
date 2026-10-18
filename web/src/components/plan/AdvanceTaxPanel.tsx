@@ -401,3 +401,23 @@ function RowInline({
     </li>
   );
 }
+
+/** UI revert 2: the Advance tax section when nothing is due in instalments
+ *  (load-plan builds a schedule only when tax not taken at source reaches
+ *  ₹10,000 / $1,000 a year). It holds the #advance-tax-h heading that
+ *  More › Advance tax links to, so the link always lands somewhere. */
+export function NoAdvanceTax({ country }: { country: Country }) {
+  return (
+    <section aria-labelledby="advance-tax-h" data-testid="advance-tax-none" style={{ scrollMarginTop: 16 }}>
+      <LSectionHeader right={<span style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>{country === 'IN' ? 'SEC 208' : 'FORM 1040-ES'}</span>}>
+        <span id="advance-tax-h">Advance tax</span>
+      </LSectionHeader>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        {country === 'IN'
+          ? 'Nothing to pay in instalments. Advance tax applies when the tax left after TDS (tax deducted at source) comes to ₹10,000 or more in a year; on what you entered, it doesn’t. Freelance, rent or interest income? '
+          : 'No quarterly estimated tax on what you entered: your withholding covers it. Self-employed or other income without withholding? '}
+        <LBracket href="/profile?step=tax">ADD IT IN PROFILE →</LBracket>
+      </p>
+    </section>
+  );
+}

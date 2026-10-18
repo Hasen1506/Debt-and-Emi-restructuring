@@ -42,7 +42,7 @@ export function CatchUpCheck({ loan, index, name, country }: { loan: LoanPayload
   }
 
   return (
-    <p data-testid="catch-up-done" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.55, margin: '4px 0' }}>
+    <p data-testid="catch-up-done" style={{ fontSize: 11, lineHeight: 1.55, margin: '4px 0' }}>
       Caught up on {name}? You’ve logged {fmt(p.logged)} since it was marked behind
       ({fmt(p.overdue)} overdue{p.estimated ? ', estimated as one EMI' : ''}).{' '}
       <LBracket active onClick={backToNormal}>SET IT BACK TO PAYING NORMALLY</LBracket>

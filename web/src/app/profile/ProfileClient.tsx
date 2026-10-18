@@ -2140,7 +2140,7 @@ function ProfileEditor({
                   </div>
                 )}
                 {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
-                <LoanExtras loan={l} country={country} onPatch={(p) => updateLoan(i, p)} />
+                <div style={{ gridColumn: '1 / -1' }}>{/* UI revert 2: a whole row, so later fields keep their column */}<LoanExtras loan={l} country={country} onPatch={(p) => updateLoan(i, p)} /></div>
                 {l.loan_type === 'credit_card' && (
                   <Field
                     label="New spending you won't clear each month"

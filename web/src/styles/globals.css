@@ -497,6 +497,21 @@ button.l-hit {
     min-height: 44px !important;
   }
 }
+/* UI revert 2 (18 Oct 2026): the glossary terms (Term, the dotted ⓘ
+   words) and the ⓘ tips (InfoTip) keep their 44px touch box on a phone,
+   but the box no longer takes room in the line: negative margins give it
+   back, so the icon and the text around it look as they do on desktop
+   (they read as oversized, and Term made its whole line 44px tall). */
+@media (pointer: coarse) {
+  button.rd-term {
+    margin-top: -12px;
+    margin-bottom: -12px;
+    vertical-align: middle;
+  }
+  button.rd-info-hit {
+    margin: -13px;
+  }
+}
 /* R6-2: a long label must never squeeze the box in a check row. */
 .l-check-row > input[type='checkbox'],
 .l-check-row > input[type='radio'],

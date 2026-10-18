@@ -64,8 +64,11 @@ test('fix 1/11 (UI revert 18 Oct 2026): Setup step 3 is the 4bc3dc8 order: the r
   assert.match(src('components/insights/InsightsPanel.tsx'), /if \(!data \|\| variant === 'setup'\) return null;/);
   const home = src('components/home/LedgerHome.tsx');
   const h = (s) => { const i = home.indexOf(s); assert.ok(i >= 0, s); return i; };
-  assert.ok(h('{register}') < h('id="home-status"') && h('{register}') < h('<CashFlow'), 'Pay this month before the figures');
-  assert.ok(h('{register}') < h('{insights}'), 'the pay list before the insight cards');
+  // UI revert 2 (Vijay, 18 Oct 2026): the 4bc3dc8 order. This month, the
+  // plan-from line, cash flow, where you stand, then the pay list (with
+  // progress), the loans, and the insight cards under the loans.
+  const order = ['{thisMonth}', '<ContextLine', '<CashFlow', 'id="home-status"', '{register}', '<OpenPositions', '{insights}', '{cheaper}', '<ToolStrip'];
+  for (let i = 1; i < order.length; i++) assert.ok(h(order[i - 1]) < h(order[i]), `${order[i - 1]} before ${order[i]}`);
 });
 
 // ── fix 2 ───────────────────────────────────────────────────────────────────

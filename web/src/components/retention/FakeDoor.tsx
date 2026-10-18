@@ -28,7 +28,7 @@ export function FakeDoor({ door }: { door: keyof typeof DOORS }) {
   const d = DOORS[door];
   return (
     <aside aria-label={`${d.title} (coming soon)`} data-fake-door={door}
-      style={{ marginTop: 12, padding: '10px 12px', border: `1px dashed ${L_T.ruleSoft}`, fontSize: 'var(--fs-dense)', lineHeight: 1.55 }}>
+      style={{ marginTop: 12, padding: '10px 12px', border: `1px dashed ${L_T.ruleSoft}`, fontSize: 11, lineHeight: 1.55 }}>
       <div style={{ fontWeight: 700 }}>{d.title} <span style={{ fontWeight: 400, color: L_T.muted }}>(coming soon)</span></div>
       <div style={{ color: L_T.inkSoft }}>{d.body}</div>
       {tapped ? (
