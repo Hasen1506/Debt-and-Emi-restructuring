@@ -68,7 +68,10 @@ export function InsightsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  if (!data) return null;
+  // UI revert 18 Oct 2026: Setup step 3 is the 4bc3dc8 layout again, so the
+  // cards show on Home (and Plan) only. Setup still fetches, for onInsights
+  // (whether to ask which order).
+  if (!data || variant === 'setup') return null;
   const ccy = userDefaultCurrency(country);
   const money = (v: number | string) => formatCurrencyWhole(Math.round(Number(v)), ccy);
   const label = (m: number | null) => (m == null ? 'not within the plan' : monthIndexToCountryLabel(m, country));
@@ -93,7 +96,7 @@ export function InsightsPanel({
           closedLabel={dated(closedDebtFreeMonth ?? null) ? monthIndexToCountryLabel(closedDebtFreeMonth as number, country) : null}
         />
       )}
-      <DisagreementCard data={data.disagreements} money={money} compact={variant === 'setup'} />
+      <DisagreementCard data={data.disagreements} money={money} />
       {consolidation && (
         <CheaperWay
           data={consolidation}

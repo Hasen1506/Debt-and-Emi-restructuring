@@ -39,9 +39,10 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     for (const p of sim.trajectory) if (Number(p.shortfall) > 0) expect(Number(p.extra_paid)).toBe(0);
     await expect(page.getByText(/borrows it on a card at card rates/)).toBeVisible();
     // R7-2: Setup's headline uses the same helper and words as Plan and Home.
-    // Audit 80+ A5 (golden updated on purpose): the gap is the headline, first on
-    // Step 3; the date it would take to close it is named in the note.
-    await expect(page.getByTestId('gap-headline').first()).toBeVisible();
+    // Audit 80+ A5: the gap is the headline; the date it would take to close it
+    // is named in the note. (UI revert 18 Oct 2026: Setup step 3 is the 4bc3dc8
+    // layout, so the gap card itself is on Home, not here.)
+    await expect(page.getByTestId('gap-headline')).toHaveCount(0);
     await expect(page.getByText(/^₹34,515\/mo short$/).first()).toBeVisible();
     await expect(page.getByText(/^if the ₹34,515\/mo gap closes: [A-Z][a-z]{2} \d{4} · as things stand: (?:[A-Z][a-z]{2} \d{4}|not in 30 years|not fundable from [A-Z][a-z]{2} \d{4})$/).first()).toBeVisible();
   });

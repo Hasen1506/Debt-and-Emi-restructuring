@@ -54,12 +54,14 @@ test('fix 1: when the plan clears the cards soon, the card-to-loan move is one q
   assert.match(renderCheaper(cons()), /Cheaper way to carry this/);
 });
 
-test('fix 1/11: Setup step 3 leads with This month, then the date, and the insight cards come last', () => {
+test('fix 1/11 (UI revert 18 Oct 2026): Setup step 3 is the 4bc3dc8 order: the rows, then This month; the insight cards live on Home', () => {
   const qs = src('components/setup/QuickSetup.tsx');
   const preview = qs.slice(qs.indexOf('function PlanPreview('));
   const at = (s) => { const i = preview.indexOf(s); assert.ok(i >= 0, s); return i; };
-  assert.ok(at('<SetupThisMonth') < at('<table'), 'This month before the date table');
-  assert.ok(at('<table') < at('<InsightsPanel'), 'the date before the A6 card');
+  assert.ok(at('<table') < at('<SetupThisMonth'), 'the date table before This month');
+  // Setup still fetches the insights (A2: whether to ask the order) but shows no cards.
+  assert.ok(at('<SetupThisMonth') < at('<InsightsPanel'));
+  assert.match(src('components/insights/InsightsPanel.tsx'), /if \(!data \|\| variant === 'setup'\) return null;/);
   const home = src('components/home/LedgerHome.tsx');
   const h = (s) => { const i = home.indexOf(s); assert.ok(i >= 0, s); return i; };
   assert.ok(h('{register}') < h('id="home-status"') && h('{register}') < h('<CashFlow'), 'Pay this month before the figures');
