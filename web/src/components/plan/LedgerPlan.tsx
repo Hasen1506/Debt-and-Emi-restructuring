@@ -61,6 +61,7 @@ import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
 import { TenureWhatIf } from './TenureWhatIf';
+import { AppliedChangeCard } from '@/components/AppliedChangeCard';
 import { StudentLoanHold } from './StudentLoanHold';
 import { LIKELY_HOW, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
@@ -168,6 +169,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         )}
 
+        <AppliedChangeCard banner />
         {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
             defaulted; until it's chosen the plan pays EMIs and minimums only. */}
         {plan.live && plan.profileIsLive && plan.debtBudgetChoice === 'unset' && plan.user.loans.some((l) => Number(l.outstanding) > 0) && (

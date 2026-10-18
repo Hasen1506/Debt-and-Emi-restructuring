@@ -31,6 +31,9 @@ import { userMarginalCosts } from '@/lib/marginal-cost';
 import { loadProfileClient } from '@/lib/user-store';
 import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { dismissAppliedChange, planFigures, readAppliedChange, recordAppliedChange } from '@/lib/applied-change';
+import { debtBudgetKind, readDebtBudgetClient } from '@/lib/debt-budget';
+import { AppliedChangeCard } from '@/components/AppliedChangeCard';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
 import { rollBalancesForward } from '@/lib/roll-forward';
@@ -197,15 +200,28 @@ export function WhatIfPanel({
 
   function commitSurplusCut() {
     if (surplusDelta <= 0 || surplusStartMonth !== 1) return;
+    // The plan's figures before and with the cut, captured before the save.
+    const r = surplus.result;
+    if (!r) return setToast('Wait for the figures above, then press again.');
+    const budget = debtBudgetKind(readDebtBudgetClient());
     try {
-      setCommitments(commitSpendingCut(configuredUser, surplusDelta, surplusStartMonth, runArgs?.debt_budget ?? ''));
+      const next = commitSpendingCut(configuredUser, surplusDelta, surplusStartMonth, runArgs?.debt_budget ?? '');
+      setCommitments(next);
+      recordAppliedChange({
+        country: user.country, currency: userCcy === 'USD' ? 'USD' : 'INR',
+        what: `Spending cut by ${fmtUser(surplusDelta)} a month`,
+        from: `this month (${monthIndexToCountryLabel(1, user.country)})`,
+        before: planFigures(r, 'baseline'), after: planFigures(r, 'scenario'),
+        ...(budget === 'unset' || budget === 'min' ? { budgetHolds: budget } : {}),
+        undo: { kind: 'spending_cut', commitmentId: next[0].id },
+      });
     } catch (error) {
       setToast((error as Error).message);
       return;
     }
     setSurplusDelta(0);
     setSurplusStartMonth(1);
-    setToast(`Locked in — trimming ${fmtUser(surplusDelta)}/mo from your spending.`);
+    setToast(null);
     startTransition(() => router.refresh());
   }
 
@@ -215,6 +231,8 @@ export function WhatIfPanel({
       setLumpModeTried(true);
       return;
     }
+    const r = lump.result;
+    if (!r) return setToast('Wait for the figures above, then press again.');
     const stored = loadProfileClient();
     const index = resolveLoanIndex(lumpRef, stored.user.loans);
     if (!stored.isLive || !isOpenCurrentLoan(stored.user.loans[index])) {
@@ -244,6 +262,7 @@ export function WhatIfPanel({
     const newEmi = !fullyClears && lumpMode === 'reduce_emi'
       ? Number(option?.new_emi ?? lowerEmiAfter(owedLoans[lumpTarget] ?? target, lumpAmount) ?? 0)
       : null;
+    const emiBefore = stored.user.loans[index].scheduled_emi;
     applyToolResult({
       loanIndex: index,
       kind: fullyClears ? 'closed' : 'paid_extra',
@@ -256,6 +275,7 @@ export function WhatIfPanel({
       country: stored.user.country,
       ...(!fullyClears && lumpMode ? { prepay: prepayFields(lumpMode, sched, newEmi) } : {}),
     });
+    const activityId = readActivityClient()[0].id;
     const emiSaved = newEmi ? saveLowerEmi({ loanIndex: index, loanId: target.id }, newEmi) : false;
     const entry: Omit<CommitmentEntry, 'id'> = {
       date: todayISO(),
@@ -268,9 +288,19 @@ export function WhatIfPanel({
     const next = addCommitment(readCommitmentsClient(), entry);
     writeCommitmentsClient(next);
     setCommitments(next);
+    const emiLine = emiSaved && newEmi ? `; its EMI is now ${fmtLump(newEmi)} in Profile (check it against the bank's letter)` : '';
+    recordAppliedChange({
+      country: user.country, currency: userCcy === 'USD' ? 'USD' : 'INR',
+      what: `${fmtLump(lumpAmount)} paid to ${target.bank}${fullyClears ? ', closing it' : ''}${emiLine}`,
+      from: target.loan_type === 'credit_card' || fullyClears
+        ? `today; what you owe drops this month (${monthIndexToCountryLabel(1, user.country)})`
+        : `today; what you owe drops now, and the schedule counts the extra from ${monthIndexToCountryLabel(2, user.country)}`,
+      before: planFigures(r, 'baseline'), after: planFigures(r, 'scenario'),
+      undo: { kind: 'lump_sum', activityId, commitmentId: next[0].id,
+        ...(emiSaved && newEmi ? { emi: { loanId: target.id, loanIndex: index, before: emiBefore, after: newEmi.toFixed(2) } } : {}) },
+    });
     setLumpAmount(0);
-    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.` +
-      (emiSaved && newEmi ? ` Its EMI is now ${fmtLump(newEmi)} in Profile; check it against the bank's letter.` : ''));
+    setToast(null);
     startTransition(() => router.refresh());
   }
 
@@ -278,6 +308,8 @@ export function WhatIfPanel({
     if (commitments.find((c) => c.id === id)?.spendingSnapshot) {
       try {
         setCommitments(undoSpendingCut(id));
+        const shown = readAppliedChange();
+        if (shown?.undo.kind === 'spending_cut' && shown.undo.commitmentId === id) dismissAppliedChange();
         setToast('Spending cut undone; spending and the monthly debt budget are restored.');
         startTransition(() => router.refresh());
       } catch (error) {
@@ -397,6 +429,7 @@ export function WhatIfPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', borderTop: `2px solid ${L_T.ink}` }}>
+      <AppliedChangeCard kinds={['lump_sum', 'spending_cut']} />
       <SliderRow
         country={user.country}
         title={'Spend less each month'}

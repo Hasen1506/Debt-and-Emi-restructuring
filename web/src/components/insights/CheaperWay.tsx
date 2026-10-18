@@ -129,6 +129,7 @@ export function CheaperWay({
       <LSectionHeader>
         <span id="cheaper-h">Cheaper way to carry this</span>
       </LSectionHeader>
+      <p data-testid="check-only" style={{ margin: 0, fontSize: 11, color: L_T.muted }}>Check only; nothing changes until you update your loan in Profile.</p>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
         Your {cards} {data.cards.length > 1 ? 'cost' : 'costs'}{' '}
         <strong>{cost.map((c) => pct(c)).join(' and ')} a year</strong> (interest compounded monthly{india ? ', plus 18% GST' : ''}). Here is
