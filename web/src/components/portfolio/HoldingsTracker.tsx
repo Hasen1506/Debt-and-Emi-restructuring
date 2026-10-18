@@ -335,12 +335,15 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
               unrealized
             </span>
           </div>
+          {/* A phone is narrower than the six columns: the table scrolls
+              inside its box instead of pushing ↻ / × past the border. */}
+          <div style={{ overflowX: 'auto', marginTop: 10 }}>
           <table
             style={{
               width: '100%',
               borderCollapse: 'collapse',
-              marginTop: 10,
               fontSize: 12,
+              whiteSpace: 'nowrap',
             }}
           >
             <thead>
@@ -398,11 +401,14 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                       {formatCurrency(pl.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}
                     </td>
                     <td style={{ textAlign: 'right', padding: '6px 6px' }}>
+                      <span style={{ display: 'inline-flex', gap: 4, verticalAlign: 'middle' }}>
                       <button
                         type="button"
                         onClick={() => handleRefresh(h)}
                         disabled={refreshingTicker === h.ticker}
                         title="Refresh price"
+                        aria-label={`Refresh ${h.ticker} price`}
+                        className="l-hit"
                         style={{
                           background: 'transparent',
                           border: '1px solid var(--border)',
@@ -414,7 +420,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                         }}
                       >
                         ↻
-                      </button>{' '}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleRemove(h)}
@@ -433,26 +439,31 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                       >
                         ×
                       </button>
+                      </span>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         </>
       )}
 
-      {/* Add form */}
+      {/* Add form. UI revert 2 ledger sizes (as 4bc3dc8 / the What-if
+          boxes): every box 13px with 4px 6px padding and one height, every
+          label an 18px row, all on one grid, so labels, boxes, the select
+          and the button share a line; hints hang below their box. */}
       <div
         style={{
           marginTop: 14,
           padding: 10,
           background: 'var(--soft-bg)',
-          borderRadius: 6,
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'flex-start', // Live re-test 2 NEW-18: inputs on one line; hints hang below
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(136px, 100%), 1fr))',
+          columnGap: 8,
+          rowGap: 10,
+          alignItems: 'start',
         }}
       >
         <Field label={user.country === 'IN' ? 'Ticker (NSE)' : 'Ticker'} hint={user.country === 'IN' ? 'e.g. RELIANCE' : 'e.g. AAPL'}>
@@ -476,7 +487,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             style={inputStyle}
           />
         </Field>
-        <Field label="Avg cost / share (optional)" hint="In the currency the stock trades in">
+        <Field label="Avg cost / share" hint="Optional. In the currency the stock trades in">
           <input
             type="number"
             inputMode="decimal"
@@ -494,31 +505,38 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             onChange={(e) =>
               setAssetType(e.target.value as 'equity_stocks' | 'equity_mf')
             }
-            style={{ ...inputStyle, width: 130 }}
+            style={inputStyle}
           >
             <option value="equity_stocks">Stock</option>
             <option value="equity_mf">MF / ETF</option>
           </select>
         </Field>
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={status.kind === 'loading'}
-          style={{
-            background: 'var(--ink)',
-            color: 'var(--canvas)',
-            border: 'none',
-            borderRadius: 0,
-            padding: '8px 14px',
-            cursor: status.kind === 'loading' ? 'wait' : 'pointer',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.14em',
-          }}
-        >
-          <span aria-hidden="true">[ </span>ADD HOLDING<span aria-hidden="true"> ]</span>
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* An empty label row, so the button sits on the boxes' line. */}
+          <span aria-hidden="true" style={labelRowStyle} />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={status.kind === 'loading'}
+            style={{
+              height: BOX_H,
+              boxSizing: 'border-box',
+              background: 'var(--ink)',
+              color: 'var(--canvas)',
+              border: '1px solid var(--ink)',
+              borderRadius: 0,
+              padding: '0 12px',
+              cursor: status.kind === 'loading' ? 'wait' : 'pointer',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.14em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span aria-hidden="true">[ </span>ADD HOLDING<span aria-hidden="true"> ]</span>
+          </button>
+        </div>
       </div>
 
       {status.kind !== 'idle' && status.msg && (
@@ -541,14 +559,30 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   );
 }
 
+/** One box height for the inputs, the select and the button (13px text,
+ *  4px 6px padding, 1px border). On a touch screen globals.css lifts every
+ *  one of them to 44px / 16px, still together. */
+const BOX_H = 28;
+
 const inputStyle: React.CSSProperties = {
-  padding: '6px 8px',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  background: 'var(--canvas)',
+  height: BOX_H,
+  boxSizing: 'border-box',
+  padding: '4px 6px',
+  border: '1px solid var(--ink)',
+  borderRadius: 0,
+  background: 'var(--card)',
   color: 'var(--ink)',
+  fontFamily: 'inherit',
   fontSize: 13,
-  width: 110,
+  width: '100%',
+  minWidth: 0,
+};
+
+const labelRowStyle: React.CSSProperties = {
+  fontSize: 11,
+  minHeight: 18,
+  display: 'flex',
+  alignItems: 'center',
 };
 
 function Field({
@@ -561,13 +595,13 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span className="muted" style={{ fontSize: 11 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <span className="muted" style={labelRowStyle}>
         {label}
       </span>
       {children}
       {hint && (
-        <span className="muted" style={{ fontSize: 10 }}>
+        <span className="muted" style={{ fontSize: 10, lineHeight: 1.4 }}>
           {hint}
         </span>
       )}
