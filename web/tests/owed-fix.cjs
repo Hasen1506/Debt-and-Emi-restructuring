@@ -97,3 +97,21 @@ test('owed-fix: every screen reads the one helper', () => {
   assert.match(src('components/distress/CantPay.tsx'), /Still to pay this month/);
   assert.match(src('app/profile/ProfileClient.tsx'), /<OwedNowHint /);
 });
+
+test('full minimums line: a 3-month card plan beside minimums clearing in month 72 keeps its label', () => {
+  const { layoutTrajectoryLabels } = comp('ledger/LTrajectory.tsx');
+  const N = 72;
+  const pts = Array.from({ length: N + 1 }, (_, m) => ({ t: m / N, av: m <= 3 ? 1 - m / 3 : 0, min: Math.max(0, 1 - m / N) }));
+  const ms = [{ t: 3 / N, v: 0, label: "DEBT-FREE · JAN '27" }];
+  const note = "MINIMUMS ONLY: CLEAR OCT '32";
+  for (const w of [340, 390, 768, 1232]) {
+    const narrow = w < 480;
+    const h = narrow ? 220 : 260, left = narrow ? 58 : 76, right = 14, top = 34, bottom = 26;
+    const toX = (t) => left + t * (w - left - right);
+    const toY = (v) => h - bottom - v * (h - top - bottom);
+    const { labels, note: n } = layoutTrajectoryLabels({ points: pts, milestones: ms, minimumsNote: note, w, left, right, top, toX, toY });
+    assert.equal(labels.length, 1, `w=${w}: the plan's milestone label is kept`);
+    assert.ok(labels[0].x0 >= 0 && labels[0].x1 <= w, `w=${w}: label inside the chart`);
+    assert.ok(n && n.y > 0, `w=${w}: the minimums note is placed`);
+  }
+});

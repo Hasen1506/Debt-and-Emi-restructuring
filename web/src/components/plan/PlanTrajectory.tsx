@@ -67,8 +67,8 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     // Live re-test 3 R3-1: one never-clears answer for the line, its note and
     // the screen-reader summary, in the plan and in the what-if.
     const minClear = minimumsClearMonth(traj, plan.baselineNeverClears);
-    // Both lines whole when the minimums finish within twice the plan;
-    // otherwise the plan plus a quarter (at least six months).
+    // Both lines whole: the axis runs to the month the minimums clear (or the
+    // horizon when they never do), founder 18 Oct 2026.
     const end = chartEndMonth({
       planClears: clears,
       minClear,
@@ -126,11 +126,11 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
         ? `NOT FUNDABLE FROM ${shortDate(notFundableFrom)} →`
         : !clears && plan.gap?.firstBorrowMonth
         ? 'GAP BORROWING KEEPS GROWING →'
-        : lastShown && lastShown.minimums > 0.5
-          ? minClear
-            ? `MINIMUMS: CLEAR ${shortDate(minClear)} →`
-            : 'MINIMUMS NEVER CLEAR IT →'
-          : undefined;
+        : minClear
+          ? `MINIMUMS ONLY: CLEAR ${shortDate(minClear)}`
+          : lastShown && lastShown.minimums > 0.5
+            ? 'MINIMUMS NEVER CLEAR IT →'
+            : undefined;
 
     const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
       const m = first + Math.round(f * span);
