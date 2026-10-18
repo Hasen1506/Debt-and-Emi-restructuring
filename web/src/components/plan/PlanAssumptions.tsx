@@ -26,8 +26,8 @@ import { InflationRateControl } from './InflationRateControl';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
-import { loanToUser } from '@/lib/currency';
 import { DebtBudgetControl } from './DebtBudgetControl';
+import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { AssumedReturnControl, GapLimitControl, RateRiseControl, SeasonalIncomeControl } from './PlanInputsControls';
 import { hasSeasonalPattern } from '@/lib/seasonal-income';
 import { assumedReturnFor, floatingLoanIndices, gapLimitFor } from '@/lib/plan-inputs';
@@ -67,12 +67,10 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   const efGap = Number(u.efund_target || 0) > 0 && Number(u.efund_balance || 0) < Number(u.efund_target || 0);
   const efPct = Math.round(Number(plan.efSplit) * 100);
   const twoCurrencies = plan.currenciesInPlay.length > 1;
-  // This month's EMIs and minimums, and the most the plan could pay.
-  const required = Object.entries(plan.firstMonthMinimums ?? {}).reduce((sum, [i, v]) => {
-    const loan = u.loans[Number(i)];
-    return loan ? sum + (loanToUser(Number(v), loan, u.country, plan.fxRatesUsed) ?? Number(v)) : sum;
-  }, 0);
-  const allSpare = required + Math.max(0, plan.surplus || 0);
+  // This month's EMIs and minimums, the most the plan could pay, and how
+  // each figure is made up (lib/debt-budget-figures).
+  const figures = debtBudgetFigures(plan);
+  const { required, allSpare } = figures;
   const budget = Number(plan.debtBudget || 0);
 
   const chips: Chip[] = [
@@ -88,14 +86,21 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'budget',
       label: 'TO DEBTS',
-      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : allSpare - required < 1 ? 'MINIMUMS ONLY' : 'ALL SPARE CASH',
+      value:
+        plan.debtBudgetChoice === 'set' && budget > 0
+          ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH`
+          : plan.debtBudgetChoice === 'unset'
+            ? 'EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT'
+            : plan.debtBudgetChoice === 'min' || allSpare - required < 1
+              ? 'EMIS AND MINIMUMS ONLY'
+              : 'ALL SPARE CASH',
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (
         <DebtBudgetControl
+          choice={plan.debtBudgetChoice}
           budget={plan.debtBudget ?? ''}
-          required={required}
-          allSpare={allSpare}
+          figures={figures}
           currency={ccy}
           hasFundTarget={Number(u.efund_target || 0) > 0}
         />

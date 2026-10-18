@@ -2152,7 +2152,8 @@ export interface SimulateArgs {
    *  legacy "100% surplus → debt" behaviour. */
   ef_top_up_rate?: string;
   /** The user's monthly total for debts (EMIs + minimums + extra), in
-   *  their currency. Omitted: all spare cash goes to debts. */
+   *  their currency. Omitted: all spare cash goes to debts; '0': EMIs and
+   *  minimums only (chosen, or not chosen yet: lib/debt-budget). */
   debt_budget?: string;
   /** Audit 80+ A4: the share of the extra the user chose to keep once only
    *  loans under 10% a year are left (lib/low-rate-choice). Omitted: prepay all. */

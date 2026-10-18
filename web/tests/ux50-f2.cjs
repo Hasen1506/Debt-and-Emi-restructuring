@@ -137,7 +137,12 @@ test('B-12: a card marked paid moves on Home (an estimate until the statement)',
   const { owedNow } = lib('owed-now.ts');
   const card = { id: 'c', loan_type: 'credit_card', outstanding: '85000', nominal_rate: '0.42', scheduled_emi: '0', balance_as_of: '2026-10-01' };
   const entry = (o) => ({ id: 'e', loanIndex: 0, loanId: 'c', kind: 'paid_extra', date: '2026-10-13', amount: '12500', scheduledEmi: '4250', loggedAt: '2026-10-13T10:00:00Z', ...o });
-  const [r] = owedNow([card], [entry({})], '2026-10');
+  // Owed-fix: Home reads the plan's loans, where Activity already took the
+  // unplanned ₹8,250 extra off (lib/activity-cookie); only the rest comes off here.
+  const ac = lib('activity-cookie.ts');
+  const current = ac.applyActivityDeltas([card], ac.activityDeltas([entry({})], [card], 'IN', new Date('2026-10-14T08:00:00Z')), '2026-10').loans;
+  assert.equal(Number(current[0].outstanding), 76750);
+  const [r] = owedNow(current, [entry({})], '2026-10');
   assert.equal(r.owed.toFixed(0), '72500');
   assert.equal(r.cardBefore.toFixed(0), '85000');
   assert.equal(r.status, null);

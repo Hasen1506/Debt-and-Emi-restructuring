@@ -115,3 +115,58 @@ test('full minimums line: a 3-month card plan beside minimums clearing in month 
     assert.ok(n && n.y > 0, `w=${w}: the minimums note is placed`);
   }
 });
+
+test('debt budget: never a silent all-spare-cash default', () => {
+  const b = lib('debt-budget.ts');
+  assert.equal(b.debtBudgetKind(''), 'unset');
+  assert.equal(b.debtBudgetKind('all'), 'all');
+  assert.equal(b.debtBudgetKind('min'), 'min');
+  assert.equal(b.debtBudgetKind('45000'), 'set');
+  // What /simulate gets: not chosen = EMIs and minimums only (a guest plan keeps all spare cash).
+  assert.equal(b.debtBudgetForEngine(''), '0');
+  assert.equal(b.debtBudgetForEngine('', false), undefined);
+  assert.equal(b.debtBudgetForEngine('min'), '0');
+  assert.equal(b.debtBudgetForEngine('all'), undefined);
+  assert.equal(b.debtBudgetForEngine('45,000'), '45000');
+  // A budget saved before this (an amount) is untouched.
+  assert.equal(b.normalizeDebtBudget('50000.25'), '50000.25');
+  assert.equal(b.debtBudgetAmount('all'), '');
+  assert.match(src('components/plan/load-plan.ts'), /debt_budget: debtBudgetEngine/);
+});
+
+test('debt budget: each suggested figure says how it is made up, and the sum matches', () => {
+  const f = lib('debt-budget-figures.ts');
+  const plan = {
+    user: { country: 'IN', loans: [{ loan_type: 'credit_card', bank: 'Axis', outstanding: '200000' }] },
+    runArgs: { user: { monthly_income: '150000', fixed_expenses: '30000', variable_expenses: '10000' } },
+    firstMonthMinimums: { 0: '10000' }, fxRatesUsed: {}, surplus: 100000,
+    surplusAllocation: { surplus: 100000, goalSlice: 0, efSlice: 11354, debtSlice: 88646, efPreempted: false, efSplit: 0.1 },
+  };
+  const fig = f.debtBudgetFigures(plan);
+  assert.equal(fig.allSpare, 98646);
+  assert.equal(fig.required, 10000);
+  assert.equal(fig.takeHome - fig.costs - fig.fund - fig.goals - fig.other, fig.allSpare, 'the terms add up exactly');
+  assert.equal(f.allSpareLine(fig, inr), '₹98,646 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354 (₹10,000 of EMIs and minimums + ₹88,646 extra)');
+  assert.equal(f.minimumsLine(fig, inr), '₹10,000 = Axis credit card minimum ₹10,000');
+  assert.equal(f.suggestedLine(fig, inr), 'Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and all spare cash ₹98,646');
+  // Anything else the engine holds back shows as its own term, so the sum still matches.
+  const other = f.debtBudgetFigures({ ...plan, surplusAllocation: { ...plan.surplusAllocation, debtSlice: 80000 } });
+  assert.equal(other.other, 8646);
+  assert.match(f.allSpareLine(other, inr), /^₹90,000 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354 − other set-asides ₹8,646/);
+});
+
+test('debt budget: the prompt asks, with three choices, and labels the plan until then', () => {
+  const { DebtBudgetPrompt } = comp('plan/DebtBudgetControl.tsx');
+  const fig = { takeHome: 150000, costs: 40000, fund: 11354, goals: 0, other: 0, required: 10000, allSpare: 98646, suggested: 54323,
+    minimums: [{ label: 'Axis credit card', amount: 10000, card: true }] };
+  const html = text(renderToStaticMarkup(React.createElement(DebtBudgetPrompt, { choice: 'unset', budget: '', figures: fig, currency: 'INR', hasFundTarget: false })));
+  assert.match(html, /How much a month toward debts\?/);
+  assert.match(html, /THIS PLAN: EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
+  assert.match(html, /All spare cash · ₹98,646/);
+  assert.match(html, /Set an amount/);
+  assert.match(html, /Only EMIs and minimums · ₹10,000/);
+  assert.match(html, /₹98,646 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354/);
+  assert.match(src('components/plan/LedgerPlan.tsx'), /debtBudgetChoice === 'unset'/);
+  assert.match(src('components/home/HomeDebtFree.tsx'), /debtBudgetChoice === 'unset'/);
+  assert.match(src('components/plan/PlanAssumptions.tsx'), /EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
+});

@@ -172,7 +172,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const owedNowNote = (() => {
     if (!showOwedNow) return null;
     const notes = plan.paidNow ?? [];
-    const money = (v: number) => fc(Math.round(v).toFixed(0));
+    const money = (v: number) => fc(Math.round(v));
     if (notes.length === 1 && Math.abs(owedToday - owedNow - notes[0].amount) < 1)
       return `${money(owedToday)} LESS ${money(notes[0].amount)} PAID ${shortDay(notes[0].date).toUpperCase()}`;
     return `${money(owedToday)} AT THE START OF THE MONTH LESS ${money(owedToday - owedNow)} ALREADY PAID`;
@@ -371,16 +371,16 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   const lc = loanCurrency(l, plan.user.country);
                   return (
                     <td key={idx} style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>
-                      {later || owed <= 0 ? '—' : formatCurrencyWhole(owed.toFixed(0), lc)}
+                      {later || owed <= 0 ? '—' : formatCurrencyWhole(Math.round(owed), lc)}
                       {!later && Math.abs(was - owed) >= 1 ? (
-                        <div style={{ fontSize: 9, fontWeight: 400, color: L_T.muted }}>WAS {formatCurrencyWhole(was.toFixed(0), lc)}</div>
+                        <div style={{ fontSize: 9, fontWeight: 400, color: L_T.muted }}>WAS {formatCurrencyWhole(Math.round(was), lc)}</div>
                       ) : null}
                     </td>
                   );
                 })}
                 {mixed && <td />}
                 <td colSpan={3} />
-                <td data-testid="schedule-start-balance" style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(owedNow.toFixed(0))}</td>
+                <td data-testid="schedule-start-balance" style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(Math.round(owedNow))}</td>
                 {showGap && <td style={{ padding: '7px 10px', textAlign: 'right' }}>—</td>}
               </tr>
               {visibleRows.map((r) => (
@@ -403,8 +403,8 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                         : '—'}
                       {r.mo === 1 && r.perLoan[idx] && paidNow.get(idx) ? (
                         <div data-testid="schedule-paid-to-go" style={{ fontSize: 9, letterSpacing: '0.04em', color: L_T.muted }}>
-                          {formatCurrencyWhole(Math.round(paidNow.get(idx)!.paid).toFixed(0), loanCurrency(l, plan.user.country))} PAID ·{' '}
-                          {formatCurrencyWhole(Math.max(0, Math.round(Number(r.perLoan[idx]) - paidNow.get(idx)!.paid)).toFixed(0), loanCurrency(l, plan.user.country))} TO GO
+                          {formatCurrencyWhole(Math.round(paidNow.get(idx)!.paid), loanCurrency(l, plan.user.country))} PAID ·{' '}
+                          {formatCurrencyWhole(Math.max(0, Math.round(Number(r.perLoan[idx]) - paidNow.get(idx)!.paid)), loanCurrency(l, plan.user.country))} TO GO
                         </div>
                       ) : null}
                       {r.perLoan[idx] && finalMonth.get(idx) === r.mo ? (

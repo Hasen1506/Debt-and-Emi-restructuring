@@ -75,7 +75,7 @@ export interface PayThisMonth {
    *  extraUser + the set-aside rows, and never more than take-home less
    *  spending. */
   duesUser: number;
-  /** The user's own monthly total for debts; 0 = all spare cash. */
+  /** The user's own set monthly total for debts; 0 = not a set total (all spare cash, or EMIs and minimums only: plan.debtBudgetChoice). */
   budget: number;
   /** Loans whose whole payment this month comes out of salary (not listed). */
   fromSalary: string[];

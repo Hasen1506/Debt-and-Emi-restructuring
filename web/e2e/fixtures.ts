@@ -12,6 +12,11 @@ export const test = base.extend<{ page: Page }>({
       (route) => route.abort('blockedbyclient'),
     );
     await page.clock.setFixedTime(FROZEN_NOW);
+    // Founder 18 Oct 2026: a saved plan pays EMIs and minimums only until the
+    // user chooses a monthly total for debts. The journeys and goldens were
+    // recorded with all spare cash; they choose it up front. The prompt's own
+    // spec clears this cookie.
+    await context.addCookies([{ name: 'rightdue_debt_budget', value: 'all', domain: 'localhost', path: '/' }]);
     // page.goto and page.reload go through settleNavigation (below): a
     // goto the app's own refresh aborted is sent again, and a navigation
     // Playwright stranded in Firefox is released.

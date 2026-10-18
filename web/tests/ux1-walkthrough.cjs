@@ -356,12 +356,16 @@ test('fixes 17-19: no engineering words, card digits optional and capped at 4, a
 
 test('fix 25: "To debts" says minimums only when nothing is spare, and never suggests less than the minimums', () => {
   const { DebtBudgetControl } = comp('plan/DebtBudgetControl.tsx');
-  const html = (p) => text(renderToStaticMarkup(React.createElement(DebtBudgetControl, { budget: '', currency: 'INR', hasFundTarget: true, ...p })));
-  assert.match(html({ required: 7500, allSpare: 7500 }), /Minimums only · ₹7,500 \(nothing spare\)/);
-  assert.match(html({ required: 7500, allSpare: 14500 }), /All spare cash · ₹14,500/);
-  const s = src('components/plan/DebtBudgetControl.tsx');
-  assert.match(s, /setDefault = Math\.round\(Math\.max\(required,/);
-  assert.match(s, /placeholder=\{String\(setDefault\)\}/);
+  const fig = (required, allSpare) => ({ takeHome: allSpare + 20000, costs: 20000, fund: 0, goals: 0, other: 0, required, allSpare,
+    suggested: Math.round(Math.max(required, (required + allSpare) / 2)), minimums: [{ label: 'Credit card', amount: required, card: true }] });
+  const html = (p) => text(renderToStaticMarkup(React.createElement(DebtBudgetControl, { choice: 'all', budget: '', currency: 'INR', hasFundTarget: true, ...p })));
+  assert.match(html({ figures: fig(7500, 7500) }), /Only EMIs and minimums · ₹7,500 \(nothing spare\)/);
+  assert.doesNotMatch(html({ figures: fig(7500, 7500) }), /All spare cash/);
+  assert.match(html({ figures: fig(7500, 14500) }), /All spare cash · ₹14,500/);
+  assert.match(html({ figures: fig(7500, 14500) }), /Suggested ₹11,000 = halfway between EMIs and minimums ₹7,500 and all spare cash ₹14,500/);
+  assert.match(html({ figures: fig(7500, 7500) }), /Suggested ₹7,500 = your EMIs and minimums/);
+  assert.match(src('lib/debt-budget-figures.ts'), /suggested = Math\.round\(Math\.max\(required,/);
+  assert.match(src('components/plan/DebtBudgetControl.tsx'), /placeholder=\{String\(suggested\)\}/);
 });
 
 test('fix 21: choosing what happens on a rate rise is confirmed with what it means', () => {

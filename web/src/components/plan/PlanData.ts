@@ -170,8 +170,12 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
-  /** The user's monthly total for debts ('' = all spare cash). */
+  /** The user's set monthly total for debts ('' = not a set total: see debtBudgetChoice). */
   debtBudget: string;
+  /** Founder 18 Oct 2026: whether the user has chosen a monthly total for
+   *  debts (lib/debt-budget). 'unset': the plan pays EMIs and minimums only
+   *  and Plan and Home ask. */
+  debtBudgetChoice: import('@/lib/debt-budget').DebtBudgetKind;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.

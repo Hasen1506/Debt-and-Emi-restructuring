@@ -359,7 +359,13 @@ export async function loadPlanInputs(
   const efBalance = Number(adjustedUser.efund_balance ?? '0');
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
-  const debtBudget = await (await import('@/lib/debt-budget')).loadDebtBudgetServer();
+  // Founder 18 Oct 2026: the budget is the user's choice (lib/debt-budget):
+  // not chosen yet, a saved plan pays EMIs and minimums only.
+  const budgetLib = await import('@/lib/debt-budget');
+  const debtBudgetToken = await budgetLib.loadDebtBudgetServer();
+  const debtBudget = budgetLib.debtBudgetAmount(debtBudgetToken);
+  const debtBudgetChoice = budgetLib.debtBudgetKind(debtBudgetToken);
+  const debtBudgetEngine = budgetLib.debtBudgetForEngine(debtBudgetToken, profile.isLive);
   // Audit 80+ A4: the user's own prepay/keep split for when only cheap debt is left.
   const lowRateShare = await (await import('@/lib/low-rate-choice')).loadLowRateShareServer();
   const { goalsForSimulateServer } = await import('@/lib/goals');
@@ -421,7 +427,7 @@ export async function loadPlanInputs(
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
-    debt_budget: debtBudget || undefined,
+    debt_budget: debtBudgetEngine,
     low_rate_invest_share: lowRateShare || undefined,
     // Per-goal payload — engine runs serial-fill per month with
     // goal-expiry awareness, threads saved_so_far across iterations,
@@ -445,6 +451,7 @@ export async function loadPlanInputs(
     displayUser,
     efSplit,
     debtBudget,
+    debtBudgetChoice,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
@@ -476,6 +483,7 @@ export async function loadPlan(
     displayUser,
     efSplit,
     debtBudget,
+    debtBudgetChoice,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
@@ -528,6 +536,7 @@ export async function loadPlan(
       fxRatesUsed: {},
       efSplit,
       debtBudget,
+      debtBudgetChoice,
       goalsActive: hasGoalsForEngine,
       goalContributions: [],
       goalFinals: [],
@@ -704,6 +713,7 @@ export async function loadPlan(
       fxRatesUsed,
       efSplit,
       debtBudget,
+      debtBudgetChoice,
       goalsActive: hasGoalsForEngine,
       goalContributions:
         scenario.surplus_allocation?.goal_contributions?.map((c) => ({

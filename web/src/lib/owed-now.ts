@@ -41,7 +41,10 @@ export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: s
     const now = new Decimal(Number(owedLoans[i].outstanding) || 0);
     const emi = Number(loan.scheduled_emi) || 0;
     if (loan.loan_type === 'credit_card' && owed.gt(0)) {
-      return paid.off.some((o) => o.index === i) ? { status: null, owed: now, cardBefore: owed } : { status: null, owed };
+      // "WAS" is the entered balance: the plan's opening balance plus any part
+      // of this month's payments Activity already took off it.
+      const o = paid.off.find((x) => x.index === i);
+      return o ? { status: null, owed: now, cardBefore: owed.add(Math.max(0, o.paid - o.amount)) } : { status: null, owed };
     }
     if (loan.loan_type === 'credit_card' || !(emi > 0) || !owed.gt(0)) return { status: null, owed };
     // Taken this month: nothing due until its first EMI.
