@@ -269,7 +269,8 @@ export function WindfallTool({
           loans: planUser.loans.map((l) => ({ ...l })),
           payoff_rules: rulesForLoans(rulesOrDefault(readRulesClient(), planUser.country), planUser.loans.length),
         };
-        for (let n = 0; n <= u.loans.length && rest >= 1; n++) {
+        // Twice the loans: a behind loan can come back once its overdue is paid.
+        for (let n = 0; n <= 2 * u.loans.length && rest >= 1; n++) {
           if (!u.loans.some((l) => Number(l.outstanding) > 0)) break;
           const w = await api.windfall({ amount: rest.toFixed(2), user: u, marginal_rate: profile.marginalRate, strategy, ...gapHint });
           if (w.blocked?.length) blocked = w.blocked;
@@ -284,11 +285,13 @@ export function WindfallTool({
           }
           const l = u.loans[w.loan_index];
           const k = keyOf(planUser.loans[w.loan_index], w.loan_index);
-          alloc[k] = Number(w.amount);
-          fees[k] = Number(w.fee ?? 0);
+          alloc[k] = (alloc[k] ?? 0) + Number(w.amount);
+          fees[k] = (fees[k] ?? 0) + Number(w.fee ?? 0);
           reasons.push({ what: loanName(l), why: w.rationale });
           rest = Number(w.leftover);
-          u = { ...u, loans: u.loans.map((x, j) => (j === w.loan_index ? { ...x, outstanding: '0' } : x)) };
+          // Caught up (engine/debt_status.py): the rest of the balance stays in the normal order.
+          const after = (x: typeof l): typeof l => (w.catch_up ? { ...x, debt_status: 'normal', outstanding: String(Math.max(0, Number(x.outstanding) - Number(w.amount) / (loanToUser(1, x, country, planUser.fx_to_user_currency) || 1))) } : { ...x, outstanding: '0' });
+          u = { ...u, loans: u.loans.map((x, j) => (j === w.loan_index ? after(x) : x)) };
         }
         // What no loan takes fills the rest of the emergency fund first,
         // then goes to the investment the engine named, else stays put.

@@ -793,8 +793,7 @@ export interface WindfallResponse {
   investment_return: string | null;
   /** Windfall left after clearing the loan. */
   leftover: string;
-  /** What interest_avoided assumes, e.g. "until the card is cleared,
-   *  paying the bank's minimum each month". */
+  /** What interest_avoided assumes ("until the card is cleared, …"). */
   interest_basis?: string;
   /** The loan's prepayment fee, taken out of `amount`. */
   fee?: string;
@@ -802,6 +801,7 @@ export interface WindfallResponse {
   net_benefit?: string;
   /** Loans passed over because their terms bar an extra payment now. */
   blocked?: string[];
+  catch_up?: boolean; // a behind loan's overdue, paid first: lower its balance and ask again
 }
 
 export interface QuickRecomputeResponse {

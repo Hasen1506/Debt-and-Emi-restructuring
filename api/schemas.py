@@ -1485,6 +1485,9 @@ class WindfallResponse(_Base):
     net_benefit: Decimal = D("0")
     # Loans passed over because their terms bar an extra payment now.
     blocked: list[str] = []
+    # A behind loan's overdue amount, paid first (engine/debt_status.py): the
+    # client lowers that loan's balance and asks again for the rest.
+    catch_up: bool = False
 
 
 class NewDebtRequest(_In):

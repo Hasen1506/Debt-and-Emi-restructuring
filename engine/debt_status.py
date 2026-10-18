@@ -125,3 +125,30 @@ class DebtStatusPlan:
 
     def total_pot(self) -> Decimal:
         return sum(self.pots.values(), D("0"))
+
+
+def lump_sum_catch_up(loans: list[Loan], user: User, amount: Decimal) -> tuple[int, Decimal, Decimal, bool] | None:
+    """A lump sum catches up behind loans first, like monthly spare cash
+    (founder, 17 Oct 2026; integration-4). The first behind loan still
+    overdue, in the monthly catch-up order (secured first, then the dearest,
+    then position). Returns (index in `loans`, paid in the loan's currency,
+    the same in the user's currency, overdue estimated?) or None.
+
+    The caller skips this when the user chose where the money goes (a pinned
+    loan or their own order, or MY SPLIT, which never asks the engine)."""
+    from engine.formulas import monthly_interest_charge
+    from engine.minimum_payments import compute_minimum_payment
+
+    if amount <= 0:
+        return None
+    ranked = sorted(
+        ((i, l) for i, l in enumerate(loans) if l.debt_status == BEHIND and l.outstanding > 0 and l.pre_emi_months_remaining <= 0),
+        key=lambda il: (il[1].loan_type not in SECURED, -il[1].nominal_rate, il[0]),
+    )
+    for i, l in ranked:
+        minimum = compute_minimum_payment(l, user.country, interest_accrued=monthly_interest_charge(l, user.country))
+        overdue, estimated = overdue_of(l, minimum if minimum > 0 else l.scheduled_emi)
+        pay = min(overdue, l.outstanding, from_user_currency(amount, l, user))
+        if pay > 0:
+            return i, pay, min(amount, to_user_currency(pay, l, user)), estimated
+    return None

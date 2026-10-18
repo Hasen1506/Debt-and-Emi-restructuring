@@ -13,7 +13,7 @@ from engine.asset_liquidation import (
     compute_liquidation_proceeds,
 )
 from engine.country_data import india_selling_cost_pct
-from engine.debt_status import is_held
+from engine.debt_status import is_held, lump_sum_catch_up
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, money, prepay_block,
@@ -33,6 +33,8 @@ from api.schemas import (
 )
 
 from engine.plan_end import shown_debt_free_month
+from engine.ordering import Strategy
+from engine.plan_insights import loan_label
 from engine.decisions import short_plan_hold
 
 D = Decimal
@@ -63,6 +65,23 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         return WindfallResponse(
             loan_label="Keep it for the monthly gap", loan_index=None, amount=req.amount, rationale=hold.rationale,
             interest_avoided=D("0"), invest_instead=False, investment_name=None, leftover=req.amount,
+        )
+    # Behind on a loan: the lump sum clears what is overdue first, like the
+    # monthly spare cash (engine/debt_status.py), unless the user put their
+    # own loans first (pinned / own order; MY SPLIT never asks the engine).
+    rules = user.payoff_rules
+    own_order = req.strategy == Strategy.RULES and rules is not None and bool(rules.pinned or rules.custom_order)
+    catch = None if own_order else lump_sum_catch_up(user.loans, user, req.amount)
+    if catch is not None:
+        i, _pay, used, estimated = catch
+        loan = user.loans[i]
+        name = loan_label(loan)
+        note = " (about one month's payment, since the amount behind was left blank)" if estimated else ""
+        return WindfallResponse(
+            loan_label=name, loan_index=i, amount=used, catch_up=True,
+            rationale=(f"Catch up on {name} first: it is behind, so {money(used, user.country)}{note} goes to what is "
+                       f"overdue before any extra goes elsewhere. That stops the late fees and further harm to your credit record."),
+            interest_avoided=D("0"), invest_instead=False, investment_name=None, leftover=req.amount - used,
         )
     # C8: forward decision, so the forward rate (marginal shield, no sunk
     # processing fee / insurance), not formulas.effective_rate (total cost).
