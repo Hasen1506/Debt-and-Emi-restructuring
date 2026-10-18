@@ -69,7 +69,8 @@ function timeNow(country: Country): string {
   });
 }
 
-const TAB_STYLE = { fontSize: 13, fontFamily: 'var(--font-mono)', letterSpacing: 'var(--nav-tracking, 0.12em)', textTransform: 'uppercase' } as const;
+// UI revert 18 Oct 2026: the tabs at the original LBracket size (10px, 0.14em).
+const TAB_STYLE = { fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: 'var(--nav-tracking, 0.14em)', textTransform: 'uppercase' } as const;
 
 /** `strategy` shows the payoff order switch; left out when there is no
  *  debt to order. */
@@ -285,7 +286,7 @@ export function LMasthead({
                     {g.links.map((l) => (
                       <li key={l.href + l.label}>
                         <Link href={l.href} aria-current={path === l.href.split('#')[0] ? 'page' : undefined}>
-                          <span className="rd-more-name" style={{ display: 'block', fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>
+                          <span className="rd-more-name" style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
                             {l.label}
                           </span>
                           {l.sub && (
