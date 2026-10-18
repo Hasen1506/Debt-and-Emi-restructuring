@@ -135,7 +135,7 @@ export function GoalDetail({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 12, lineHeight: 1.6 }}>
       {open && <GoalFundingLine goal={goal} currency={currency} today={today} onPatch={onPatch} />}
       {open && line.state !== 'funded' && line.state !== 'no_amount' && (
         <div>
@@ -178,7 +178,7 @@ export function GoalDetail({
 
       {short && (
         <div>
-          <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted, fontWeight: 700, marginBottom: 4 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, fontWeight: 700, marginBottom: 4 }}>
             {line.state === 'needs_backup' ? 'SPARE CASH ALONE FALLS SHORT' : `SHORT BY ${fmt(line.rec?.shortfall ?? line.remaining)}`}
           </div>
           {backup.length > 0 && (
@@ -231,7 +231,7 @@ export function GoalDetail({
       {note && <div style={{ color: L_T.muted, borderLeft: `3px solid ${L_T.accent}`, paddingLeft: 8 }}>{note}</div>}
 
       <div>
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted, fontWeight: 700, marginBottom: 4 }}>
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, fontWeight: 700, marginBottom: 4 }}>
           PUT IN SO FAR · {fmt(line.saved)}
           {goal.keptIn ? ` · ${KEPT_IN_LABEL[goal.keptIn].toUpperCase()}` : ''}
         </div>

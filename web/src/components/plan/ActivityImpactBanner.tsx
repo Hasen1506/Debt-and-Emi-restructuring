@@ -89,7 +89,7 @@ export function ActivityImpactBanner({
           style={{
             width: '100%',
             borderCollapse: 'collapse',
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             fontFamily: 'var(--font-mono)',
             marginTop: 4,
           }}
@@ -134,7 +134,7 @@ export function ActivityImpactBanner({
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
           }}
         >
           {lines.map((l) => (

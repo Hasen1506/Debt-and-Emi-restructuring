@@ -36,7 +36,7 @@ export function MarketRateLine({ loan, country }: { loan: LoanPayload; country: 
     : null;
   const asOf = view.banks.map((b) => b.fetchedAt.slice(0, 10)).sort().pop() ?? view.asOf;
   return (
-    <div data-testid="market-rate-line" className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 4, lineHeight: 1.55 }}>
+    <div data-testid="market-rate-line" className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.55 }}>
       {headline(view)}
       {hasRate && <> {position(rate, view)}</>}
       <details style={{ marginTop: 2 }}>

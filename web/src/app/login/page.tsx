@@ -301,7 +301,7 @@ export default function LoginPage() {
           </button>
           {googleOn && (
             <>
-              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
+              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
               <a
                 href={googleStartHref(next, undefined, agreement)}
                 aria-disabled={!adult}
@@ -311,7 +311,7 @@ export default function LoginPage() {
               >
                 <span aria-hidden="true">[ </span>Continue with Google<span aria-hidden="true"> ]</span>
               </a>
-              <p style={{ ...infoText, marginTop: 0, fontSize: 'var(--fs-small)' }}>
+              <p style={{ ...infoText, marginTop: 0, fontSize: 11 }}>
                 Google tells RightDue only your email address, which Google has checked is yours. Nothing else from your Google account is read or kept.
               </p>
             </>
@@ -395,7 +395,7 @@ const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexW
 const stepItem: React.CSSProperties = { whiteSpace: 'nowrap' };
 const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 'var(--fs-body)' };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
+const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
 const input: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 16,
@@ -411,7 +411,7 @@ const primary: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-label)',
+  fontSize: 12,
   fontWeight: 700,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
@@ -428,11 +428,11 @@ const ghost: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-label)',
+  fontSize: 10,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   cursor: 'pointer',
 };
-const noticeText: React.CSSProperties = { margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: 'var(--muted)' };
-const infoText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
-const errorText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--negative, #c53030)' };
+const noticeText: React.CSSProperties = { margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--muted)' };
+const infoText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--muted)' };
+const errorText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--negative, #c53030)' };

@@ -93,7 +93,7 @@ export function InflationRateControl({
           </span>
         </div>
       )}
-      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
         {pct(f.rate)} is {f.who}&apos;s {f.what}, published {formatAsOf(f.asOf)}. It is an average across
         the country; your own rent, school fees and bills may rise faster or slower.
         {active === 'off'

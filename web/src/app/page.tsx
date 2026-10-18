@@ -110,7 +110,7 @@ export default async function HomePage() {
           </Suspense>
         }
       />
-      {showPlannedSummary && <section style={{padding:'16px 0',fontSize: 'var(--fs-dense)'}}>
+      {showPlannedSummary && <section style={{padding:'16px 0',fontSize:12}}>
         <p>PLANNED LOANS · {plannedLoans.map(e=>e.kind==='property_buy' ? `${e.loanDraft.bank || 'New loan'} from ${e.effectiveDate}` : '').join('; ')}</p>
         <p>FORECAST · <Suspense fallback={<span>WORKING OUT YOUR DATE</span>}><HomeDebtFreeValue /></Suspense></p>
         <p><Suspense fallback={<span>WORKING OUT YOUR PLAN</span>}><HomeDebtFreeCaption /></Suspense></p>

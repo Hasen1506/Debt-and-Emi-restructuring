@@ -27,7 +27,7 @@ export function EmailAnswers({ month, onMarkAllPaid }: { month: string; onMarkAl
   }, []);
 
   const a = answers.find((x) => x.month === month) ?? answers[answers.length - 1];
-  if (!a) return said ? <p role="status" style={{ fontSize: 'var(--fs-dense)', color: L_T.positive }}>{said}</p> : null;
+  if (!a) return said ? <p role="status" style={{ fontSize: 12, color: L_T.positive }}>{said}</p> : null;
 
   async function settle(text: string) {
     await notifyApi.applied(a!.id).catch(() => {});
@@ -38,7 +38,7 @@ export function EmailAnswers({ month, onMarkAllPaid }: { month: string; onMarkAl
   const allPaid = a.kind === 'ack_all' || a.kind === 'reply_done';
   const cant = a.kind === 'ack_cant' || a.kind === 'reply_not';
   return (
-    <div role="region" aria-label="Your answer from the payday email" style={{ margin: '0 0 12px', padding: '10px 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, ...lStrip(cant ? 'negative' : 'accent') }}>
+    <div role="region" aria-label="Your answer from the payday email" style={{ margin: '0 0 12px', padding: '10px 12px', fontSize: 12, lineHeight: 1.6, ...lStrip(cant ? 'negative' : 'accent') }}>
       {allPaid && (
         <>
           You told us by email on {dayLabel(a.day)} that you paid everything on the list.{' '}

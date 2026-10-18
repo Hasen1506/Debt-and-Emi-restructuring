@@ -17,7 +17,7 @@ export function RateProblem({
   if (!parsed.error) return null;
   if (fixOnly && !parsed.suggestion) return null;
   return (
-    <span role={fixOnly ? undefined : 'alert'} style={{ fontSize: 'var(--fs-small)', color: 'var(--negative)' }}>
+    <span role={fixOnly ? undefined : 'alert'} style={{ fontSize: 11, color: 'var(--negative)' }}>
       {fixOnly ? null : parsed.error}{' '}
       {parsed.suggestion && (
         <button
@@ -30,7 +30,7 @@ export function RateProblem({
             color: 'var(--accent)',
             textDecoration: 'underline',
             cursor: 'pointer',
-            fontSize: 'var(--fs-small)',
+            fontSize: 11,
           }}
         >
           Use {parsed.suggestion}%

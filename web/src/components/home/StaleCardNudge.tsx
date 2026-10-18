@@ -96,7 +96,7 @@ export function StaleCardNudge({ user }: { user: UserPayload }) {
         alignItems: 'baseline',
         gap: 12,
         flexWrap: 'wrap',
-        fontSize: 'var(--fs-dense)',
+        fontSize: 12,
         lineHeight: 1.6,
       }}
     >

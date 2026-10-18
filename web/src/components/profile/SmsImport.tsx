@@ -100,12 +100,12 @@ export function SmsImport({
           Close
         </button>
       </div>
-      <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
+      <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
         Copy the SMS your bank sends (card spends, card statements, EMI debits) and paste them here, one per line
         or with a blank line between. They are read on this device only and never sent anywhere. OTPs and offers
         are skipped. Nothing changes until you tap it.
       </p>
-      <label style={{ display: 'grid', gap: 4, fontSize: 'var(--fs-body)' }}>
+      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
         Paste SMS, one per line
         <textarea
           rows={6}
@@ -128,7 +128,7 @@ export function SmsImport({
       </div>
 
       {parsed && (
-        <div data-testid="sms-result" style={{ display: 'grid', gap: 6, fontSize: 'var(--fs-body)' }}>
+        <div data-testid="sms-result" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
           {parsed.map((p, k) => {
             const match = p.kind === 'emi_debit' ? matchEmiToLoan(p, forMatch) : null;
             const stIdx = p.kind === 'card_statement' ? cardIndexFor(p.card_last4) : null;
@@ -149,13 +149,13 @@ export function SmsImport({
                 {p.card_last4 ? ` · card ${p.card_last4}` : p.account_last4 ? ` · a/c ${p.account_last4}` : ''}
                 {p.date ? ` · ${p.date}` : ''}
                 {match !== null && (
-                  <div className="muted" style={{ fontSize: 'var(--fs-dense)' }} data-testid="sms-emi-match">
+                  <div className="muted" style={{ fontSize: 12 }} data-testid="sms-emi-match">
                     Matches your {loanLabel(loans[Number(match)])}
                     {loans[Number(match)].scheduled_emi ? ` (EMI ${rupees(loans[Number(match)].scheduled_emi ?? null)})` : ''}.
                   </div>
                 )}
                 {p.kind === 'emi_debit' && match === null && (
-                  <div style={{ fontSize: 'var(--fs-dense)', display: 'grid', gap: 4 }}>
+                  <div style={{ fontSize: 12, display: 'grid', gap: 4 }}>
                     <span className="muted">It doesn&apos;t match one of your loans&apos; EMIs, so nothing is linked.</span>
                     {onAddLoan && p.amount && (
                       <button
@@ -173,7 +173,7 @@ export function SmsImport({
                   </div>
                 )}
                 {p.kind === 'emi_bounce' && (
-                  <div style={{ fontSize: 'var(--fs-dense)' }}>
+                  <div style={{ fontSize: 12 }}>
                     A bounced EMI usually carries a bounce charge and is reported to the credit bureaus. Pay it as
                     soon as you can and ask the lender to waive the charge.
                   </div>

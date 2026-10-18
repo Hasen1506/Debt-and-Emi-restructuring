@@ -99,12 +99,12 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
         <span id="life-events-h">Life events · {events.length}</span>
       </LSectionHeader>
       {error && (
-        <p role="alert" style={{ color: L_T.negative, fontSize: 'var(--fs-dense)', margin: '0 0 8px' }}>
+        <p role="alert" style={{ color: L_T.negative, fontSize: 12, margin: '0 0 8px' }}>
           {error}
         </p>
       )}
       {events.length === 0 && !adding && (
-        <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+        <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
           A pay change, a new rate on a floating-rate loan, or a loan you&apos;re about to take: the plan uses each
           from its date.
         </p>
@@ -126,17 +126,17 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
                   gap: '4px 14px',
                   padding: '10px 8px',
                   borderBottom: `1px dashed ${L_T.ruleSoft}`,
-                  fontSize: 'var(--fs-dense)',
+                  fontSize: 12,
                   opacity: e.status === 'cancelled' ? 0.6 : 1,
                 }}
               >
-                <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)', whiteSpace: 'nowrap' }}>{dayLabel(e.effectiveDate)}</span>
+                <span style={{ color: L_T.muted, fontSize: 11, whiteSpace: 'nowrap' }}>{dayLabel(e.effectiveDate)}</span>
                 <div style={{ minWidth: 0 }}>
                   <div>
-                    <strong style={{ letterSpacing: '0.08em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>{label}</strong> · {what(e)}
+                    <strong style={{ letterSpacing: '0.08em', fontSize: 11 }}>{label}</strong> · {what(e)}
                   </div>
-                  {e.note && <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)', marginTop: 2 }}>{e.note}</div>}
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'baseline', marginTop: 6, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>
+                  {e.note && <div style={{ color: L_T.muted, fontSize: 11, marginTop: 2 }}>{e.note}</div>}
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'baseline', marginTop: 6, fontSize: 10, letterSpacing: '0.1em' }}>
                     <span
                       style={{
                         fontWeight: 700,
@@ -190,7 +190,7 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
         </div>
       )}
       {pending && (
-        <p role="status" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '8px 0 0' }}>
+        <p role="status" style={{ fontSize: 11, color: L_T.muted, margin: '8px 0 0' }}>
           Re-running the plan…
         </p>
       )}

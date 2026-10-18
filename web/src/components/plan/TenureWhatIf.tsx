@@ -134,7 +134,7 @@ export function TenureWhatIf({
     : null;
 
   return (
-    <section id="tenure-what-if" data-print="hide" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
+    <section id="tenure-what-if" data-print="hide" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
       <div id="tenure-whatif" style={{ fontWeight: 700, letterSpacing: '0.08em' }}>
         WHAT IF THE BANK GAVE YOU A LONGER TENURE?
       </div>
@@ -164,7 +164,7 @@ export function TenureWhatIf({
               className="l-hit"
               style={{
                 fontFamily: 'inherit',
-                fontSize: 'var(--fs-small)',
+                fontSize: 11,
                 padding: '2px 8px',
                 border: `1px solid ${L_T.ink}`,
                 background: months === m ? L_T.ink : 'transparent',
@@ -193,12 +193,12 @@ export function TenureWhatIf({
       )}
       {/* R8-3: RBI's reset rule applies to a loan from an Indian lender only. */}
       {!inIndia ? (
-        <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
           Ask your lender; they decide. A longer term is up to the lender&apos;s own policy and charges, so ask what it
           costs and how it shows on your credit report.
         </p>
       ) : (
-      <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
+      <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
         Ask your lender; they decide. When a floating rate resets, RBI&apos;s rules say your lender must let you choose a
         higher {pw.one}, a longer tenure or both (
         <a href={RBI_RESET_CIRCULAR_URL} target="_blank" rel="noreferrer">

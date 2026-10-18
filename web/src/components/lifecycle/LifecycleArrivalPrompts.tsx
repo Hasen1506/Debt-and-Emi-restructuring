@@ -153,16 +153,16 @@ function Prompt({
     <div style={promptRowStyle(variant)}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, marginBottom: 2 }}>{kindLabel}</div>
-        <div style={{ fontSize: 'var(--fs-body)' }}>{summary}</div>
+        <div style={{ fontSize: 13 }}>{summary}</div>
         {e.note && (
-          <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginTop: 2, fontStyle: 'italic' }}>
+          <div className="muted" style={{ fontSize: 12, marginTop: 2, fontStyle: 'italic' }}>
             {e.note}
           </div>
         )}
         {postponedTo && (
           <div
             style={{
-              fontSize: 'var(--fs-small)',
+              fontSize: 11,
               marginTop: 4,
               color: 'var(--accent)',
               fontStyle: variant === 'editorial' ? 'italic' : 'normal',
@@ -193,7 +193,7 @@ function containerStyle(variant: Variant): React.CSSProperties {
   if (variant === 'ledger') {
     return {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--fs-dense)',
+      fontSize: 12,
       lineHeight: 1.55,
       borderLeft: '3px solid var(--accent)',
       paddingLeft: 12,
@@ -218,7 +218,7 @@ function containerStyle(variant: Variant): React.CSSProperties {
 function labelStyle(variant: Variant): React.CSSProperties {
   if (variant === 'ledger') {
     return {
-      fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+      fontSize: 11,
       color: 'var(--accent)',
       letterSpacing: '0.18em',
       textTransform: 'uppercase',
@@ -227,19 +227,19 @@ function labelStyle(variant: Variant): React.CSSProperties {
   if (variant === 'editorial') {
     return {
       fontFamily: 'var(--font-sans)',
-      fontSize: 'var(--fs-label)',
+      fontSize: 11,
       letterSpacing: '0.15em',
       textTransform: 'uppercase',
       color: 'var(--accent)',
     };
   }
-  return { fontSize: 'var(--fs-body)', fontWeight: 600, color: 'var(--accent)' };
+  return { fontSize: 14, fontWeight: 600, color: 'var(--accent)' };
 }
 
 function hintStyle(variant: Variant): React.CSSProperties {
   return {
     marginTop: 10,
-    fontSize: 'var(--fs-small)',
+    fontSize: 11,
     color: 'var(--muted)',
     fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
     fontStyle: variant === 'editorial' ? 'italic' : 'normal',
@@ -273,7 +273,7 @@ function btn(
       border: '1px solid var(--ink)',
       background: kind === 'primary' ? 'var(--ink)' : 'var(--canvas)',
       color: kind === 'primary' ? 'var(--canvas)' : 'var(--ink)',
-      fontSize: 'var(--fs-label)',
+      fontSize: 10,
       letterSpacing: '0.1em',
       cursor: 'pointer',
       fontFamily: 'var(--font-mono)',
@@ -286,7 +286,7 @@ function btn(
     color: kind === 'primary' ? 'var(--card)' : 'var(--muted)',
     border: kind === 'primary' ? 'none' : '1px solid var(--border)',
     borderRadius: 4,
-    fontSize: 'var(--fs-dense)',
+    fontSize: 12,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   };

@@ -192,14 +192,14 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               margin: '8px 0 0',
               padding: '8px 12px',
               border: '1px dashed var(--accent)',
-              fontSize: 'var(--fs-body)',
+              fontSize: 13,
               fontWeight: 600,
             }}
           >
             {res.draft_notice}
           </p>
         )}
-        <p style={{ margin: '6px 0 14px', fontSize: 'var(--fs-body)' }}>
+        <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
           The letter asks the bank to reset your rate and refund{' '}
           {formatCurrency(res.letter.claim_amount, 'INR')}, the missed rate cut only.
           Paying more than new borrowers isn&apos;t something a bank has to refund, so
@@ -229,12 +229,12 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
             onChange={setWhoField('address')}
           />
         </div>
-        <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '8px 0 0' }}>
+        <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
           These details stay in this browser. They are filled into the letter here and
           never sent to RightDue&apos;s server.
         </p>
         {missing.length > 0 && (
-          <p role="status" style={{ fontSize: 'var(--fs-dense)', margin: '4px 0 0', color: 'var(--accent)' }}>
+          <p role="status" style={{ fontSize: 12, margin: '4px 0 0', color: 'var(--accent)' }}>
             Still needed in the letter: {missing.join(' and ')}.
           </p>
         )}
@@ -244,11 +244,11 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
             data-testid="lc-self-check"
             style={{ border: '1px solid var(--border)', padding: '10px 14px', margin: '14px 0 0' }}
           >
-            <legend style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <legend style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Before you send: check each one
             </legend>
             {checks.map((c, i) => (
-              <label key={c} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 'var(--fs-body)', margin: '4px 0' }}>
+              <label key={c} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, margin: '4px 0' }}>
                 <input
                   type="checkbox"
                   checked={!!ticked[i]}
@@ -264,7 +264,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               </label>
             ))}
             {!allTicked && (
-              <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '6px 0 0' }}>
+              <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
                 Copy and download unlock once every box is ticked.
               </p>
             )}
@@ -276,7 +276,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           filename="complaint-letter-draft.txt"
           locked={!allTicked}
         />
-        <p style={{ fontSize: 'var(--fs-body)', margin: '10px 0 0' }}>
+        <p style={{ fontSize: 13, margin: '10px 0 0' }}>
           Send it through the bank&apos;s online grievance form or its grievance email,
           and keep the acknowledgement with the complaint number. By post, keep proof of
           delivery. Attach the enclosures listed at the end.
@@ -286,7 +286,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
 
       <Card>
         <LSectionHeader>Track it</LSectionHeader>
-        <p className="muted" style={{ fontSize: 'var(--fs-body)', margin: '6px 0 12px' }}>
+        <p className="muted" style={{ fontSize: 13, margin: '6px 0 12px' }}>
           Once it&apos;s sent, add the dates. The deadlines are counted from when the
           bank got it, and the next step appears here.
         </p>
@@ -325,7 +325,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
             />
           )}
           {(track.reply === 'partly' || track.reply === 'rejected') && (
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 'var(--fs-body)' }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
               <input
                 type="checkbox"
                 checked={track.io_reviewed}
@@ -339,7 +339,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               {busy ? 'Updating…' : 'Update deadlines'}
             </button>
             {err && (
-              <span role="alert" style={{ marginLeft: 12, color: 'var(--negative)', fontSize: 'var(--fs-body)' }}>
+              <span role="alert" style={{ marginLeft: 12, color: 'var(--negative)', fontSize: 13 }}>
                 {err}
               </span>
             )}
@@ -353,13 +353,13 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               {t.milestones.map((m) => (
                 <li
                   key={m.key}
-                  style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 'var(--fs-body)' }}
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 14 }}
                 >
                   <span style={{ minWidth: 150 }}>{longDate(m.day)}</span>
                   <span style={{ flex: '1 1 200px' }}>
                     {m.label}
                     {m.note && (
-                      <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-dense)' }}>
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                         {m.note}
                       </span>
                     )}
@@ -371,7 +371,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               ))}
             </ol>
             {t.notes.map((n) => (
-              <p key={n} className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '8px 0 0' }}>
+              <p key={n} className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
                 {n}
               </p>
             ))}
@@ -392,7 +392,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
       {res.io_followup && (
         <Card>
           <LSectionHeader>Ask for the Internal Ombudsman&apos;s review</LSectionHeader>
-          <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-body)' }}>
+          <p style={{ margin: '6px 0 0', fontSize: 14 }}>
             A bank that rejects a complaint, or resolves it only in part, must pass it
             automatically to its Internal Ombudsman before giving a final answer. Send this follow-up the same way as
             the complaint.
@@ -409,7 +409,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
       {res.ombudsman && t && (
         <Card>
           <LSectionHeader>RBI Ombudsman complaint</LSectionHeader>
-          <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-body)' }}>
+          <p style={{ margin: '6px 0 0', fontSize: 14 }}>
             {res.ombudsman.opens && res.ombudsman.deadline && (
               <>
                 {t.stage === 'ombudsman_open' ? 'Open now' : `Opens ${longDate(res.ombudsman.opens)}`}.
@@ -418,13 +418,13 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
               </>
             )}
           </p>
-          <ul style={{ fontSize: 'var(--fs-body)', margin: '10px 0', paddingLeft: 18 }}>
+          <ul style={{ fontSize: 14, margin: '10px 0', paddingLeft: 18 }}>
             {res.ombudsman.how_to_file.map((h) => (
               <li key={h}>{h}</li>
             ))}
           </ul>
           <div role="region" aria-label="Complaint form answers" tabIndex={0} style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-body)', width: '100%' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 14, width: '100%' }}>
               <tbody>
                 {res.ombudsman.fields.map((f) => (
                   <tr key={f.label} style={{ borderTop: '1px solid var(--border)' }}>
@@ -434,7 +434,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
                     <td style={{ padding: '6px 0' }}>
                       {fill(f.value)}
                       {f.hint && (
-                        <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-dense)' }}>
+                        <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                           {f.hint}
                         </span>
                       )}
@@ -446,14 +446,14 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           </div>
           <LetterBox label="Facts of the complaint" text={fill(res.ombudsman.facts)} />
           <LetterBox label="Relief sought" text={res.ombudsman.relief} />
-          <h3 style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Upload</h3>
-          <ul style={{ fontSize: 'var(--fs-body)', margin: 0, paddingLeft: 18 }}>
+          <h3 style={{ fontSize: 12, margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Upload</h3>
+          <ul style={{ fontSize: 14, margin: 0, paddingLeft: 18 }}>
             {res.ombudsman.documents.map((d) => (
               <li key={d}>{d}</li>
             ))}
           </ul>
-          <h3 style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Confirm on the portal, only if true</h3>
-          <ul style={{ fontSize: 'var(--fs-body)', margin: 0, paddingLeft: 18 }}>
+          <h3 style={{ fontSize: 12, margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Confirm on the portal, only if true</h3>
+          <ul style={{ fontSize: 14, margin: 0, paddingLeft: 18 }}>
             {res.ombudsman.declarations.map((d) => (
               <li key={d}>{d}</li>
             ))}
@@ -499,7 +499,7 @@ function LetterBox({
   return (
     <div style={{ marginTop: 14 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-        <h3 style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', margin: 0, flex: '1 1 auto', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</h3>
+        <h3 style={{ fontSize: 12, margin: 0, flex: '1 1 auto', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</h3>
         <button type="button" className="btn" onClick={copy} disabled={locked}>
           Copy
         </button>
@@ -508,7 +508,7 @@ function LetterBox({
             Download .txt
           </button>
         )}
-        <span role="status" className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
+        <span role="status" className="muted" style={{ fontSize: 12 }}>
           {copied}
         </span>
       </div>
@@ -519,7 +519,7 @@ function LetterBox({
         style={{
           whiteSpace: 'pre-wrap',
           overflowWrap: 'anywhere',
-          fontSize: 'var(--fs-body)',
+          fontSize: 14,
           lineHeight: 1.5,
           padding: 14,
           border: '1px solid var(--border)',
@@ -539,10 +539,10 @@ export function Citations({ items }: { items: LoanCheckCitation[] }) {
   if (!items.length) return null;
   const unverified = items.some((c) => !c.verified_against_text);
   return (
-    <details style={{ marginTop: 12, fontSize: 'var(--fs-body)' }}>
+    <details style={{ marginTop: 12, fontSize: 13 }}>
       <summary style={{ cursor: 'pointer' }}>Rules this relies on</summary>
       {unverified && (
-        <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '6px 0' }}>
+        <p className="muted" style={{ fontSize: 12, margin: '6px 0' }}>
           These are plain-language summaries, not quotations. Check the source before
           relying on the exact wording.
         </p>
@@ -576,11 +576,11 @@ export function RuleQuote({ c }: { c: LoanCheckCitation }) {
   return (
     <>
       <blockquote
-        style={{ margin: '6px 0 0', padding: '4px 10px', borderLeft: '3px solid var(--border)', fontSize: 'var(--fs-dense)' }}
+        style={{ margin: '6px 0 0', padding: '4px 10px', borderLeft: '3px solid var(--border)', fontSize: 12 }}
       >
         &ldquo;{c.clause}&rdquo;
       </blockquote>
-      <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-small)', marginTop: 2 }}>
+      <span className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>
         {c.paragraph ? `${c.paragraph}. ` : ''}
         {c.url && (
           <a href={c.url} target="_blank" rel="noopener noreferrer">

@@ -52,7 +52,7 @@ export function EmiPaidQuestion({
       </LChipRow>
       <p
         role={error ? 'alert' : undefined}
-        style={{ margin: '6px 0 0', fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: error ? L_T.negative : L_T.muted }}
+        style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: error ? L_T.negative : L_T.muted }}
       >
         {error || note}
       </p>

@@ -53,7 +53,7 @@ export function PanelShell({
       <section style={{ marginTop: 16 }}>
         <div
           style={{
-            fontSize: 'var(--fs-label)',
+            fontSize: 11,
             color: 'var(--muted)',
             letterSpacing: '0.18em',
             marginBottom: 6,
@@ -68,14 +68,14 @@ export function PanelShell({
             padding: '10px 12px',
             background: 'var(--card)',
             fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             color: 'var(--ink)',
             lineHeight: 1.6,
           }}
         >
           {children}
           {caveat && (
-            <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 'var(--fs-small)' }}>
+            <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 11 }}>
               {caveat}
             </div>
           )}
@@ -93,7 +93,7 @@ export function PanelShell({
           borderRadius: 8,
           border: '1px solid var(--border)',
           borderLeft: tone === 'neutral' ? undefined : `3px solid ${toneColor}`,
-          fontSize: 'var(--fs-body)',
+          fontSize: 13,
           lineHeight: 1.55,
           marginTop: 16,
         }}
@@ -101,7 +101,7 @@ export function PanelShell({
         <div style={{ fontWeight: 600, marginBottom: 8 }}>{eyebrow}</div>
         {children}
         {caveat && (
-          <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 10, lineHeight: 1.5 }}>
+          <div className="muted" style={{ fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
             {caveat}
           </div>
         )}
@@ -125,7 +125,7 @@ export function PanelShell({
       <div
         style={{
           fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--fs-label)',
+          fontSize: 10,
           letterSpacing: '0.15em',
           textTransform: 'uppercase',
           color: 'var(--soft)',
@@ -140,7 +140,7 @@ export function PanelShell({
           style={{
             marginTop: 12,
             fontStyle: 'italic',
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             color: 'var(--muted)',
             fontFamily: 'var(--font-sans)',
           }}

@@ -161,14 +161,14 @@ export function LMasthead({
       >
         <div
           style={{
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: 700,
             letterSpacing: '0.18em',
           }}
         >
           RightDue
         </div>
-        <div className="rd-mh-stamp" style={{ fontSize: 'var(--fs-label)', color: L_T.muted, letterSpacing: '0.1em' }}>
+        <div className="rd-mh-stamp" style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
           {stamp(country)} · {time || '--:--'} {tzLabel(country)}
         </div>
         {hasMenu && (
@@ -181,9 +181,8 @@ export function LMasthead({
             onClick={() => setMenuOpen((v) => !v)}
             style={{
               fontFamily: L_MONO,
-              fontSize: 13,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
+              fontSize: 10,
+              letterSpacing: '0.14em',
               background: 'transparent',
               border: 'none',
               color: L_T.ink,

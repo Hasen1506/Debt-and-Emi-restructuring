@@ -68,8 +68,8 @@ export function UpiPay({
   if (canPayByUpi(loan, currency) && !editing) {
     const to = normalizeVpa(loan.upi_vpa);
     const href = upiPayLink({ vpa: loan.upi_vpa!, name: loan.bank || undefined, amount: Math.round(amount * 100) / 100, note: upiNote(name, monthLabel) });
-    const small = { fontSize: 'var(--fs-small)', color: L_T.muted, flexBasis: '100%' } as const;
-    const quiet = { background: 'none', border: 0, padding: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 'var(--fs-small)' } as const;
+    const small = { fontSize: 11, color: L_T.muted, flexBasis: '100%' } as const;
+    const quiet = { background: 'none', border: 0, padding: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 } as const;
     const done = () => {
       if (rowKey && month) clearPending(rowKey, month);
     };
@@ -104,7 +104,7 @@ export function UpiPay({
         ) : asked === 'unsure' ? (
           <span style={{ ...small, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <span>Look for a debit SMS from your bank or the payment in your UPI app&apos;s history. We&apos;ll ask again next time.</span>
-            <label style={{ fontSize: 'var(--fs-small)' }}>
+            <label style={{ fontSize: 11 }}>
               UPI reference (optional){' '}
               <input
                 aria-label="UPI reference number, 12 digits"
@@ -149,7 +149,7 @@ export function UpiPay({
     return (
       // A quiet link until a UPI ID is saved: two full buttons per row
       // (MARK PAID, OTHER AMOUNT) are enough to scan down a list of four.
-      <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 0, padding: '4px 0', minHeight: 24, color: L_T.inkSoft, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--fs-label)', letterSpacing: '0.06em' }} aria-label={`Pay via UPI: ${name}, add the lender's UPI ID`}>
+      <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 0, padding: '4px 0', minHeight: 24, color: L_T.inkSoft, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: '0.06em' }} aria-label={`Pay via UPI: ${name}, add the lender's UPI ID`}>
         PAY VIA UPI
       </button>
     );
@@ -165,13 +165,13 @@ export function UpiPay({
 
   return (
     <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexBasis: '100%' }}>
-      <label style={{ fontSize: 'var(--fs-dense)' }}>
+      <label style={{ fontSize: 12 }}>
         Lender&apos;s UPI ID for {name}{' '}
         <input aria-label={`UPI ID for ${name}`} value={vpa} onChange={(e) => setVpa(e.target.value)} placeholder="loans.123@hdfcbank" autoCapitalize="none" spellCheck={false} />
       </label>
       <button type="button" onClick={save} style={lPayBtn(true)}>SAVE UPI ID</button>
       <button type="button" onClick={() => { setEditing(false); setErr(null); }} style={lPayBtn(false)}>CANCEL</button>
-      <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, flexBasis: '100%' }}>
+      <span style={{ fontSize: 11, color: L_T.muted, flexBasis: '100%' }}>
         It&apos;s on your lender&apos;s repayment page or statement. Check it there: a payment to a wrong UPI ID can&apos;t be pulled back.
       </span>
       {err && <span role="alert" style={{ color: L_T.negative }}>{err}</span>}

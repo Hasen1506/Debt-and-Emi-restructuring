@@ -17,8 +17,8 @@ import { useState } from 'react';
 
 const TEXT: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-label)',
-  letterSpacing: '0.1em',
+  fontSize: 10,
+  letterSpacing: '0.14em',
 };
 
 export function SessionIndicator() {

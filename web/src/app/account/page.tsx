@@ -23,11 +23,11 @@ function when(iso: string | null): string {
 const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
 const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
 const INPUT: React.CSSProperties = {
-  padding: '8px 10px', fontSize: 'var(--fs-body)', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: 360,
+  padding: '8px 10px', fontSize: 14, border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: 360,
 };
 const BUTTON: React.CSSProperties = {
   padding: '8px 12px', background: L_T.ink, color: L_T.bg, border: 'none', fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', justifySelf: 'start',
+  fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', justifySelf: 'start',
 };
 const DANGER: React.CSSProperties = { ...BUTTON, background: 'var(--negative, #b42318)' };
 

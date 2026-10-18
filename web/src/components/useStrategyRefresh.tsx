@@ -82,7 +82,7 @@ export function useStrategyRefresh(): {
 export function OfflineStrategyNote({ show, style }: { show: boolean; style?: CSSProperties }) {
   if (!show) return null;
   return (
-    <p role="status" data-testid="strategy-offline-note" style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: 'var(--negative)', ...style }}>
+    <p role="status" data-testid="strategy-offline-note" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--negative)', ...style }}>
       {OFFLINE_STRATEGY_NOTE}
     </p>
   );

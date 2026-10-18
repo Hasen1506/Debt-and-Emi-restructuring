@@ -53,7 +53,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
         <span id="positions-h">Your loans and cards · {m.loans.length}</span>
       </LSectionHeader>
       {/* Where these numbers come from: the user, not the bank. */}
-      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
+      <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
         As entered in Profile, not linked to your bank: check them against a
         statement now and then. A loan moves on by its {paymentWords(country).one} once you mark it
         paid; a card shows what you've paid this month off the balance you
@@ -86,13 +86,13 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
               missing('RATE')
             ) : d.effective.sub(d.nominal).abs().lt(0.00005) ? (
               // No fees, GST or tax saving: one rate.
-              <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
+              <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
             ) : (
               // Audit 80 B13/E2: the statement's rate first, the one all-in
               // figure second (lib/card-rate), no arrow implying the user's
               // number was wrong.
               <>
-                <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
+                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
                 {/* UX fix 19: a rate filled by "I don't know" says so until the real one is typed. */}
                 {d.loan.estimated_fields?.includes('rate') ? <span data-testid="rate-estimated" style={{ color: L_T.muted }}>(ESTIMATE · CHECK YOUR STATEMENT) </span> : null}
                 · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year" about={name}>ALL-IN</Term>}
@@ -117,9 +117,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
                 fontSize: 'var(--fs-dense)',
-                // Audit 80+ B19: the dearest loan is where the extra goes, a plan,
-                // not a problem: one accent, not red.
-                ...(isDearest ? lStrip('accent') : null),
+                ...(isDearest ? lStrip('negative') : null),
               }}
             >
               <span style={{ color: L_T.muted }}>{String(i + 1).padStart(2, '0')}</span>
@@ -127,12 +125,12 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                 <div style={{ fontWeight: 700 }}>
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
-                    <span style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.accent }}>
+                    <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.negative }}>
                       · COSTLIEST
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 'var(--fs-small)', fontFamily: 'var(--font-mono)', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.08em', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
                   {parts.map((p, k) => (
                     <span key={k}>
                       {k > 0 && ' · '}
@@ -142,19 +140,19 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--fs-body)' }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
                   {now.rows[d.index]?.cardBefore ? `≈ ${fc(owed.toFixed(0))}` : fc(owed.toFixed(0))}
                 </div>
                 {now.rows[d.index]?.cardBefore && (
                   // UX50 B-12: the card moves when it's marked paid, as an
                   // estimate until the next statement is entered.
-                  <div data-testid="card-paid-down" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
+                  <div data-testid="card-paid-down" style={{ fontSize: 10, color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
                     WAS {fc(now.rows[d.index]!.cardBefore!.toFixed(0))} · LESS THIS MONTH&apos;S PAYMENT, BEFORE INTEREST ·{' '}
                     <a href="/profile?step=loans" style={{ color: L_T.accent }}>ENTER THE STATEMENT</a>
                   </div>
                 )}
                 {ccy !== userCcy && !noFx && (
-                  <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
+                  <div style={{ fontSize: 10, color: L_T.muted }}>
                     {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
                   </div>
                 )}
@@ -166,7 +164,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                 <div
                   style={{
                     gridColumn: '2 / -1',
-                    fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
                     letterSpacing: '0.08em',
                     color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                   }}
@@ -209,10 +207,10 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
             gap: 8,
             padding: '10px 10px 10px 46px',
             borderTop: `2px solid ${L_T.ink}`,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
           }}
         >
-          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 10 }}>
             TOTAL OWED{m.loans.some((d) => loanCurrency(d.loan, country) !== userCcy) ? ` IN ${userCcy}` : ''}
           </span>
           {noFx ? (

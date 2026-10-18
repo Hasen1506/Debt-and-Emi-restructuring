@@ -60,7 +60,7 @@ export function DeadlineReminders({
   }
 
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 'var(--fs-dense)', margin: '8px 0' }}>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, margin: '8px 0' }}>
       <button type="button" style={lPayBtn(false)} onClick={download}>ADD THESE DATES TO MY CALENDAR</button>
       {email && <button type="button" style={lPayBtn(false)} onClick={() => void remind()}>EMAIL ME BEFORE EACH DATE</button>}
       {said && <span role="status" style={{ flexBasis: '100%', color: L_T.inkSoft }}>{said}</span>}

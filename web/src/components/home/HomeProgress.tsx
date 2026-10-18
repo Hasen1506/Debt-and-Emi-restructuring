@@ -194,17 +194,17 @@ export function HomeProgress({
             src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(shareCardSvg(shareInput))}`}
             style={{ border: `1px solid ${L_T.ruleSoft}` }}
           />
-          <figcaption style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
+          <figcaption style={{ fontSize: 11, color: L_T.muted }}>
             No amounts, lenders or income on it. <a download="rightdue-progress.svg" href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(shareCardSvg(shareInput))}`}>Download the card</a>
           </figcaption>
         </figure>
       )}
       {prompts.length > 0 && (
         <div aria-label="This month" style={{ borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 8 }}>
-          <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 4 }}>THIS MONTH</div>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 4 }}>THIS MONTH</div>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {prompts.map((p) => (
-              <li key={p.key} style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, padding: '6px 0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <li key={p.key} style={{ fontSize: 12, lineHeight: 1.6, padding: '6px 0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ flex: '1 1 260px' }}>{p.text}</span>
                 {p.href && <a href={p.href} style={{ ...lPayBtn(false), textDecoration: 'none' }}>OPEN</a>}
                 {p.action === 'check_advice' && (

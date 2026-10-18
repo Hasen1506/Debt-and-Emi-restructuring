@@ -1,12 +1,11 @@
 'use client';
-/** UX2 #23: Profile > Appearance. System (the default) follows the phone or
- *  computer's dark-mode setting; Light or Dark sticks in this browser. */
+/** UX2 #23: Profile > Appearance. Light is the default; Dark is only on when
+ *  chosen here, and sticks in this browser (UI revert 18 Oct 2026). */
 import { useEffect, useState } from 'react';
 import { LChip, LChipRow } from '@/components/ledger/primitives';
 import { applyTheme, readTheme, type ThemePref } from '@/lib/theme';
 
 const OPTIONS: { v: ThemePref; label: string }[] = [
-  { v: 'system', label: 'AS MY DEVICE' },
   { v: 'light', label: 'LIGHT' },
   { v: 'dark', label: 'DARK' },
 ];

@@ -60,7 +60,7 @@ export function LedgerKpiGrid({
         >
           <div
             style={{
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 10,
               color: 'var(--muted)',
               letterSpacing: '0.12em',
               marginBottom: 4,
@@ -82,7 +82,7 @@ export function LedgerKpiGrid({
           >
             {cell.value}
           </div>
-          <div style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)', marginTop: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
             {cell.sub}
           </div>
         </div>

@@ -124,7 +124,7 @@ export function UpdateRestructureModal({
   if (!primary && !consolidation) {
     return (
       <ModalShell title="Update terms" onClose={onClose}>
-        <p style={{ color: 'var(--muted)', fontSize: 'var(--fs-body)' }}>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>
           Couldn&apos;t find the loan this recommendation refers to — your
           loan list may have changed since the scan. Refresh the page and try
           again.
@@ -238,7 +238,7 @@ export function UpdateRestructureModal({
 
   return (
     <ModalShell title="Update loan terms" onClose={onClose}>
-      <p style={{ fontSize: 'var(--fs-body)', lineHeight: 1.55, marginBottom: 12 }}>
+      <p style={{ fontSize: 13, lineHeight: 1.55, marginBottom: 12 }}>
         Enter the terms you actually got. We&apos;ve pre-filled the
         recommendation; edit anything the bank negotiated differently.
       </p>
@@ -251,7 +251,7 @@ export function UpdateRestructureModal({
             background: 'var(--soft-bg)',
             border: '1px dashed var(--border)',
             borderRadius: 6,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
           }}
         >
           Combining <strong>{consolidation.mergedLoans.length}</strong> loans
@@ -318,7 +318,7 @@ export function UpdateRestructureModal({
             border: '1px solid var(--border)',
             borderRadius: 4,
             cursor: 'pointer',
-            fontSize: 'var(--fs-body)',
+            fontSize: 13,
             color: 'var(--ink)',
           }}
         >
@@ -335,7 +335,7 @@ export function UpdateRestructureModal({
             border: 'none',
             borderRadius: 4,
             cursor: submitting ? 'wait' : 'pointer',
-            fontSize: 'var(--fs-body)',
+            fontSize: 13,
             fontWeight: 600,
           }}
         >
@@ -434,7 +434,7 @@ function FormField({
   const errorId = useId();
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
       <input
         type={isText ? 'text' : 'number'}
         inputMode={isText ? undefined : 'decimal'}
@@ -447,13 +447,13 @@ function FormField({
           background: 'var(--canvas)',
           border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 4,
-          fontSize: 'var(--fs-body)',
+          fontSize: 13,
           color: 'var(--ink)',
           width: '100%',
         }}
       />
       {error && (
-        <span id={errorId} role="alert" style={{ fontSize: 'var(--fs-small)', color: 'var(--negative)' }}>
+        <span id={errorId} role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
           {error}
         </span>
       )}
