@@ -14,6 +14,8 @@ const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
 const BUDGET_MS = Number(process.env.E2E_COLD_BUDGET_MS ?? 5000);
 
 test('first visit: / is the public landing, no app state, no cookies', async ({ page, context }) => {
+  // A true first visit: drop the debt-budget choice the journeys' fixture sets.
+  await context.clearCookies();
   const res = await page.goto('/');
   expect(res?.status()).toBe(200);
   await expect(page).toHaveURL(/\/$/);              // rewritten, not redirected

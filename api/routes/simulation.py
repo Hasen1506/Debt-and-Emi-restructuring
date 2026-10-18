@@ -600,8 +600,10 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
 def _owed_today_fields(user, req) -> dict:
     """UX walkthrough fix 4: the one "what you owe today" figure."""
     from engine.owed_today import owed_today
-    o = owed_today(user, req.paid_emi_this_month)
-    return dict(owed_today=o.total, owed_start_of_month=o.start_of_month, owed_today_interest_in_paid=o.interest_in_paid)
+    off = {p.loan_index: p.amount for p in getattr(req, "paid_off_this_month", None) or []}
+    o = owed_today(user, req.paid_emi_this_month, off)
+    return dict(owed_today=o.total, owed_start_of_month=o.start_of_month, owed_today_interest_in_paid=o.interest_in_paid,
+                owed_today_paid_off=o.paid_off)
 
 
 def _pmi_events(result, user) -> list:

@@ -57,6 +57,7 @@ import {
   loadActivityDeltasServer,
   loadActivityPaceServer,
   loadPaidNowServer,
+  loadPaidOffServer,
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
@@ -358,7 +359,13 @@ export async function loadPlanInputs(
   const efBalance = Number(adjustedUser.efund_balance ?? '0');
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
-  const debtBudget = await (await import('@/lib/debt-budget')).loadDebtBudgetServer();
+  // Founder 18 Oct 2026: the budget is the user's choice (lib/debt-budget):
+  // not chosen yet, a saved plan pays EMIs and minimums only.
+  const budgetLib = await import('@/lib/debt-budget');
+  const debtBudgetToken = await budgetLib.loadDebtBudgetServer();
+  const debtBudget = budgetLib.debtBudgetAmount(debtBudgetToken);
+  const debtBudgetChoice = budgetLib.debtBudgetKind(debtBudgetToken);
+  const debtBudgetEngine = budgetLib.debtBudgetForEngine(debtBudgetToken, profile.isLive);
   // Audit 80+ A4: the user's own prepay/keep split for when only cheap debt is left.
   const lowRateShare = await (await import('@/lib/low-rate-choice')).loadLowRateShareServer();
   const { goalsForSimulateServer } = await import('@/lib/goals');
@@ -404,6 +411,9 @@ export async function loadPlanInputs(
     ...paidAtEntryThisMonth(profile.user.loans, nowKey),
     ...(await loadPaidNowServer(profile.user.loans, nowKey)),
   ])].sort((a, b) => a - b);
+  // Owed-fix: card payments (and the plan's own extra) logged this month,
+  // against the balances the plan starts from (lib/owed-now-core).
+  const paidOff = await loadPaidOffServer(adjustedUser.loans, nowKey);
   const simBaseArgs = {
     user: adjustedUser,
     horizon_months: HORIZON_MONTHS,
@@ -412,11 +422,12 @@ export async function loadPlanInputs(
     // UX walkthrough fix 4: the EMIs already paid this month, so the engine's
     // owed_today is the balance Home shows (engine/owed_today.py).
     paid_emi_this_month: paidEmis.length > 0 ? paidEmis : undefined,
+    paid_off_this_month: paidOff.length > 0 ? paidOff.map((o) => ({ loan_index: o.index, amount: String(o.amount) })) : undefined,
     reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
-    debt_budget: debtBudget || undefined,
+    debt_budget: debtBudgetEngine,
     low_rate_invest_share: lowRateShare || undefined,
     // Per-goal payload — engine runs serial-fill per month with
     // goal-expiry awareness, threads saved_so_far across iterations,
@@ -440,9 +451,11 @@ export async function loadPlanInputs(
     displayUser,
     efSplit,
     debtBudget,
+    debtBudgetChoice,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    paidOff,
     ownInflation,
   };
 }
@@ -470,9 +483,11 @@ export async function loadPlan(
     displayUser,
     efSplit,
     debtBudget,
+    debtBudgetChoice,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    paidOff,
     ownInflation,
   } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
@@ -521,6 +536,7 @@ export async function loadPlan(
       fxRatesUsed: {},
       efSplit,
       debtBudget,
+      debtBudgetChoice,
       goalsActive: hasGoalsForEngine,
       goalContributions: [],
       goalFinals: [],
@@ -638,6 +654,7 @@ export async function loadPlan(
       ...planEnd(scenario),
       seasonal: scenario.seasonal ?? null,
       owedToday: owedTodayOf(scenario),
+      paidNow: paidOff,
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       totalInterest: scenario.total_interest_paid,
@@ -696,6 +713,7 @@ export async function loadPlan(
       fxRatesUsed,
       efSplit,
       debtBudget,
+      debtBudgetChoice,
       goalsActive: hasGoalsForEngine,
       goalContributions:
         scenario.surplus_allocation?.goal_contributions?.map((c) => ({

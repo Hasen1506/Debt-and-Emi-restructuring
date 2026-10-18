@@ -28,7 +28,7 @@ import {
 } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
 import { readRulesClient, rulesForLoans, rulesOrDefault } from '@/lib/payoff-rules';
-import { useCurrentProfile, useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile, useOwedTodayProfile, useStoredProfile } from '@/lib/use-profile';
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
 import { countryMonthKey } from '@/lib/today';
@@ -161,6 +161,8 @@ export function WindfallTool({
 }) {
   const profile = useCurrentProfile();
   const baselineProfile = useStoredProfile();
+  // Owed-fix: a loan's cap is what's owed now (after this month's payments), as Home shows.
+  const owedLoans = useOwedTodayProfile().user.loans;
   const country = profile.user.country;
   const ccy = userDefaultCurrency(country);
   const currency: AmountCurrency = ccy === 'USD' ? 'USD' : 'INR';
@@ -214,7 +216,8 @@ export function WindfallTool({
       const fx = loanToUser(1, l, country, planUser.fx_to_user_currency);
       if (fx == null) continue;
       const feePct = Number(l.prepayment_penalty_pct || 0);
-      const cap = (Number(l.outstanding) * fx) / (feePct < 1 ? 1 - feePct : 1);
+      const owedL = (l.id ? owedLoans.find((o) => o.id === l.id) : owedLoans[i]) ?? l;
+      const cap = (Math.min(Number(l.outstanding), Number(owedL.outstanding)) * fx) / (feePct < 1 ? 1 - feePct : 1);
       out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l), ...(l.debt_status === 'collections' ? { collections: true } : {}) });
     }
     for (const g of goals) {
@@ -223,7 +226,7 @@ export function WindfallTool({
       if (required - s > 0) out.push({ key: `goal:${g.id}`, kind: 'goal', label: g.label, cap: required - s, goal: g, saved: s, required });
     }
     return out;
-  }, [planUser, efGap, cushion, goals, saved, country]);
+  }, [planUser, owedLoans, efGap, cushion, goals, saved, country]);
 
   // The plan as it stands (its date, and its gap when short or capped).
   const [base, setBase] = useState<Run | null>(null);

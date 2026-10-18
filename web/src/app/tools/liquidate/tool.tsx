@@ -16,7 +16,7 @@ import {
   type LiquidationRecommendation,
   type LoanPayload,
 } from '@/lib/api';
-import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile, useOwedTodayProfile } from '@/lib/use-profile';
 import { loadProfileClient } from '@/lib/user-store';
 import { useFormErrors } from '@/lib/form-errors';
 import { rateOutOfRange } from '@/lib/loan-gaps';
@@ -82,6 +82,8 @@ const FIELDS: Record<string, string> = {
  */
 export function LiquidateTool() {
   const profile = useStoredProfile();
+  // Owed-fix: the debt balance filled in is what's owed now, as Home shows.
+  const owedProfile = useOwedTodayProfile();
   const country = profile.user.country;
   const isUS = country === 'US';
 
@@ -204,7 +206,7 @@ export function LiquidateTool() {
     }
     const i = Number(idx);
     if (!Number.isNaN(i) && profile.user.loans[i]) {
-      const loan = profile.user.loans[i];
+      const loan = { ...profile.user.loans[i], outstanding: owedProfile.user.loans[i]?.outstanding ?? profile.user.loans[i].outstanding };
       const fx = loanFx(loan);
       const emi = monthlyDue(loan);
       if (fx === 1) {
@@ -229,7 +231,7 @@ export function LiquidateTool() {
   useEffect(() => {
     if (initialIdx !== '') pickTargetLoan(initialIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.user.loans]);
+  }, [profile.user.loans, owedProfile.user.loans]);
 
   // Derived sale price under partial mode = qty × unit_price.
   const effectiveSalePrice = useMemo(() => {

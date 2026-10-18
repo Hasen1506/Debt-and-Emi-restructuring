@@ -15,9 +15,10 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 import { DEMO_MARGINAL_RATE, DEMO_USER } from '@/lib/demo-user';
 import { loadProfileClient, profileCookieKey, type StoredProfile } from '@/lib/user-store';
-import { applyActivityDeltas, parseActivityDeltas, parsePaidNow } from './activity-cookie';
+import { applyActivityDeltas, parseActivityDeltas, parsePaidNow, parsePaidOff } from './activity-cookie';
+import { owedNowLoans } from './owed-now-core';
 import { migrateLoanIdsClient } from '@/lib/loan-id-migration';
-import { owedTodayLoans, paidAtEntryThisMonth, rollBalancesForward } from './roll-forward';
+import { paidAtEntryThisMonth, rollBalancesForward } from './roll-forward';
 import { countryMonthKey } from './today';
 
 // Before the first client render reads the profile: give a profile saved
@@ -81,7 +82,9 @@ function owedSnapshot(): StoredProfile {
   const key = profileCookieKey() + raw + month;
   if (!owedCache || owedCache.key !== key || owedCache.profile.user.loans.length !== current.user.loans.length) {
     const paid = [...paidAtEntryThisMonth(stored.user.loans, month), ...parsePaidNow(raw, stored.user.loans, month)];
-    owedCache = {key, profile: {...current, user: {...current.user, loans: owedTodayLoans(current.user.loans, paid)}}};
+    // Owed-fix: card payments logged this month come off too (lib/owed-now-core).
+    const off = parsePaidOff(raw, current.user.loans, month);
+    owedCache = {key, profile: {...current, user: {...current.user, loans: owedNowLoans(current.user.loans, {emis: paid, off})}}};
   }
   return owedCache.profile;
 }

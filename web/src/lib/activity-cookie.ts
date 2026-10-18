@@ -34,12 +34,14 @@ import { overdueAmount, daysLate, extraPrincipal, readActivityClient } from './a
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { localIsoDate, getCountryToday } from './today';
 import { monthsBefore, paceMonths, type PaceMonth } from './pace';
+import { paidThisMonth, type PaidOff } from './owed-now-core';
 
 const COOKIE_NAME = 'rightdue_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 // v4 adds the reported balance anchor. The compressed z3 envelope stays
 // readable across upgrades; v1-v3 payloads migrate on the next save.
-const CURRENT_VERSION = 4;
+// v5 (owed-fix) adds paidNow.off; a v4 cookie is rewritten on the next Home visit.
+const CURRENT_VERSION = 5;
 const COMPRESSED = 'z3.';
 
 export interface ActivityDelta {
@@ -82,7 +84,7 @@ interface CookiePayload {
   pace?: PaceMonth[];
   /** UX fix 4: this month's EMIs marked paid in Activity (loan ids, else
    *  positions), so the engine's owed_today is the balance Home shows. */
-  paidNow?: { month: string; loans: (string | number)[] };
+  paidNow?: { month: string; loans: (string | number)[]; off?: { k: string | number; a: string; p: string; d: string }[] };
 }
 
 /** EMI loans whose payment for `month` is marked paid (as Home reads it,
@@ -122,7 +124,12 @@ export function syncActivityCookieClient(
     ...(pace.some((m) => m.paid.length > 0) ? { pace } : {}),
   };
   const paidNow = paidEmisMarked(entries, loans, thisMonth);
-  if (paidNow.length > 0) payload.paidNow = { month: thisMonth, loans: paidNow };
+  // Owed-fix: what's gone out this month and isn't in the opening balance
+  // (cards, the plan's own extra), against the balances the plan starts from.
+  const current = applyActivityDeltas(loans, activityDeltas(entries, loans, country), thisMonth).loans;
+  const off = paidThisMonth(current, alignToLoans(entries, loans), thisMonth).off
+    .map((o) => ({ k: loans[o.index]?.id ?? o.index, a: String(o.amount), p: String(o.paid), d: o.date }));
+  if (paidNow.length > 0 || off.length > 0) payload.paidNow = { month: thisMonth, loans: paidNow, ...(off.length ? { off } : {}) };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   const saved = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] === encoded;
@@ -296,7 +303,7 @@ export function refreshActivityCookieClient(loans: LoanPayload[], country: Count
   const raw = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
   const pace = raw ? parseActivityPace(raw) : [];
   const lastMonth = monthsBefore(localIsoDate(getCountryToday(country)).slice(0, 7), 1)[0];
-  if (pace.length > 0 && pace[pace.length - 1].month === lastMonth) return false;
+  if (pace.length > 0 && pace[pace.length - 1].month === lastMonth && cookieVersion(raw) >= CURRENT_VERSION) return false;
   const before = raw;
   syncActivityCookieClient(alignToLoans(entries, loans), loans, country, false);
   return (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
@@ -325,6 +332,31 @@ export async function loadPaidNowServer(loans: LoanPayload[], month: string): Pr
   return raw ? parsePaidNow(raw, loans, month) : [];
 }
 
+/** Owed-fix: positions in `loans` with money gone out this month that the
+ *  opening balance still holds (lib/owed-now-core PaidOff). */
+export function parsePaidOff(raw: string, loans: LoanPayload[], month: string): PaidOff[] {
+  try {
+    if (!raw.startsWith(COMPRESSED)) return [];
+    const p: CookiePayload = JSON.parse(decompressFromEncodedURIComponent(raw.slice(COMPRESSED.length)) ?? '');
+    if (p?.paidNow?.month !== month || !Array.isArray(p.paidNow.off)) return [];
+    return p.paidNow.off.flatMap((o) => {
+      const index = loans.findIndex((l, i) => (l.id ?? i) === o.k);
+      const amount = Number(o.a);
+      return index >= 0 && Number.isFinite(amount) && amount > 0
+        ? [{ index, amount, paid: Number(o.p) || amount, date: String(o.d ?? '') }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function loadPaidOffServer(loans: LoanPayload[], month: string): Promise<PaidOff[]> {
+  const { cookies } = await import('next/headers');
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
+  return raw ? parsePaidOff(raw, loans, month) : [];
+}
+
 export function parsePaidNow(raw: string, loans: LoanPayload[], month: string): number[] {
   try {
     if (!raw.startsWith(COMPRESSED)) return [];
@@ -334,6 +366,15 @@ export function parsePaidNow(raw: string, loans: LoanPayload[], month: string): 
     return loans.flatMap((l, i) => (marked.has(l.id ?? i) ? [i] : []));
   } catch {
     return [];
+  }
+}
+
+function cookieVersion(raw: string): number {
+  try {
+    if (!raw.startsWith(COMPRESSED)) return 0;
+    return Number(JSON.parse(decompressFromEncodedURIComponent(raw.slice(COMPRESSED.length)) ?? '')?.v) || 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -359,7 +400,7 @@ export function parseActivityDeltas(raw: string): ActivityDelta[] {
       : JSON.parse(decodeURIComponent(raw));
     // Accept v1 (missed/partial only) and v2 (adds paid_extra/closed) — older
     // browsers may still be carrying one until the next mutation.
-    if (parsed?.v !== 1 && parsed?.v !== 2 && parsed?.v !== 3 && parsed?.v !== CURRENT_VERSION) return [];
+    if (parsed?.v !== 1 && parsed?.v !== 2 && parsed?.v !== 3 && parsed?.v !== 4 && parsed?.v !== CURRENT_VERSION) return [];
     if (!Array.isArray(parsed.deltas)) return [];
     return parsed.deltas.filter(
       (d) =>

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from engine.models import LoanType, User
 from engine.surplus import to_user_currency
@@ -37,6 +37,7 @@ class OwedToday:
     emi_paid: Decimal                   # this month's EMIs already paid
     interest_in_paid: Decimal           # the interest inside them
     by_loan: dict[int, Decimal] = field(default_factory=dict)   # each loan, its own currency, to the paisa/cent
+    paid_off: Decimal = D("0")          # owed-fix: card payments (and the plan's own extra) logged this month
 
 
 def _paid_down(l) -> bool:
@@ -44,10 +45,17 @@ def _paid_down(l) -> bool:
             and getattr(l, "rate_basis", "reducing") != "flat" and getattr(l, "pre_emi_months_remaining", 0) <= 0)
 
 
-def owed_today(user: User, paid_emi_this_month: Iterable[int] = ()) -> OwedToday:
+def owed_today(user: User, paid_emi_this_month: Iterable[int] = (),
+               paid_off_this_month: Mapping[int, Decimal] | None = None) -> OwedToday:
+    """``paid_off_this_month`` (owed-fix, 18 Oct 2026): money already gone
+    out this month that the opening balance still holds, by loan, in the
+    loan's currency: card payments logged after the statement, and the
+    plan's own extra marked paid. It comes straight off, as on Home
+    (web/src/lib/owed-now-core.ts)."""
     paid = set(paid_emi_this_month)
+    off_by = dict(paid_off_this_month or {})
     by_loan: dict[int, Decimal] = {}
-    total = start = emi_paid = interest = D("0")
+    total = start = emi_paid = interest = off_total = D("0")
     for i, l in enumerate(user.loans):
         b = l.outstanding
         if i in paid and _paid_down(l):
@@ -56,9 +64,13 @@ def owed_today(user: User, paid_emi_this_month: Iterable[int] = ()) -> OwedToday
             emi_paid += to_user_currency(min(l.scheduled_emi, b + month_interest), l, user)
             interest += to_user_currency(month_interest, l, user)
             b = after
+        off = min(b, max(D("0"), D(off_by.get(i, 0))))
+        if off > 0:
+            off_total += to_user_currency(off, l, user)
+            b -= off
         by_loan[i] = b.quantize(D("0.01"), rounding=ROUND_HALF_UP)
         total += to_user_currency(b, l, user)
         start += to_user_currency(l.outstanding, l, user)
     q = lambda x: x.quantize(D("1"), rounding=ROUND_HALF_UP)  # noqa: E731
     return OwedToday(total=q(total), start_of_month=q(start), emi_paid=q(emi_paid), interest_in_paid=q(interest),
-                     by_loan=by_loan)
+                     by_loan=by_loan, paid_off=q(off_total))

@@ -33,7 +33,8 @@ import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
-import { owedTodayLoans, rollBalancesForward } from '@/lib/roll-forward';
+import { rollBalancesForward } from '@/lib/roll-forward';
+import { owedNowLoans } from '@/lib/owed-now-core';
 import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
 import {
   addCommitment,
@@ -104,7 +105,12 @@ export function WhatIfPanel({
   // random lump-sum default; both come from these.
   // UX fix 4: the box shows and caps what's owed today (after the EMIs
   // already paid this month), the balance Home and Loan Check show.
-  const owedLoans = useMemo(() => owedTodayLoans(user.loans, runArgs?.paid_emi_this_month ?? []), [user.loans, runArgs]);
+  // Owed-fix: card payments logged this month come off too (the cookie's
+  // paidNow.off, sent as paid_off_this_month), the figure Home shows.
+  const owedLoans = useMemo(() => owedNowLoans(user.loans, {
+    emis: runArgs?.paid_emi_this_month ?? [],
+    off: (runArgs?.paid_off_this_month ?? []).map((o) => ({ index: o.loan_index, amount: Number(o.amount) })),
+  }), [user.loans, runArgs]);
   const { fixedExpensesCap, loanOptions, defaultLoanIdx } =
     useMemo(() => {
       // Slider ceiling = variable (discretionary) expenses when present,

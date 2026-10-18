@@ -14,6 +14,8 @@
  * (REDESIGN R2).
  */
 
+import { DebtBudgetPromptLazy as DebtBudgetPrompt } from './DebtBudgetPromptLazy';
+import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
@@ -163,6 +165,18 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             loans={plan.user.loans}
             country={plan.user.country}
             variant="ledger"
+          />
+        )}
+
+        {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
+            defaulted; until it's chosen the plan pays EMIs and minimums only. */}
+        {plan.live && plan.profileIsLive && plan.debtBudgetChoice === 'unset' && plan.user.loans.some((l) => Number(l.outstanding) > 0) && (
+          <DebtBudgetPrompt
+            choice={plan.debtBudgetChoice}
+            budget={plan.debtBudget ?? ''}
+            figures={debtBudgetFigures(plan)}
+            currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
+            hasFundTarget={Number(plan.user.efund_target || 0) > 0}
           />
         )}
 

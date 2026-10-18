@@ -3,7 +3,7 @@ import { formatCurrency } from './api';
 import { userDefaultCurrency } from './currency';
 import { addCommitment, readCommitmentsClient, removeCommitment, todayISO, type CommitmentEntry } from './commitments';
 import { loadProfileClient, saveProfileClient } from './user-store';
-import { readDebtBudgetClient, writeDebtBudgetClient } from './debt-budget';
+import { debtBudgetForEngine, debtBudgetKind, readDebtBudgetClient, writeDebtBudgetClient } from './debt-budget';
 import Decimal from 'decimal.js';
 
 /** Commit an immediate cut against today's saved budget, preserving profile
@@ -16,7 +16,8 @@ export function commitSpendingCut(expected: UserPayload, amount: number, startMo
   const key = variable ? 'variable_expenses' : 'fixed_expenses';
   const current = Number(stored.user[key] || 0);
   const budgetBefore = readDebtBudgetClient();
-  if (expectedBudget !== undefined && budgetBefore !== expectedBudget) {
+  // `expectedBudget` is what the plan sent /simulate (runArgs.debt_budget).
+  if (expectedBudget !== undefined && (debtBudgetForEngine(budgetBefore, stored.isLive) ?? '') !== expectedBudget) {
     throw new Error('Your monthly debt budget changed. Refresh the plan and check the cut again.');
   }
   if (stored.user.country !== expected.country || Number(stored.user[key] || 0) !== Number(expected[key] || 0) ||
@@ -25,7 +26,8 @@ export function commitSpendingCut(expected: UserPayload, amount: number, startMo
     throw new Error('Your spending changed. Refresh the plan and check the cut again.');
   }
   const nextAmount = new Decimal(stored.user[key] || '0').sub(amount).toDecimalPlaces(2).toString();
-  const budgetAfter = budgetBefore ? new Decimal(budgetBefore).add(amount).toDecimalPlaces(2).toString() : '';
+  // A set total grows by the cut; 'all', 'min' or not chosen stay as they are.
+  const budgetAfter = debtBudgetKind(budgetBefore) === 'set' ? new Decimal(budgetBefore).add(amount).toDecimalPlaces(2).toString() : budgetBefore;
   const currency = userDefaultCurrency(stored.user.country);
   const label = variable ? 'variable spending' : 'fixed expenses';
   const next = addCommitment(readCommitmentsClient(), {
