@@ -82,8 +82,7 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
   await page.waitForURL('**/plan');
   // Plan's tenure what-if: three quick clicks, one compare for the last.
-  // Audit 80 B15: this healthy plan folds the longer-tenure card; open it.
-  await page.locator('#main').getByTestId('tenure-fold').locator('summary').click();
+  // UI revert 2: the longer-tenure card is open under the table again (4bc3dc8).
   const plus5 = page.getByRole('button', { name: '+5 YRS' });
   await expect(plus5).toBeVisible();
   await page.waitForLoadState('networkidle');

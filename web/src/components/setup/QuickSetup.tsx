@@ -1302,9 +1302,11 @@ function LoanBlock({
             error={issues.months}
           />
         )}
+        {/* UI revert 2: the joint share is one more field in the grid, the
+            width and line of the others (it ran the full width). */}
+        <JointShare loan={loan} onPatch={onPatch} />
       </div>
       <PromoFields loan={loan} onPatch={onPatch} error={issues.end} />
-      <JointShare loan={loan} onPatch={onPatch} />
       <LoanExtras loan={loan} country={country === 'US' ? 'US' : 'IN'} onPatch={onPatch} />
       {askPaid && (
         <EmiPaidQuestion

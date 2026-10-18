@@ -119,8 +119,8 @@ test('B-11: Home says what to do this month in one line', () => {
   assert.equal(homeThisMonthLine(null, 0, money), null);
   assert.equal(lowerName('HDFC Bank credit card'), 'HDFC Bank credit card');
   assert.equal(lowerName('Car loan'), 'car loan');
-  // UX walkthrough fix 10: the one line, then the pay list, at the top.
-  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]{0,400}?\{register\}/);
+  // UI revert 2: the one line stays first; the pay list follows the figures (4bc3dc8 order).
+  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]*?id="home-status"[\s\S]*?\{register\}/);
 });
 
 test('B-01: the extra row is tagged in words, stays after paid, and both Home lists share one order', () => {
@@ -164,7 +164,7 @@ test('B-13: Setup, Home and Plan tell one short-month story', () => {
 test('B-08, B-16, B-17, B-26, B-33: one order, quieter table, honest share and tenure copy, readable CSV', () => {
   const { STRATEGIES } = lib('strategy.ts');
   assert.deepEqual(STRATEGIES, ['avalanche', 'snowball', 'rules']);
-  assert.match(src('components/plan/PlanSchedule.tsx'), /background: expanded && r\.event \? L_T\.highlight/);
+  assert.match(src('components/plan/PlanSchedule.tsx'), /background: r\.event \? L_T\.highlight/);
   const { shareLines } = lib('share-card.ts');
   assert.deepEqual(shareLines({ debtFreeLabel: 'May 2034', monthsShaved: 0, loansCleared: 0, loansTotal: 3 }), ['Debt-free by May 2034', 'Started my payoff plan']);
   assert.deepEqual(shareLines({ debtFreeLabel: 'May 2034', monthsShaved: 0, loansCleared: 1, loansTotal: 3 }), ['Debt-free by May 2034', '1 of 3 loans cleared']);

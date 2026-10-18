@@ -61,18 +61,15 @@ export function InfoTip({ children }: { children: ReactNode }) {
         }}
         aria-label="What does this mean?"
         aria-expanded={open}
-        className="l-hit"
+        className="l-hit rd-info-hit"
+        // UI revert 2: the button is the (invisible) touch box; the 18px
+        // circle inside it is the icon, so a 44px box on a phone no longer
+        // draws a 44px circle.
         style={{
           width: 18,
           height: 18,
-          borderRadius: '50%',
-          border: '1px solid var(--border)',
-          background: 'var(--card)',
-          color: 'var(--muted)',
-          fontSize: 10,
-          fontFamily: 'var(--font-sans)',
-          fontWeight: 600,
-          lineHeight: 1,
+          border: 'none',
+          background: 'transparent',
           cursor: 'pointer',
           padding: 0,
           display: 'inline-flex',
@@ -80,7 +77,28 @@ export function InfoTip({ children }: { children: ReactNode }) {
           justifyContent: 'center',
         }}
       >
-        i
+        <span
+          aria-hidden="true"
+          style={{
+            width: 18,
+            height: 18,
+            flex: '0 0 18px',
+            boxSizing: 'border-box',
+            borderRadius: '50%',
+            border: '1px solid var(--border)',
+            background: 'var(--card)',
+            color: 'var(--muted)',
+            fontSize: 10,
+            fontFamily: 'var(--font-sans)',
+            fontWeight: 600,
+            lineHeight: 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          i
+        </span>
       </button>
       {open && (
         <div
@@ -135,7 +153,9 @@ function LabelRow({
   return (
     <span
       className="muted"
-      style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      // UI revert 2: a label without an ⓘ is as tall as one with it (18px),
+      // so the boxes in a row of fields line up.
+      style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 18 }}
     >
       <label htmlFor={htmlFor} id={id}>
         {label}

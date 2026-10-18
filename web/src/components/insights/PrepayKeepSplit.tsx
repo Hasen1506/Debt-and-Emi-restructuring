@@ -89,31 +89,31 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
       <LSectionHeader>
         <span id="pks-h">From {dateLabel(data.phase_month)}: prepay, keep, or split?</span>
       </LSectionHeader>
-      <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
         By {dateLabel(data.phase_month)} only {loans === 1 ? 'one loan' : `${loans} loans`} costing under{' '}
         <span data-testid="pks-threshold">{thresholdWords(data.threshold, data.assumed_return_for_trigger, data.assumption_is_default)}</span>{' '}
         {loans === 1 ? 'is' : 'are'} left, and about{' '}
         {money(data.extra_then ?? 0)} a month spare. Whether that goes to the loan is your call: the plan doesn’t pick.
       </p>
-      <p data-testid="pks-statement" style={{ margin: 0, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, fontSize: 'var(--fs-body)', lineHeight: 1.55, ...lStrip('ink') }}>
+      <p data-testid="pks-statement" style={{ margin: 0, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, fontSize: 12, lineHeight: 1.55, ...lStrip('ink') }}>
         {data.statement}
         {be && !data.assumed_return && <> Break-even: <strong>{be}</strong> a year after tax.</>}
       </p>
-      <label style={{ fontSize: 'var(--fs-dense)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <label style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         To see money in hand, type the yearly return after tax you want to compare with (%)
         <input
           inputMode="decimal"
           aria-label="Yearly return after tax, %"
           value={ret}
           onChange={(e) => setRet(e.target.value.replace(/[^\d.]/g, ''))}
-          style={{ width: 80, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 'var(--fs-body)' }}
+          style={{ width: 80, padding: '4px 6px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 13 }}
         />
         <LButton onClick={compare} disabled={busy}>{busy ? 'WORKING…' : 'COMPARE'}</LButton>
       </label>
-      {err && <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>{err}</p>}
+      {err && <p role="alert" style={{ margin: 0, fontSize: 11, color: L_T.negative }}>{err}</p>}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-dense)', minWidth: 300 }}>
-          <caption style={{ textAlign: 'left', fontSize: 'var(--fs-small)', color: L_T.muted, paddingBottom: 4 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 300 }}>
+          <caption style={{ textAlign: 'left', fontSize: 11, color: L_T.muted, paddingBottom: 4 }}>
             Every option valued on {dateLabel(data.common_month)}, the day the slowest one clears
           </caption>
           <thead>
@@ -134,9 +134,9 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
                   <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>{o.money_on_common_date == null ? '—' : money(o.money_on_common_date)}</td>
                   <td style={{ padding: '8px 0' }}>
                     {on ? (
-                      <span style={{ fontSize: 'var(--fs-small)', color: L_T.positive }}>YOUR CHOICE</span>
+                      <span style={{ fontSize: 11, color: L_T.positive }}>YOUR CHOICE</span>
                     ) : (
-                      <button type="button" onClick={() => choose(String(Number(o.share_kept)))} style={{ minHeight: 32, padding: '4px 10px', border: `1px solid ${L_T.ink}`, background: L_T.paper, fontFamily: 'inherit', fontSize: 'var(--fs-small)', cursor: 'pointer' }}>
+                      <button type="button" onClick={() => choose(String(Number(o.share_kept)))} style={{ minHeight: 32, padding: '4px 10px', border: `1px solid ${L_T.ink}`, background: L_T.paper, fontFamily: 'inherit', fontSize: 11, cursor: 'pointer' }}>
                         CHOOSE
                       </button>
                     )}
@@ -147,7 +147,7 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
           </tbody>
         </table>
       </div>
-      <p style={{ margin: 0, fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>
         {chosen === '' ? 'Until you choose, the plan keeps prepaying. ' : ''}
         {PREPAY_KEEP_NOTE}
       </p>

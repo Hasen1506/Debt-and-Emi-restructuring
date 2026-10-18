@@ -18,7 +18,7 @@ import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CompareResponse } from '@/lib/api';
 import { planWithWhatIf } from '@/lib/trajectory';
 import { loanLabel } from '@/lib/loan-types';
@@ -51,7 +51,7 @@ import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
-import { AdvanceTaxPanel } from './AdvanceTaxPanel';
+import { AdvanceTaxPanel, NoAdvanceTax } from './AdvanceTaxPanel';
 import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { PrepayKeepSplit } from '@/components/insights/PrepayKeepSplit';
@@ -106,8 +106,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     />
   );
   const gapRunsAway = !!plan.gap?.firstBorrowMonth && !plan.debtFreeMonth;
-  const takeHome = Number(plan.user.monthly_income) || 0;
-  const tightMonth = takeHome <= 0 || plan.surplus < 0.1 * takeHome;
   const clearLabel = shortStory
     ? shortStory.value
     : plan.debtFreeMonth
@@ -176,7 +174,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </FirstVisitIntro>
         {/* Audit 80+ E13: the answer as a heading, the figures as a term
             list ("Plan summary"), not one run of capitals. */}
-        <h2 data-rd-useful style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lead)', fontWeight: 700, lineHeight: 1.35 }}>
+        <h2 data-rd-useful style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, lineHeight: 1.6 }}>
           {planHeadline({ debtFreeMonth: plan.debtFreeMonth, short, country: plan.user.country })}
         </h2>
         <LKpi
@@ -324,15 +322,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
         <PlanSchedule plan={shownPlan} />
-        {/* Audit 80 B15: "a longer tenure?" is distress framing. Open when
-            spare cash is under 10% of take-home; otherwise folded to one line. */}
-        {!short && tightMonth && tenureWhatIf}
-        {!short && !tightMonth && (
-          <details data-testid="tenure-fold" data-print="hide" style={{ fontSize: 'var(--fs-dense)' }}>
-            <summary style={{ cursor: 'pointer', color: L_T.muted }}>A longer tenure from the bank? Only worth it in a tight month</summary>
-            {tenureWhatIf}
-          </details>
-        )}
+        {/* UI revert 2 (Vijay, 18 Oct 2026): the boxed "What if the bank
+            gave you a longer tenure?" card sits open under the table again,
+            as at 4bc3dc8 (audit 80 B15's one-line fold is undone). */}
+        {!short && tenureWhatIf}
 
         {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
         <RateDecisions plan={plan} />
@@ -341,22 +334,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <div id="life-events" style={{ scrollMarginTop: 16 }}>
           <LifecycleEventsPanel user={plan.user} configuredLoans={plan.configuredUser.loans} />
         </div>
-
-        {/* Audit 80 B15: What if sits above Notes. */}
-        {/* What if: real engine runs against this plan, nothing saved until asked */}
-        <section id="what-if" data-print="hide" style={{ scrollMarginTop: 16 }}>
-          <LSectionHeader>What if</LSectionHeader>
-          <p style={{ margin: '0 0 4px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
-            Each change re-runs your plan and shows what it does. Nothing is saved until you press the button under it.
-          </p>
-          <WhatIfPanel
-            user={plan.runArgs?.user ?? { ...plan.user, loans: plan.user.loans.filter((l) => !l.planned_effective_month) }}
-            configuredUser={plan.configuredUser}
-            marginalRate={plan.marginalRate}
-            strategy={plan.strategy}
-            runArgs={plan.runArgs}
-          />
-        </section>
 
         {/* Prepay or save, the home loan's tax saving, a bracket change */}
         <PlanNotes plan={plan} />
@@ -375,10 +352,48 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             {plan.advanceTaxNote}
           </p>
         )}
+        {/* UI revert 2: More › Advance tax links to #advance-tax-h. With no
+            instalments due (salaried, tax covered by TDS) there was no such
+            heading, so the link landed nowhere. This line holds the anchor. */}
+        {!plan.advanceTaxSchedule && <NoAdvanceTax country={plan.user.country} />}
+        <ScrollToHash />
+
+        {/* UI revert 2: What if is the last section again, as at 4bc3dc8. */}
+        {/* What if: real engine runs against this plan, nothing saved until asked */}
+        <section id="what-if" data-print="hide" style={{ scrollMarginTop: 16 }}>
+          <LSectionHeader>What if</LSectionHeader>
+          <p style={{ margin: '0 0 4px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+            Each change re-runs your plan and shows what it does. Nothing is saved until you press the button under it.
+          </p>
+          <WhatIfPanel
+            user={plan.runArgs?.user ?? { ...plan.user, loans: plan.user.loans.filter((l) => !l.planned_effective_month) }}
+            configuredUser={plan.configuredUser}
+            marginalRate={plan.marginalRate}
+            strategy={plan.strategy}
+            runArgs={plan.runArgs}
+          />
+        </section>
 
       </div>
     </LShell>
   );
+}
+
+/** UI revert 2: Plan streams in after the navigation, so the browser's own
+ *  jump to /plan#advance-tax-h (More › Advance tax) found no heading yet.
+ *  Once the plan is on the page, go to the hash's target. */
+function ScrollToHash() {
+  useEffect(() => {
+    const go = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (!id) return;
+      document.getElementById(id)?.scrollIntoView({ block: 'start' });
+    };
+    go();
+    window.addEventListener('hashchange', go);
+    return () => window.removeEventListener('hashchange', go);
+  }, []);
+  return null;
 }
 
 // Re-export for type narrowing in the page wrapper.

@@ -199,10 +199,10 @@ test('Plan table: caption and scoped headers; phones get the same table (no B18 
   assert.match(s, /<caption className="sr-only">/);
   assert.match(s, /scope="col"/);
   // UI revert 18 Oct 2026: the original month table on every width, with
-  // the swipe hint on phones and the yellow event rows in the full view.
+  // the swipe hint on phones and the yellow event rows in every view (UI revert 2).
   assert.doesNotMatch(s, /rd-month-cards|data-testid="month-card"/);
   assert.match(s, /SWIPE SIDEWAYS FOR EVERY COLUMN/);
-  assert.match(s, /background: expanded && r\.event \? L_T\.highlight : 'transparent'/);
+  assert.match(s, /background: r\.event \? L_T\.highlight : 'transparent'/);
 });
 
 // ── Original colours (UI revert 18 Oct 2026; B19 undone) ─────────────────

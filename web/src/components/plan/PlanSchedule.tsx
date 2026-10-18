@@ -289,7 +289,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         {/* Live re-test NEW-17: on a phone the table is wider than the screen;
             say so, since the scroll bar is hidden until touched. (UI revert
             18 Oct 2026: the B18 month cards are gone; phones get the same
-            table as desktop, events highlighted in the full view.) */}
+            table as desktop, event rows highlighted yellow.) */}
         <style>{`.rd-scroll-hint{display:none}@media (max-width: 820px){.rd-scroll-hint{display:block}}`}</style>
         <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 10, color: L_T.muted }}>
           SWIPE SIDEWAYS FOR EVERY COLUMN →
@@ -363,9 +363,10 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               {visibleRows.map((r) => (
                 <tr
                   key={r.mo}
-                  // UX50 B-16: in the events-only view every row is an event, so
-                  // none is highlighted; in the full view the events stand out.
-                  style={{ borderBottom: `1px dashed ${L_T.faint}`, background: expanded && r.event ? L_T.highlight : 'transparent' }}
+                  // UI revert 2 (18 Oct 2026): every event row is yellow, in the
+                  // events view and the full view, on every width, as it was
+                  // from R3.3 (4fb2d3b, 1 Oct) until UX50 B-16 (b37ddf4, 13 Oct).
+                  style={{ borderBottom: `1px dashed ${L_T.faint}`, background: r.event ? L_T.highlight : 'transparent' }}
                 >
                   <td style={{ padding: '7px 10px' }}>{String(r.mo).padStart(2, '0')}</td>
                   <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{r.date}</td>

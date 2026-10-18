@@ -931,21 +931,24 @@ export function LMathBlock({
 }
 
 // ─── LChip / LChipRow ───────────────────────────────────────────────────
-/** A pressable choice (aria-pressed); LChipRow groups them under a label. */
-export function LChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+/** A pressable choice (aria-pressed); LChipRow groups them under a label.
+ *  `small`: the inline chip of Plan's tenure what-if ("+1 YR"), for the
+ *  newer cards that sit in running text on Home (UI revert 2). */
+export function LChip({ on, onClick, children, small }: { on: boolean; onClick: () => void; children: ReactNode; small?: boolean }) {
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={onClick}
+      className={small ? 'l-hit' : undefined}
       style={{
         fontFamily: L_MONO,
         fontSize: 11,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        padding: '7px 12px',
-        border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
-        background: on ? L_T.ink : L_T.paper,
+        padding: small ? '2px 8px' : '7px 12px',
+        border: `1px solid ${on || small ? L_T.ink : L_T.ruleSoft}`,
+        background: on ? L_T.ink : small ? 'transparent' : L_T.paper,
         color: on ? L_T.bg : L_T.ink,
         fontWeight: on ? 700 : 500,
         cursor: 'pointer',

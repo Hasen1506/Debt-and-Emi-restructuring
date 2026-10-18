@@ -25,7 +25,7 @@ export function PrepayChoice({
     <fieldset
       data-testid="prepay-choice"
       aria-invalid={error ? true : undefined}
-      style={{ border: `1px solid ${error ? L_T.negative : L_T.ruleSoft}`, padding: '8px 10px', margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}
+      style={{ border: `1px solid ${error ? L_T.negative : L_T.ruleSoft}`, padding: '8px 10px', margin: 0, fontSize: 11, lineHeight: 1.5 }}
     >
       <legend style={{ fontWeight: 700, padding: '0 4px' }}>{q}</legend>
       {(['reduce_tenure', 'reduce_emi'] as const).map((m) => (
@@ -37,8 +37,8 @@ export function PrepayChoice({
           </span>
         </label>
       ))}
-      <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{prepayChoiceNote(country)}</div>
-      {error && <div role="alert" style={{ color: L_T.negative, fontSize: 'var(--fs-small)' }}>{error}</div>}
+      <div style={{ color: L_T.muted, fontSize: 11 }}>{prepayChoiceNote(country)}</div>
+      {error && <div role="alert" style={{ color: L_T.negative, fontSize: 11 }}>{error}</div>}
     </fieldset>
   );
 }
