@@ -256,25 +256,10 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   return (
     <div style={containerStyle}>
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
+        style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
       >
         <div
-          style={{
-            fontWeight: 600,
-            fontSize: variant === 'ledger' ? 11 : 15,
-            letterSpacing: variant === 'ledger' ? '0.18em' : undefined,
-            textTransform: variant === 'ledger' ? 'uppercase' : undefined,
-            color: variant === 'ledger' ? 'var(--accent)' : 'var(--ink)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
+          style={{ fontWeight: 600, fontSize: variant === 'ledger' ? 11 : 15, letterSpacing: variant === 'ledger' ? '0.18em' : undefined, textTransform: variant === 'ledger' ? 'uppercase' : undefined, color: variant === 'ledger' ? 'var(--accent)' : 'var(--ink)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           {variant === 'ledger' ? 'SHARES AND FUNDS · BY TICKER' : 'Holdings tracker'}
           <InfoTip>{tip}</InfoTip>
@@ -284,15 +269,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             type="button"
             onClick={handleRefreshAll}
             disabled={status.kind === 'loading'}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              padding: '4px 10px',
-              cursor: status.kind === 'loading' ? 'wait' : 'pointer',
-              fontSize: 12,
-              color: 'var(--accent)',
-            }}
+            style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 10px', cursor: status.kind === 'loading' ? 'wait' : 'pointer', fontSize: 12, color: 'var(--accent)' }}
           >
             ↻ REFRESH ALL
           </button>
@@ -307,13 +284,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
       ) : (
         <>
           <div
-            style={{
-              marginTop: 10,
-              fontSize: 12,
-              display: 'flex',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
+            style={{ marginTop: 10, fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}
           >
             <span>
               Value:{' '}
@@ -326,25 +297,16 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
               {formatCurrency(totalCost.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}
             </span>
             <span
-              style={{
-                color: unrealized.gte(0) ? 'var(--positive)' : 'var(--negative)',
-              }}
+              style={{ color: unrealized.gte(0) ? 'var(--positive)' : 'var(--negative)' }}
             >
               {unrealized.gte(0) ? '+' : ''}
               {formatCurrency(unrealized.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}{' '}
               unrealized
             </span>
           </div>
-          {/* A phone is narrower than the six columns: the table scrolls
-              inside its box instead of pushing ↻ / × past the border. */}
           <div style={{ overflowX: 'auto', marginTop: 10 }}>
           <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 12,
-              whiteSpace: 'nowrap',
-            }}
+            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap' }}
           >
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>
@@ -391,11 +353,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                       {formatCurrency(value.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}
                     </td>
                     <td
-                      style={{
-                        textAlign: 'right',
-                        padding: '6px 6px',
-                        color: pl.gte(0) ? 'var(--positive)' : 'var(--negative)',
-                      }}
+                      style={{ textAlign: 'right', padding: '6px 6px', color: pl.gte(0) ? 'var(--positive)' : 'var(--negative)' }}
                     >
                       {pl.gte(0) ? '+' : ''}
                       {formatCurrency(pl.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}
@@ -409,15 +367,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                         title="Refresh price"
                         aria-label={`Refresh ${h.ticker} price`}
                         className="l-hit"
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid var(--border)',
-                          borderRadius: 3,
-                          padding: '2px 6px',
-                          cursor: 'pointer',
-                          fontSize: 11,
-                          color: 'var(--accent)',
-                        }}
+                        style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 6px', cursor: 'pointer', fontSize: 11, color: 'var(--accent)' }}
                       >
                         ↻
                       </button>
@@ -427,15 +377,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                         title="Remove holding"
                         aria-label="Remove holding"
                         className="l-hit"
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid var(--border)',
-                          borderRadius: 3,
-                          padding: '2px 6px',
-                          cursor: 'pointer',
-                          fontSize: 11,
-                          color: 'var(--muted-ink)',
-                        }}
+                        style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 3, padding: '2px 6px', cursor: 'pointer', fontSize: 11, color: 'var(--muted-ink)' }}
                       >
                         ×
                       </button>
@@ -450,21 +392,9 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
         </>
       )}
 
-      {/* Add form. UI revert 2 ledger sizes (as 4bc3dc8 / the What-if
-          boxes): every box 13px with 4px 6px padding and one height, every
-          label an 18px row, all on one grid, so labels, boxes, the select
-          and the button share a line; hints hang below their box. */}
+      {/* Add form: one grid, boxes and button on one line, hints below. */}
       <div
-        style={{
-          marginTop: 14,
-          padding: 10,
-          background: 'var(--soft-bg)',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(min(136px, 100%), 1fr))',
-          columnGap: 8,
-          rowGap: 10,
-          alignItems: 'start',
-        }}
+        style={{ marginTop: 14, padding: 10, background: 'var(--soft-bg)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(136px, 100%), 1fr))', columnGap: 8, rowGap: 10, alignItems: 'start' }}
       >
         <Field label={user.country === 'IN' ? 'Ticker (NSE)' : 'Ticker'} hint={user.country === 'IN' ? 'e.g. RELIANCE' : 'e.g. AAPL'}>
           <input
@@ -518,21 +448,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             type="button"
             onClick={handleAdd}
             disabled={status.kind === 'loading'}
-            style={{
-              height: BOX_H,
-              boxSizing: 'border-box',
-              background: 'var(--ink)',
-              color: 'var(--canvas)',
-              border: '1px solid var(--ink)',
-              borderRadius: 0,
-              padding: '0 12px',
-              cursor: status.kind === 'loading' ? 'wait' : 'pointer',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.14em',
-              whiteSpace: 'nowrap',
-            }}
+            style={{ height: BOX_H, boxSizing: 'border-box', background: 'var(--ink)', color: 'var(--canvas)', border: '1px solid var(--ink)', borderRadius: 0, padding: '0 12px', cursor: status.kind === 'loading' ? 'wait' : 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', whiteSpace: 'nowrap' }}
           >
             <span aria-hidden="true">[ </span>ADD HOLDING<span aria-hidden="true"> ]</span>
           </button>
@@ -541,16 +457,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
 
       {status.kind !== 'idle' && status.msg && (
         <div
-          style={{
-            marginTop: 8,
-            fontSize: 12,
-            color:
-              status.kind === 'error'
-                ? 'var(--negative)'
-                : status.kind === 'ok'
-                  ? 'var(--positive)'
-                  : 'var(--muted-ink)',
-          }}
+          style={{ marginTop: 8, fontSize: 12, color: status.kind === 'error' ? 'var(--negative)' : status.kind === 'ok' ? 'var(--positive)' : 'var(--muted-ink)' }}
         >
           {status.msg}
         </div>
@@ -559,31 +466,12 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   );
 }
 
-/** One box height for the inputs, the select and the button (13px text,
- *  4px 6px padding, 1px border). On a touch screen globals.css lifts every
- *  one of them to 44px / 16px, still together. */
+/** One box height for inputs, select and button; touch screens lift all to 44px. */
 const BOX_H = 28;
 
-const inputStyle: React.CSSProperties = {
-  height: BOX_H,
-  boxSizing: 'border-box',
-  padding: '4px 6px',
-  border: '1px solid var(--ink)',
-  borderRadius: 0,
-  background: 'var(--card)',
-  color: 'var(--ink)',
-  fontFamily: 'inherit',
-  fontSize: 13,
-  width: '100%',
-  minWidth: 0,
-};
+const inputStyle: React.CSSProperties = { height: BOX_H, boxSizing: 'border-box', padding: '4px 6px', border: '1px solid var(--ink)', borderRadius: 0, background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit', fontSize: 13, width: '100%', minWidth: 0 };
 
-const labelRowStyle: React.CSSProperties = {
-  fontSize: 11,
-  minHeight: 18,
-  display: 'flex',
-  alignItems: 'center',
-};
+const labelRowStyle: React.CSSProperties = { fontSize: 11, minHeight: 18, display: 'flex', alignItems: 'center' };
 
 function Field({
   label,
