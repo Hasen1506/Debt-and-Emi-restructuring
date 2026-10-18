@@ -1476,8 +1476,7 @@ class WindfallResponse(_Base):
     investment_name: Optional[str]
     investment_return: Optional[Decimal] = None
     leftover: Decimal = D("0")
-    # What interest_avoided assumes ("until the card is cleared, paying the
-    # bank's minimum each month" / "over the loan's remaining life, ...").
+    # What interest_avoided assumes ("until the card is cleared, …" / "over the loan's remaining life, …").
     interest_basis: str = ""
     # The loan's prepayment fee on `amount` (taken out of it) and the interest
     # avoided less that fee.
@@ -1485,9 +1484,7 @@ class WindfallResponse(_Base):
     net_benefit: Decimal = D("0")
     # Loans passed over because their terms bar an extra payment now.
     blocked: list[str] = []
-    # A behind loan's overdue amount, paid first (engine/debt_status.py): the
-    # client lowers that loan's balance and asks again for the rest.
-    catch_up: bool = False
+    catch_up: bool = False   # a behind loan's overdue, paid first (engine/debt_status.py)
 
 
 class NewDebtRequest(_In):
