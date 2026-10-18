@@ -25,7 +25,7 @@ import { addActivityEntry, readActivityClient, extraPrincipal } from '@/lib/acti
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { countryMonthKey } from '@/lib/today';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
-import { explainMinPayment } from '@/lib/min-payment';
+import { requiredMonthly } from '@/lib/min-payment';
 import { loanToUser } from '@/lib/currency';
 import type { CashAccountPayload, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
@@ -101,7 +101,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   const defaultEmis = (user.loans ?? []).filter(l => Number(l.outstanding)>0)
     .reduce(
       (sum, l) => {
-        const payment = l.loan_type === 'credit_card' ? explainMinPayment(l,user.country)?.estimated ?? l.scheduled_emi : l.scheduled_emi;
+        const payment = requiredMonthly(l, user.country).toNumber();
         const converted = loanToUser(Number(payment || 0),l,user.country,user.fx_to_user_currency);
         return sum.add(converted ?? 0);
       },

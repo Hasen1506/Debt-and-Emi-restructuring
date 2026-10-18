@@ -286,15 +286,35 @@ def test_card_interest_avoided_runs_to_the_card_clearing():
     card = _card("85000")
     saved = interest_saved_by_prepaying(card, D("85000"))
     assert saved > 12 * D("2408")
-    # Worked by hand: 34%/12 interest, then interest + 2% (₹100 floor) paid.
+    # Worked by hand: 34%/12 interest plus 18% GST (what the plan charges an
+    # Indian card), then that charge + 2% of the balance (₹100 floor) paid.
     bal, total = D("85000"), D("0")
     while bal > 0:
-        i = bal * D("0.34") / 12
+        i = bal * D("0.34") / 12 * D("1.18")
         total += i
         pay = max(i + bal * D("0.02"), D("100"))
         bal = bal + i - min(pay, bal + i)
     assert abs(saved - total) <= 1
-    assert interest_basis(card) == "until the card is cleared, paying the bank's minimum each month"
+    assert interest_basis(card) == (
+        "until the card is cleared, paying the bank's minimum each month, "
+        "including 18% GST on the interest")
+
+
+def test_us_card_interest_has_no_gst():
+    """A US card's interest avoided is the nominal finance charge. GST is an Indian card rule."""
+    from engine.decisions import interest_basis
+    card = _card("10000")
+    card.currency = "USD"
+    nominal = D("0")
+    bal = D("10000")
+    while bal > 0 and nominal < D("100000"):
+        i = bal * D("0.34") / 12
+        nominal += i
+        pay = max(i + bal * D("0.01"), D("35"))
+        bal = bal + i - min(pay, bal + i)
+    saved = interest_saved_by_prepaying(card, D("10000"), Country.US)
+    assert abs(saved - nominal) <= 1
+    assert "GST" not in interest_basis(card, Country.US)
 
 
 def test_card_interest_avoided_uses_the_usual_payment_when_higher():

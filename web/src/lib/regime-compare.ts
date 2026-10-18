@@ -13,6 +13,7 @@
  * loss doesn't lower other income.
  */
 import Decimal from 'decimal.js';
+import { emi, walkSchedule } from './amortization';
 import TAX from './tax-tables.json';
 
 const D = (v: Decimal.Value | null | undefined) => new Decimal(v == null || v === '' ? 0 : v);
@@ -234,18 +235,8 @@ export function switchRuleText(rule: 'yearly' | 'business_once'): string {
  */
 export function firstYearSplit(amount: Decimal.Value, annualRate: Decimal.Value, months: number): { interest: Decimal; principal: Decimal; emi: Decimal } {
   const P = D(amount);
-  const r = D(annualRate).div(12);
   if (P.lte(0) || months <= 0) return { interest: ZERO, principal: ZERO, emi: ZERO };
-  const emi = r.isZero() ? P.div(months) : P.mul(r).mul(r.add(1).pow(months)).div(r.add(1).pow(months).sub(1));
-  let bal = P;
-  let interest = ZERO;
-  let principal = ZERO;
-  for (let m = 0; m < Math.min(12, months); m++) {
-    const i = bal.mul(r);
-    const p = Decimal.min(bal, emi.sub(i));
-    interest = interest.add(i);
-    principal = principal.add(p);
-    bal = bal.sub(p);
-  }
-  return { interest, principal, emi };
+  const payment = emi(P, annualRate, months);
+  const walked = walkSchedule(P, annualRate, payment, Math.min(12, months));
+  return { interest: walked.interest, principal: walked.principal, emi: payment };
 }

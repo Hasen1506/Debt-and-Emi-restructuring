@@ -66,6 +66,28 @@ def flat_to_reducing(flat_rate: Decimal, tenure_months: int) -> Decimal:
     return (lo + hi) / D("2")
 
 
+def schedule_interest(
+    balance: Decimal, annual_rate: Decimal, payment: Decimal, months: int,
+) -> Decimal:
+    """Interest over `months` of a fixed payment (monthly rest).
+
+    The last month pays only what is left, so a cleared loan does not
+    accrue another month. A payment below the interest lets the balance
+    grow. Shared by the prepayment choice and the windfall term-loan path
+    so those two don't keep their own copies of the walk.
+    """
+    r = annual_rate / D("12")
+    b, total = balance, D("0")
+    pay = payment
+    for _ in range(max(0, int(months))):
+        if b <= 0:
+            break
+        i = b * r
+        total += i
+        b = b + i - min(pay, b + i)
+    return total
+
+
 def remaining_balance(
     principal: Decimal, nominal_rate: Decimal, tenure_months: int, months_paid: int
 ) -> Decimal:

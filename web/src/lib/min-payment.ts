@@ -170,8 +170,33 @@ export function suggestedGraceDays(bank: string, country: Country): number {
   return registry[bank] ?? GRACE_DEFAULTS[country];
 }
 
+type CardLoan = Pick<LoanPayload, 'loan_type' | 'bank' | 'outstanding'> &
+  Partial<Pick<LoanPayload, 'nominal_rate' | 'expected_monthly_spend' | 'min_payment_override' | 'scheduled_emi'>>;
+
+/** The bank formula on a balance and a finance charge (GST included for an
+ *  Indian card). Same steps as engine compute_minimum_payment. */
+function evaluatedMinimum(loan: CardLoan, country: Country, balance: Decimal, charges: Decimal): Decimal {
+  const registry = country === 'IN' ? INDIA : USA;
+  const formula = registry[loan.bank] ?? DEFAULTS[country];
+  const raw = formula.compute(balance, charges);
+  const floored = country === 'IN' ? Decimal.max(raw, charges) : raw;
+  return Decimal.min(floored, Decimal.max(balance.add(charges), 0));
+}
+
+/** Average-daily-balance finance charge for one cycle. Mirrors
+ *  engine/simulation.py card_cycle_interest: half the new spend is on the
+ *  balance, and a payment on the due date stops interest on that part for
+ *  the last third of the cycle. */
+function cycleInterest(rate: Decimal, country: Country, opening: Decimal, spend: Decimal, payment: Decimal): Decimal {
+  if (opening.lte(0)) return new Decimal(0);
+  const paid = Decimal.min(Decimal.max(payment, 0), opening.add(spend));
+  const adb = Decimal.max(opening.add(spend.mul('0.5')).sub(paid.div(3)), 0);
+  const interest = adb.mul(rate).div(12);
+  return country === 'IN' ? interest.mul(new Decimal(1).add(GST_RATE_IN)) : interest;
+}
+
 export function explainMinPayment(
-  loan: Pick<LoanPayload, 'loan_type' | 'bank' | 'outstanding'> & Partial<Pick<LoanPayload, 'nominal_rate'>>,
+  loan: CardLoan,
   country: Country,
 ): MinPaymentExplanation | null {
   if (loan.loan_type !== 'credit_card') return null;
@@ -182,11 +207,10 @@ export function explainMinPayment(
   const interest = outstanding.mul(dec(loan.nominal_rate)).div(12);
   // RBI MD 2022 para 9(b)(ii): an Indian card's minimum covers the month's
   // interest and its 18% GST (no negative amortisation). The floor never asks
-  // for more than the card owes.
+  // for more than the card owes. This is the formula on a full month of
+  // interest; what the plan asks for this month is minimumDueThisMonth.
   const charges = country === 'IN' ? interest.mul(new Decimal(1).add(GST_RATE_IN)) : interest;
-  const raw = formula.compute(outstanding, charges);   // the engine passes GST-inclusive interest too
-  const floored = country === 'IN' ? Decimal.max(raw, charges) : raw;
-  const minimum = Decimal.min(floored, Decimal.max(outstanding.add(charges), 0));
+  const minimum = evaluatedMinimum(loan, country, outstanding, charges);
   return {
     formula: formula.description,
     estimated: minimum.toFixed(0),
@@ -198,15 +222,35 @@ export function explainMinPayment(
 }
 
 /**
- * What the bank requires this month, in the loan's currency: the EMI, or
- * for a card its minimum (the user's override, else the bank's formula on
- * this month's balance and interest), as the engine's
- * compute_total_minimums works it out. A card with no EMI set used to
- * count as ₹0 a month, so someone ₹9,000 short was told to find ₹4,000.
+ * The minimum the plan collects this month. A card's "% + interest" formula
+ * is evaluated on the interest the cycle actually charges (engine
+ * card_minimum_at_charged_interest), not a full month on the whole balance.
+ * Two fixed-point steps; the second moves it by paise. Rounded to the
+ * currency unit the way the pay line rounds the engine's figure.
  */
-export function requiredMonthly(loan: LoanPayload, country: Country): Decimal {
-  if (loan.loan_type !== 'credit_card') return dec(loan.scheduled_emi);
+export function minimumDueThisMonth(loan: CardLoan, country: Country): Decimal {
+  if (loan.loan_type !== 'credit_card') return dec(loan.scheduled_emi ?? 0);
   const override = dec(loan.min_payment_override);
   if (override.gt(0)) return override;
-  return new Decimal(explainMinPayment(loan, country)?.estimated ?? 0);
+  const opening = dec(loan.outstanding);
+  const spend = dec(loan.expected_monthly_spend);
+  const balance = opening.add(spend);
+  const rate = dec(loan.nominal_rate);
+  const full = balance.mul(rate).div(12);
+  const fullCharges = country === 'IN' ? full.mul(new Decimal(1).add(GST_RATE_IN)) : full;
+  let mn = evaluatedMinimum({ ...loan, outstanding: balance.toString() }, country, balance, fullCharges);
+  for (let step = 0; step < 2; step++) {
+    mn = evaluatedMinimum(loan, country, balance, cycleInterest(rate, country, opening, spend, mn));
+  }
+  return mn.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * What the bank requires this month, in the loan's currency: the EMI, or
+ * for a card the minimum the plan collects (minimumDueThisMonth). A card
+ * with no EMI set used to count as ₹0 a month, so someone ₹9,000 short
+ * was told to find ₹4,000.
+ */
+export function requiredMonthly(loan: LoanPayload, country: Country): Decimal {
+  return minimumDueThisMonth(loan, country);
 }

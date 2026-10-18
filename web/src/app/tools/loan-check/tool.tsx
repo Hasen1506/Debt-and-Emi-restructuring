@@ -258,7 +258,7 @@ export function LoanCheckTool() {
   const picked = loanIdx !== null ? profile.user.loans[loanIdx] : null;
   const loanSummary = (
     <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
-      {formatCurrency(outstanding || '0', 'INR')} left at {currentRate || '—'}%, {months || '—'} months to go
+      {formatCurrency(outstanding || '0', 'INR')} left at {currentRate ? formatPct(new Decimal(currentRate).div(100)) : '—'}, {months || '—'} months to go
       {lender ? ` · ${lender}` : ''}.{' '}
       <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
     </p>

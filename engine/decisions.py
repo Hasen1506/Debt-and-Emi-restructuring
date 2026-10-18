@@ -8,7 +8,10 @@ from dataclasses import dataclass, field, replace
 from typing import Optional
 from engine.market_data import approx_pct, safe_rate
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass, PayoffRules
-from engine.formulas import after_tax_return, emi, effective_rate, prepay_recommended
+from engine.formulas import (
+    after_tax_return, emi, effective_rate, loan_market, monthly_interest_charge,
+    prepay_recommended, schedule_interest,
+)
 from engine.minimum_payments import compute_minimum_payment
 from engine.loan_check import _inr
 from engine.ordering import Strategy, rank_loans
@@ -39,29 +42,25 @@ def money(amount: Decimal, country: Country = Country.IN) -> str:
 
 def _interest_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> Decimal:
     """Interest paid clearing `balance` at `payment` a month (monthly rest)."""
-    monthly = rate / D("12")
-    total = D("0")
-    for _ in range(1200):
-        if balance <= 0:
-            break
-        i = balance * monthly
-        total += i
-        balance = balance + i - payment
-    return total
+    return schedule_interest(balance, rate, payment, 1200)
 
 
 def _card_interest_to_clear(loan: Loan, balance: Decimal, country: Country) -> Decimal:
     """Interest paid clearing a card balance, paying each month the larger
     of the user's usual payment and the bank's minimum (and at least 1% of
     the balance above the interest, so a minimum that only covers the
-    interest still clears it)."""
-    monthly = loan.nominal_rate / D("12")
+    interest still clears it).
+
+    Indian cards are charged 18% GST on the finance charge
+    (monthly_interest_charge, the same figure the plan uses). The minimum
+    is worked on that GST-inclusive charge, which is what the bank asks for.
+    """
     usual = loan.scheduled_emi or D("0")
     total = D("0")
     for _ in range(1200):
         if balance <= 0:
             break
-        i = balance * monthly
+        i = monthly_interest_charge(replace(loan, outstanding=balance), country)
         total += i
         minimum = compute_minimum_payment(replace(loan, outstanding=balance), country, interest_accrued=i)
         pay = max(usual, minimum, i + balance * D("0.01"))
@@ -72,10 +71,12 @@ def _card_interest_to_clear(loan: Loan, balance: Decimal, country: Country) -> D
 def interest_basis(loan: Loan, country: Country = Country.IN) -> str:
     """What `interest_saved_by_prepaying` assumes, in words for the page."""
     if loan.loan_type == LoanType.CREDIT_CARD:
+        gst = (", including 18% GST on the interest"
+               if loan_market(loan, country) == Country.IN else "")
         if loan.scheduled_emi and loan.scheduled_emi > 0:
             return (f"until the card is cleared, paying your usual {money(loan.scheduled_emi, country)} "
-                    "a month (or the minimum, if higher)")
-        return "until the card is cleared, paying the bank's minimum each month"
+                    f"a month (or the minimum, if higher){gst}")
+        return f"until the card is cleared, paying the bank's minimum each month{gst}"
     return "over the loan's remaining life, EMI kept, so it ends sooner"
 
 

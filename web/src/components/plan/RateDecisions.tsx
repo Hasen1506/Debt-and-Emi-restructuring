@@ -119,8 +119,8 @@ function moveWords(m: RateMove, fc: (v: number, l: LoanPayload) => string, count
   const { months, emi } = m;
   const more = months?.now != null && months.up != null ? months.up - months.now : null;
   const fewer = months?.now != null && months.down != null ? months.now - months.down : null;
-  const emiUp = emi ? fc(emi.up - emi.now, l) : null;
-  const emiDown = emi ? fc(emi.now - emi.down, l) : null;
+  const emiUp = emi && emi.up > emi.now ? fc(emi.up - emi.now, l) : null;
+  const emiDown = emi && emi.now > emi.down ? fc(emi.now - emi.down, l) : null;
   const rise =
     more != null && more > 0
       ? `A ${STEP} rise: ${monthsSpan(more)} more at the same ${fc(Number(l.scheduled_emi), l)} EMI (what banks usually do)${emiUp ? `, or ${emiUp} more a month if you ask to keep the months` : ''}.`

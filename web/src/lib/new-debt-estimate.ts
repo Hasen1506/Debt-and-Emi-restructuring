@@ -1,12 +1,9 @@
+import { emiNumber } from './amortization';
 import { MAX_TENURE_MONTHS } from './tenure-rules';
 
 /** Pure EMI: P * r * (1+r)^n / ((1+r)^n - 1), with r = annualRate / 12. */
 export function computeEMI(principal: number, annualRate: number, months: number): number {
-  if (months <= 0) return 0;
-  const r = annualRate / 12;
-  if (r === 0) return principal / months;
-  const pow = Math.pow(1 + r, months);
-  return (principal * r * pow) / (pow - 1);
+  return emiNumber(principal, annualRate, months);
 }
 
 /**

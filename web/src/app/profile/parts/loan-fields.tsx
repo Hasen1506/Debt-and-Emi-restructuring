@@ -6,8 +6,8 @@
 import { Field } from '@/components/ToolPrimitives';
 import type { Country, LoanPayload } from '@/lib/api';
 import { loanCurrency } from '@/lib/currency';
-import { explainMinPayment } from '@/lib/min-payment';
-import { formatCurrency } from '@/lib/api';
+import { explainMinPayment, minimumDueThisMonth } from '@/lib/min-payment';
+import { formatCurrencyWhole } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
 import { emiBelowInterest } from '@/lib/loan-gaps';
 
@@ -430,7 +430,7 @@ export function MinPaymentExplainer({
   const ruleCountry: Country = currency === 'INR' ? 'IN' : currency === 'USD' ? 'US' : country;
   const explanation = explainMinPayment(loan, ruleCountry);
   if (!explanation) return null;
-  const estimatedLabel = formatCurrency(explanation.estimated, currency);
+  const dueLabel = formatCurrencyWhole(minimumDueThisMonth(loan, ruleCountry), currency);
   return (
     <div
       style={{
@@ -460,10 +460,9 @@ export function MinPaymentExplainer({
         <div>
           {explanation.source === 'bank' ? (
             <>
-              <strong>{explanation.bank}</strong> asks for{' '}
-              <em>{explanation.formula}</em>: about{' '}
-              <strong>{estimatedLabel}</strong> a month at today&apos;s
-              balance. The plan always pays at least this.
+              <strong>{explanation.bank}</strong>&apos;s rule: <em>{explanation.formula}</em>.
+              This month the plan&apos;s minimum is <strong>{dueLabel}</strong>.
+              The plan pays at least this.
             </>
           ) : (
             <>
@@ -475,10 +474,9 @@ export function MinPaymentExplainer({
               ) : (
                 <>With no bank picked, the usual rule: </>
               )}
-              <em>{explanation.formula}</em>. That&apos;s about{' '}
-              <strong>{estimatedLabel}</strong> a month at today&apos;s
-              balance; the plan pays at least this unless you enter your
-              statement&apos;s figure below.
+              <em>{explanation.formula}</em>. This month the plan&apos;s minimum
+              is <strong>{dueLabel}</strong>. The plan pays at least this
+              unless you enter your statement&apos;s figure below.
             </>
           )}
         </div>
@@ -487,12 +485,12 @@ export function MinPaymentExplainer({
         label="Minimum on your statement (optional)"
         kind="money"
         currency={loanCurrency(loan, country)}
-        placeholder={estimatedLabel}
+        placeholder={dueLabel}
         value={loan.min_payment_override ?? ''}
         onChange={onOverrideChange}
         hint={
           loan.min_payment_override
-            ? `Replaces the ${estimatedLabel} estimate above.`
+            ? `Replaces the ${dueLabel} minimum above.`
             : 'Blank: the rule above'
         }
       />

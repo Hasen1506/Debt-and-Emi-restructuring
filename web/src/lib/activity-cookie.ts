@@ -27,7 +27,7 @@ import Decimal from 'decimal.js';
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
-import { explainMinPayment } from './min-payment';
+import { minimumDueThisMonth } from './min-payment';
 import type { Country, LoanPayload } from './api';
 import { paymentState } from './payment-state';
 import { overdueAmount, daysLate, extraPrincipal, readActivityClient } from './activity';
@@ -236,8 +236,8 @@ export function activityDeltas(
     // delinquent, and the unpaid portion (overdue) compounds onto
     // outstanding alongside penal interest.
     //
-    // Credit cards: "minimum" = bank-formula % of outstanding (see
-    // explainMinPayment). Paying ≥ minimum keeps the account current —
+    // Credit cards: "minimum" = what the plan collects this month (see
+    // minimumDueThisMonth). Paying ≥ minimum keeps the account current —
     // revolving interest accrues but there's no overdue principal and
     // no penalty. Paying < minimum triggers late fee + penal interest
     // on the (minimum − paid) shortfall. The unpaid portion isn't
@@ -245,9 +245,8 @@ export function activityDeltas(
     let overdue: string;
     let shortfallForPenalty: string;
     if (loan.loan_type === 'credit_card') {
-      const minHint = explainMinPayment(loan, country);
       const recordedMinimum = new Decimal(e.scheduledEmi || '0');
-      const minPayable = recordedMinimum.gt(0) ? recordedMinimum : new Decimal(minHint?.estimated ?? loan.scheduled_emi);
+      const minPayable = recordedMinimum.gt(0) ? recordedMinimum : minimumDueThisMonth(loan, country);
       const paid = new Decimal(e.kind === 'missed' ? '0' : e.amount || '0');
       if (paid.gte(minPayable)) continue; // paid above min: no delta
       overdue = '0';
