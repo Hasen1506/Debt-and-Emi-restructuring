@@ -18,6 +18,7 @@ export function DisagreementCard({ data, money, compact = false }: { data: Disag
       <LSectionHeader>
         <span id="disagree-h">Where we disagree with a plain calculator</span>
       </LSectionHeader>
+      <p data-testid="check-only" style={{ margin: 0, fontSize: 11, color: L_T.muted }}>Check only; nothing changes until you update your loan or plan.</p>
       {data.items.length === 0 ? (
         <p data-testid="disagree-zero" style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
           {data.zero_line}

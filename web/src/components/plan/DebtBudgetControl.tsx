@@ -70,7 +70,7 @@ export function DebtBudgetControl({
   );
 
   return (
-    <div data-testid={prompt ? 'debt-budget-prompt' : 'debt-budget-control'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div id={prompt ? 'debt-budget-prompt' : undefined} data-testid={prompt ? 'debt-budget-prompt' : 'debt-budget-control'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {prompt && (
         <>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>How much a month toward debts?</p>
