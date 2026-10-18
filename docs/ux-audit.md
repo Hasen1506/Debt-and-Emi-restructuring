@@ -178,3 +178,16 @@ is clearer than a zero that looks like a calculated balance.
 - Assumptions says “30%” and Profile says “30.0%”. Same rate.
 - The signed-out landing uses its own example (₹47,30,000), not this
   household. It should keep doing that.
+
+## Signed-out pages, checked after the walk
+
+A pass over the public pages reported the India plan chart ending at “$0 · NOV ’35”. That string is the US example, in the block marked for the US (`data-c="US"`). The India chart in the same file ends at “₹0 · MAY ’32”. The page hides the other country’s block. The two examples are not one chart with a mixed currency.
+
+The same pass could not open Plan, Activity, Profile or the tools behind sign-in, so it could not compare those figures. That comparison is the seeded render above.
+
+What it read as separate bugs, and why they stay:
+
+- Home, Plan, Activity and Profile in the public masthead send a signed-out visitor to sign-in. That is the gate. Glossary, Loan check, Can’t pay, the RBI page, privacy, terms and Your data stay open.
+- The landing’s India/USA switch, Can’t pay’s India/USA buttons, and the glossary’s country note do different jobs. They are not one control drawn three ways.
+- “MARK PAID” on the India example and “PAID” on the US example are the two countries’ words for the same action.
+- Date style on the landing (MAY 2032, OCT–NOV ’27) matches the density already noted inside the app.
