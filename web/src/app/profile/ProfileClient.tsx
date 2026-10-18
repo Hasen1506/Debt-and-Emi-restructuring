@@ -36,9 +36,7 @@ import {
 } from '@/lib/income-streams';
 import { deriveMarginalRate } from '@/lib/deductions';
 import { newLoanId, withLoanIds } from '@/lib/loan-ids';
-import {
-  loadProfileClient,
-} from '@/lib/user-store';
+import { loadProfileClient } from '@/lib/user-store';
 import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';

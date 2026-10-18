@@ -402,22 +402,13 @@ export interface UserPayload {
   liquidation_costs?: Record<string, string>;
   /** Web-only assumptions (emergency-fund months and fixed top-up, goal buffer); the API ignores them. */
   assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null; confirmed?: string[]; confirmed_at?: string };
-  /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
-   *  rental, FD interest > ₹40k, capital gains, freelance side-income.
-   *  Salaried users opt in by entering a number here; the tax sleeve
-   *  card on /debts then targets this annual liability. Defaults to 0
-   *  / undefined when user has no extra income. Business owners ignore
-   *  this — their sleeve target is derived from annual_business_income. */
+  /** Annual tax (₹/$) on income not covered by employer TDS (rental, FD
+   *  interest, gains, side-income); the /debts tax sleeve targets it.
+   *  Business owners ignore it (sleeve uses annual_business_income). */
   extra_income_annual_tax?: string;
-  /** Multi-stream income model — captures sources beyond a single
-   *  primary income, and historical transitions (salaried → freelance,
-   *  added a side gig, retired from one role). When non-empty, the
-   *  monthly_income field is derived as sum of *active* streams / 12 at
-   *  save time, and the tax sleeve consumes active streams instead of a
-   *  single annual_business_income / extra_income_annual_tax input.
-   *
-   *  Empty / omitted → legacy single-source behaviour. Engine drops the
-   *  field — it consumes the derived monthly_income + marginal_rate. */
+  /** Multi-stream income (side gigs, transitions). Non-empty: monthly_income
+   *  is derived from *active* streams / 12 at save time and the tax sleeve
+   *  uses them. Empty → legacy single source. Engine drops the field. */
   /** Audit C11 / round 2 (item 2): most the user could borrow to cover short
    *  months (spare card limit), their currency. Blank = 3 months of
    *  take-home (labelled on Plan as an assumption). */

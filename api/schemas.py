@@ -921,7 +921,7 @@ class LifecycleEventIn(_In):
         return self
 
 
-class PaidOffIn(_In):
+class PaidOffIn(_In):  # owed-fix: money gone out this month the opening balance still holds (cards), loan's currency
     loan_index: Annotated[int, Field(ge=0, le=200)]
     amount: Amount
 
@@ -931,8 +931,6 @@ class SimulateRequest(_In):
     strategy: Strategy = Strategy.AVALANCHE
     # UX fix 4: loans whose EMI for this month is already paid (owed_today).
     paid_emi_this_month: list[Annotated[int, Field(ge=0, le=200)]] = Field(default_factory=list, max_length=200)
-    # Owed-fix: money gone out this month the opening balance still holds
-    # (card payments logged after the statement), loan's currency.
     paid_off_this_month: list[PaidOffIn] = Field(default_factory=list, max_length=200)
     horizon_months: Horizon = 360
     matched_contribution: Amount = D("0")
@@ -1157,18 +1155,12 @@ class GoalFinalOut(_Base):
     # projection window — see `target_past_horizon` for whether that's
     # because the sim stopped early (debt-free) or genuinely missed.
     target_reached: bool
-    # True when the goal's target month sits beyond the simulated
-    # horizon — typically because the sim broke out at debt_free_month
-    # before reaching it. Lets the UI render an honest "deadline is
-    # past your debt-free month — fund manually after that" instead
-    # of the misleading "not reached" tone. Always False when
-    # target_reached is True.
+    # True when the target month sits beyond the horizon (sim stopped at
+    # debt_free_month), so the UI says "past your debt-free month" rather
+    # than "not reached". Always False when target_reached is True.
     target_past_horizon: bool = False
-    # True when saved_at_target ≥ required. Distinct from target_reached:
-    # a goal can be `funded=True, target_reached=False` (sim broke out
-    # early — e.g., debt-free at month 18, goal at month 24 — but the
-    # accumulated saving already covers required). Without this, the UI
-    # can't tell "missed the deadline" from "on track, horizon was short".
+    # True when saved_at_target ≥ required; can be True with target_reached
+    # False (sim stopped early but saving already covers required).
     funded: bool
 
 
@@ -1499,11 +1491,8 @@ class WindfallResponse(_Base):
 class NewDebtRequest(_In):
     list_price: Amount
     cash_price_elsewhere: Amount
-    # A 1-month "loan" is a bill, not credit (live QA accepted it); the
-    # shortest real EMI offers are 3 months (no-cost card EMI).
-    # Live re-test 3 R3-2: the same 40-year ceiling as the app (tenure-rules.ts
-    # MAX_TENURE_MONTHS) and the engine, so 600 or 6016 months is a field
-    # error, not a figure.
+    # ≥3 months (a 1-month "loan" is a bill); same 40-year ceiling as the
+    # app and engine (R3-2), so 600 months is a field error.
     emi_offer_months: int = Field(..., ge=3, le=MAX_TENURE_MONTHS)
     emi_offer_monthly_payment: Amount
     processing_fee: Amount = D("0")
