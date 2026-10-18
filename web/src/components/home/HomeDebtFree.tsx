@@ -28,7 +28,7 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
-import { DebtBudgetPrompt } from '@/components/plan/DebtBudgetControl';
+import { DebtBudgetPromptLazy as DebtBudgetPrompt } from '@/components/plan/DebtBudgetPromptLazy';
 import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { CashFlow } from './LedgerHome';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';

@@ -53,7 +53,7 @@ import {
 import { BALANCES_ENTERED_KEY, type BalanceDropReason } from '@/lib/activity';
 import { balanceDropOf, logBalanceDrops } from '@/lib/prepay-choice';
 import { BalanceDropQuestion } from '@/components/profile/BalanceDropQuestion';
-import { OwedNowHint } from '@/components/profile/OwedNowHint';
+import { OwedNowHintLazy as OwedNowHint } from '@/components/profile/OwedNowHintLazy';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';

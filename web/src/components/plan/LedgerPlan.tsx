@@ -14,7 +14,7 @@
  * (REDESIGN R2).
  */
 
-import { DebtBudgetPrompt } from './DebtBudgetControl';
+import { DebtBudgetPromptLazy as DebtBudgetPrompt } from './DebtBudgetPromptLazy';
 import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';

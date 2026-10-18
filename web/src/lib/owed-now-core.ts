@@ -161,8 +161,3 @@ export function owedNowLoans(
     return next;
   });
 }
-
-/** Sum of owed-now balances in one currency (no conversion). */
-export function owedNowTotal(loans: LoanPayload[]): number {
-  return loans.reduce((s, l) => s + Math.max(0, Number(l.outstanding) || 0), 0);
-}

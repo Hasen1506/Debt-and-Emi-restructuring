@@ -16,13 +16,7 @@
  * this page links there instead of repeating them.
  */
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useOwedTodayProfile, useStoredProfile } from '@/lib/use-profile';
-import { readActivityClient, type ActivityEntry } from '@/lib/activity';
-import { alignToLoans } from '@/lib/loan-ids';
-import { isMoneyPaid } from '@/lib/payment-state';
-import { countryMonthKey } from '@/lib/today';
-import { shortDay } from '@/lib/owed-today';
-import Decimal from 'decimal.js';
+import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrencyWhole } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -96,30 +90,19 @@ export interface CantPayPlanRow {
   key: string;
   amountUser: number;
   minimumUser: number;
+  /** Already paid this month (user's currency), and the latest day ("9 Oct"). */
+  paidUser: number;
+  paidDay: string;
+  /** What's owed now (lib/owed-now-core), user's currency. */
+  owedNowUser: number;
 }
 
 export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
   const profile = useStoredProfile();
-  const owedProfile = useOwedTodayProfile();
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const country = profile.user.country;
   const ccy = userDefaultCurrency(country);
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
-  // Owed-fix: what's already gone out this month (Activity), so "due" is
-  // what's still to pay, as Home's pay list counts it.
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
-  useEffect(() => setEntries(alignToLoans(readActivityClient(), profile.user.loans)), [profile.user.loans]);
-  const month = countryMonthKey(country);
-  const paidByLoan = useMemo(() => {
-    const out = new Map<number, { paid: number; date: string }>();
-    for (const e of entries) {
-      if (e.date.slice(0, 7) !== month || !isMoneyPaid(e) || e.kind === 'missed') continue;
-      const cur = out.get(e.loanIndex) ?? { paid: 0, date: '' };
-      out.set(e.loanIndex, { paid: cur.paid + (Number(e.amount) || 0), date: e.date > cur.date ? e.date : cur.date });
-    }
-    return out;
-  }, [entries, month]);
-
   const lines = useMemo(
     () =>
       m.loans
@@ -129,8 +112,9 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
         .map((l) => {
           const key = l.loan.id ?? String(l.index);
           const plan = planRows.find((r) => r.key === key);
-          const paidLoan = paidByLoan.get(l.index);
-          const paid = paidLoan ? Number(m.toUserCcy(new Decimal(paidLoan.paid), l.loan)) : 0;
+          // Owed-fix: what's already paid this month and owed now, from the
+          // plan's run (the page's server part), as Home shows them.
+          const paid = plan?.paidUser ?? 0;
           const minimum = plan?.minimumUser ?? Number(m.toUserCcy(l.required, l.loan));
           return {
             key,
@@ -142,13 +126,13 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
             floating: l.loan.rate_type === 'floating',
             bank: l.loan.bank ?? '',
             paid,
-            paidDate: paidLoan?.date ?? '',
+            paidDate: plan?.paidDay ?? '',
             planAmount: plan?.amountUser ?? null,
             toGo: plan ? Math.max(0, plan.amountUser - paid) : null,
-            owedNow: Number(owedProfile.user.loans[l.index]?.outstanding ?? l.loan.outstanding) || 0,
+            owedNow: plan?.owedNowUser ?? Number(m.toUserCcy(l.outstanding, l.loan)),
           };
         }),
-    [m, planRows, paidByLoan, owedProfile],
+    [m, planRows],
   );
   const due = lines.reduce((s, l) => s + l.required, 0);
   const paidSoFar = lines.reduce((s, l) => s + l.paid, 0);
@@ -226,7 +210,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
                 ) : null}
                 {paidLines.map((l) => (
                   <p key={l.key} data-testid="cp-paid-row" style={{ margin: 0, color: L_T.muted }}>
-                    {l.label}: {fc(l.paid)} paid{l.paidDate ? ` ${shortDay(l.paidDate)}` : ''}
+                    {l.label}: {fc(l.paid)} paid{l.paidDate ? ` ${l.paidDate}` : ''}
                     {l.required <= 0 ? (l.loan_type === 'credit_card' ? ', minimum covered' : ', EMI covered') : ''}; owes {formatCurrencyWhole(Math.round(l.owedNow), ccy)} now.
                   </p>
                 ))}
