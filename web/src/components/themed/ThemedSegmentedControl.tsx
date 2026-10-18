@@ -72,7 +72,7 @@ export function ThemedSegmentedControl<T extends string>({
           alignItems: 'center',
           gap: 12,
           fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--fs-label)',
+          fontSize: 11,
           letterSpacing: '0.08em',
           color: 'var(--muted)',
         }}
@@ -119,7 +119,7 @@ export function ThemedSegmentedControl<T extends string>({
               letterSpacing: '0.02em',
               fontWeight: 400,
               textTransform: 'none',
-              fontSize: 'var(--fs-small)',
+              fontSize: 11,
             }}
           >
             {helperText}
@@ -135,7 +135,7 @@ export function ThemedSegmentedControl<T extends string>({
         display: 'inline-flex',
         flexDirection: 'column',
         gap: 6,
-        fontSize: 'var(--fs-dense)',
+        fontSize: 12,
       }}
     >
       <div
@@ -157,7 +157,7 @@ export function ThemedSegmentedControl<T extends string>({
               disabled={pending || disabled}
               style={{
                 padding: '6px 14px',
-                fontSize: 'var(--fs-body)',
+                fontSize: 13,
                 background: selected ? 'var(--accent)' : 'transparent',
                 color: selected ? 'var(--canvas)' : 'var(--ink)',
                 border: 'none',
@@ -181,7 +181,7 @@ export function ThemedSegmentedControl<T extends string>({
       {helperText && (
         <span
           className="muted"
-          style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.5, maxWidth: 480 }}
+          style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 480 }}
         >
           {helperText}
         </span>

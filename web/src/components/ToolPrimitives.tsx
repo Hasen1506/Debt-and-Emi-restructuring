@@ -69,7 +69,7 @@ export function InfoTip({ children }: { children: ReactNode }) {
           border: '1px solid var(--border)',
           background: 'var(--card)',
           color: 'var(--muted)',
-          fontSize: 'var(--fs-small)',
+          fontSize: 10,
           fontFamily: 'var(--font-sans)',
           fontWeight: 600,
           lineHeight: 1,
@@ -98,7 +98,7 @@ export function InfoTip({ children }: { children: ReactNode }) {
             borderRadius: 0,
             boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
             color: 'var(--ink)',
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             lineHeight: 1.55,
             fontFamily: 'var(--font-sans)',
             fontWeight: 400,
@@ -135,7 +135,7 @@ function LabelRow({
   return (
     <span
       className="muted"
-      style={{ fontSize: 'var(--fs-dense)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
     >
       <label htmlFor={htmlFor} id={id}>
         {label}
@@ -338,7 +338,7 @@ export function Field({
             border: 'none',
             padding: 0,
             margin: 0,
-            fontSize: 'var(--fs-small)',
+            fontSize: 11,
             color: 'var(--soft, color-mix(in srgb, var(--ink) 55%, var(--canvas)))',
             cursor: 'pointer',
             textAlign: 'left',
@@ -351,7 +351,7 @@ export function Field({
       )}
       <FieldError id={inputId} error={shownError} />
       {hintText && (
-        <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+        <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 11 }}>
           {hintText}
         </span>
       )}
@@ -409,7 +409,7 @@ function describedBy(id: string, hint?: string, error?: string | null): string |
 function FindIt({ id, text }: { id: string; text?: string | null }) {
   if (!text) return null;
   return (
-    <span id={id} className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+    <span id={id} className="muted" style={{ fontSize: 11 }}>
       Find it: {text}
     </span>
   );
@@ -419,7 +419,7 @@ function FindIt({ id, text }: { id: string; text?: string | null }) {
 export function FieldError({ id, error }: { id: string; error?: string | null }) {
   if (!error) return null;
   return (
-    <span id={`${id}-err`} role="alert" style={{ fontSize: 'var(--fs-dense)', color: 'var(--negative)' }}>
+    <span id={`${id}-err`} role="alert" style={{ fontSize: 12, color: 'var(--negative)' }}>
       {error}
     </span>
   );
@@ -515,14 +515,14 @@ export function BankCombobox({
           background: 'var(--canvas)',
           color: value ? 'var(--ink)' : 'var(--muted)',
           fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--fs-body)',
+          fontSize: 14,
           textAlign: 'left',
           cursor: 'pointer',
           width: '100%',
         }}
       >
         <span>{value || placeholder}</span>
-        <span aria-hidden style={{ color: 'var(--muted)', fontSize: 'var(--fs-small)' }}>▾</span>
+        <span aria-hidden style={{ color: 'var(--muted)', fontSize: 11 }}>▾</span>
       </button>
 
       {open && (
@@ -558,12 +558,12 @@ export function BankCombobox({
               background: 'var(--card)',
               color: 'var(--ink)',
               fontFamily: 'var(--font-sans)',
-              fontSize: 'var(--fs-body)',
+              fontSize: 14,
             }}
           />
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {matches.length === 0 && !q && (
-              <div className="muted" style={{ padding: 12, fontSize: 'var(--fs-body)' }}>
+              <div className="muted" style={{ padding: 12, fontSize: 13 }}>
                 No banks in list — type your lender's name.
               </div>
             )}
@@ -584,7 +584,7 @@ export function BankCombobox({
                     background: active ? 'var(--soft-bg)' : 'transparent',
                     color: 'var(--ink)',
                     fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--fs-body)',
+                    fontSize: 14,
                     textAlign: 'left',
                     cursor: 'pointer',
                   }}
@@ -606,7 +606,7 @@ export function BankCombobox({
                   background: 'transparent',
                   color: 'var(--accent)',
                   fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--fs-body)',
+                  fontSize: 13,
                   textAlign: 'left',
                   cursor: 'pointer',
                 }}
@@ -619,7 +619,7 @@ export function BankCombobox({
       )}
 
       {hint && (
-        <span className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+        <span className="muted" style={{ fontSize: 11 }}>
           {hint}
         </span>
       )}
@@ -675,7 +675,7 @@ export function Select<T extends string>({
       </select>
       <FieldError id={selectId} error={error} />
       {hint && (
-        <span id={`${selectId}-hint`} className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+        <span id={`${selectId}-hint`} className="muted" style={{ fontSize: 11 }}>
           {hint}
         </span>
       )}
@@ -737,16 +737,16 @@ export function ScoreChip({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>Estimated score impact</span>
+        <span className="muted" style={{ fontSize: 12 }}>Estimated score impact</span>
         <span className="num" style={{ fontSize: 16, fontWeight: 600, color }}>
           {range} pts
         </span>
-        <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
+        <span className="muted" style={{ fontSize: 12 }}>
           in ~{daysToRealise}d{bandChange}
         </span>
       </div>
-      <div className="muted" style={{ fontSize: 'var(--fs-dense)' }}>{rationale}</div>
-      <div className="muted" style={{ fontSize: 'var(--fs-small)', fontStyle: 'italic' }}>
+      <div className="muted" style={{ fontSize: 12 }}>{rationale}</div>
+      <div className="muted" style={{ fontSize: 10, fontStyle: 'italic' }}>
         Source: {source}
       </div>
     </div>
@@ -763,14 +763,14 @@ const ACTION_BUTTON: CSSProperties = {
   borderRadius: 0,
   cursor: 'pointer',
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-label)',
+  fontSize: 12,
   fontWeight: 700,
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   lineHeight: 1.5,
   textAlign: 'left',
 };
-const DONE_LINK: CSSProperties = { color: 'var(--accent)', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textDecoration: 'none' };
+const DONE_LINK: CSSProperties = { color: 'var(--accent)', fontSize: 11, letterSpacing: '0.12em', textDecoration: 'none' };
 
 export function SubmitBar({
   busy,
@@ -789,7 +789,7 @@ export function SubmitBar({
       {error && (
         <span
           role="alert"
-          style={{ display: 'block', marginTop: 8, fontSize: 'var(--fs-dense)', color: 'var(--negative)' }}
+          style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--negative)' }}
         >
           {error}
         </span>
@@ -822,7 +822,7 @@ export function AddLoanAction({
           background: 'var(--soft-bg)',
           border: '1px solid var(--positive)',
           borderRadius: 0,
-          fontSize: 'var(--fs-body)',
+          fontSize: 13,
           lineHeight: 1.55,
           color: 'var(--ink)',
         }}
@@ -868,7 +868,7 @@ export function ApplyAction({
           background: 'var(--soft-bg)',
           border: '1px solid var(--positive)',
           borderRadius: 0,
-          fontSize: 'var(--fs-body)',
+          fontSize: 13,
           lineHeight: 1.55,
           color: 'var(--ink)',
         }}

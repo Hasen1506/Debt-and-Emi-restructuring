@@ -95,12 +95,12 @@ export function StrategyTriptych({
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontFamily: L_MONO }}>
-                  <b style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
-                  <small style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>{p.tag}</small>
+                  <b style={{ fontSize: 12, letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
+                  <small style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted }}>{p.tag}</small>
                   <small
                     style={{
                       marginLeft: 'auto',
-                      fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
                       letterSpacing: '0.12em',
                       color: on ? L_T.accent : L_T.muted,
                     }}
@@ -109,9 +109,9 @@ export function StrategyTriptych({
                   </small>
                 </span>
                 {/* Takes the slack, so the figures line up across the cards. */}
-                <span style={{ flex: 1, fontSize: 'var(--fs-body)', lineHeight: 1.45, color: L_T.inkSoft }}>{p.rule}</span>
+                <span style={{ flex: 1, fontSize: 13, lineHeight: 1.45, color: L_T.inkSoft }}>{p.rule}</span>
                 {f && (
-                  <span style={{ display: 'grid', fontFamily: L_MONO, fontSize: 'var(--fs-dense)' }}>
+                  <span style={{ display: 'grid', fontFamily: L_MONO, fontSize: 12 }}>
                     <Figure label="DEBT-FREE" value={f.date} />
                     <Figure label="INTEREST" value={f.interest} />
                     <Figure label="VS AVALANCHE" value={f.vsAvalanche} />
@@ -122,7 +122,7 @@ export function StrategyTriptych({
           );
         })}
       </div>
-      {note && <p style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.muted, lineHeight: 1.55 }}>{note}</p>}
+      {note && <p style={{ margin: 0, fontSize: 13, color: L_T.muted, lineHeight: 1.55 }}>{note}</p>}
     </div>
   );
 }
@@ -138,7 +138,7 @@ function Figure({ label, value }: { label: string; value: string }) {
         borderTop: `1px dashed ${L_T.ruleSoft}`,
       }}
     >
-      <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>{label}</span>
+      <span style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted }}>{label}</span>
       <span style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </span>
   );

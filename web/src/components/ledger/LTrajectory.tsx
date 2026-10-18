@@ -10,10 +10,9 @@
 import { useWidth } from '@/lib/use-width';
 import { L_T, L_MONO } from './primitives';
 
-/** A label's text box (baseline y): about 11 px above it, 3 below
- *  (labels are 11px since audit 80+ B5; they were 9-10px). */
+/** A label's text box (baseline y): about 10 px above it, 3 below. */
 interface Box { x0: number; x1: number; y0: number; y1: number }
-const boxAt = (x0: number, x1: number, y: number): Box => ({ x0, x1, y0: y - 11, y1: y + 3 });
+const boxAt = (x0: number, x1: number, y: number): Box => ({ x0, x1, y0: y - 10, y1: y + 3 });
 const overlaps = (a: Box, b: Box, pad = 4) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.y0 < b.y1 + 1 && a.y1 > b.y0 - 1;
 /** A vertical segment (a leader) crossing a box. */
 const crosses = (x: number, ya: number, yb: number, b: Box) =>
@@ -73,7 +72,7 @@ export function layoutTrajectoryLabels(args: {
     const nw = minimumsNote.length * CHAR_W;
     const x1 = w - right;
     const end = toY(last.min);
-    const ys = [end - 6, end - 20, end - 34, end - 48, end + 17, end + 31, end + 45, top - 4, top + 10]
+    const ys = [end - 6, end - 19, end - 32, end - 45, end + 16, end + 29, end + 42, top - 4, top + 9]
       .filter((y) => y >= 12 && y <= axisY - 4);
     const free = (y: number) => {
       const b = boxAt(x1 - nw, x1, y);
@@ -98,8 +97,8 @@ export function layoutTrajectoryLabels(args: {
     const anchors = ([natural, 'start', 'end', 'middle'] as const).filter(
       (a, i, all) => all.indexOf(a) === i && (a === natural || (span(a).x0 >= 4 && span(a).x1 <= w - 2)),
     );
-    const leaderFor = (y: number) => (y < markY ? { ya: y + 3, yb: markY - 5 } : { ya: y - 11, yb: markY + 5 });
-    const isRaised = (y: number) => y < markY - 12 || y > markY + 19;
+    const leaderFor = (y: number) => (y < markY ? { ya: y + 3, yb: markY - 5 } : { ya: y - 10, yb: markY + 5 });
+    const isRaised = (y: number) => y < markY - 12 || y > markY + 18;
     const ok = (a: 'start' | 'end' | 'middle', y: number, strict: boolean) => {
       const { x0, x1 } = span(a);
       const b = boxAt(x0, x1, y);
@@ -113,8 +112,8 @@ export function layoutTrajectoryLabels(args: {
       }
       return true;
     };
-    const above = Array.from({ length: 16 }, (_, k) => markY - 12 - k * 14).filter((y) => y >= 12);
-    const below = Array.from({ length: 16 }, (_, k) => markY + 19 + k * 14).filter((y) => y <= axisY - 6);
+    const above = Array.from({ length: 16 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
+    const below = Array.from({ length: 16 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= axisY - 6);
     const candidates = [...above, ...below];
     const pick = (strict: boolean) => {
       for (const a of anchors) for (const c of candidates) if (ok(a, c, strict)) return { a, y: c };
@@ -153,9 +152,8 @@ export interface LTrajMilestone {
 /** A paper-coloured outline, so a label stays legible over a line. */
 const HALO = { stroke: L_T.paper, strokeWidth: 3, paintOrder: 'stroke' } as const;
 
-/** Monospace glyph width at the label size (0.6em of 11px), for keeping
- *  labels apart. */
-const CHAR_W = 6.6;
+/** Monospace glyph width at the label size, for keeping labels apart. */
+const CHAR_W = 5.9;
 
 /**
  * Plan vs minimums, drawn at the container's real pixel width so the
@@ -186,7 +184,7 @@ export function LTrajectory({
   const [w, ref] = useWidth(800);
   const narrow = w < 480;
   const h = narrow ? 220 : 260;
-  const left = narrow ? 64 : 82;
+  const left = narrow ? 58 : 76;
   const right = 14;
   const top = 34;
   const bottom = 26;
@@ -219,7 +217,7 @@ export function LTrajectory({
         aria-label={title}
         style={{ display: 'block' }}
       >
-        <text x={8} y={12} fontFamily={L_MONO} fontSize="11" fill={L_T.muted} letterSpacing="0.08em">
+        <text x={8} y={12} fontFamily={L_MONO} fontSize="9" fill={L_T.muted} letterSpacing="0.12em">
           OUTSTANDING
         </text>
         {[0.25, 0.5, 0.75, 1].map((g) => (
@@ -240,7 +238,7 @@ export function LTrajectory({
             x={left - 6}
             y={toY(g.y) + 3}
             fontFamily={L_MONO}
-            fontSize="11"
+            fontSize="10"
             fill={L_T.muted}
             textAnchor="end"
           >
@@ -256,7 +254,7 @@ export function LTrajectory({
             x={note.x}
             y={note.y}
             fontFamily={L_MONO}
-            fontSize="11"
+            fontSize="9.5"
             fill={L_T.muted}
             textAnchor="end"
             {...HALO}
@@ -281,7 +279,7 @@ export function LTrajectory({
               <line
                 x1={m.x}
                 x2={m.x}
-                y1={m.y < m.markY ? m.y + 3 : m.y - 11}
+                y1={m.y < m.markY ? m.y + 3 : m.y - 10}
                 y2={m.y < m.markY ? m.markY - 5 : m.markY + 5}
                 stroke={L_T.accent}
                 strokeWidth={0.6}
@@ -296,7 +294,7 @@ export function LTrajectory({
             x={m.x}
             y={m.y}
             fontFamily={L_MONO}
-            fontSize="11"
+            fontSize="9.5"
             fontWeight="700"
             fill={L_T.accent}
             textAnchor={m.anchor}
@@ -311,7 +309,7 @@ export function LTrajectory({
             x={toX(d.t)}
             y={h - 8}
             fontFamily={L_MONO}
-            fontSize="11"
+            fontSize="10"
             fill={L_T.muted}
             textAnchor={d.t === 0 ? 'start' : d.t === 1 ? 'end' : 'middle'}
           >

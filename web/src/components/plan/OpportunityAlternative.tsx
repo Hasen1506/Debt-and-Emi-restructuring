@@ -56,7 +56,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
       style={{
         marginTop: 8,
         padding: '8px 12px',
-        fontSize: 'var(--fs-dense)',
+        fontSize: 12,
         lineHeight: 1.55,
         background: 'var(--soft-bg)',
         border: '1px dashed var(--border)',
@@ -90,7 +90,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
             color: 'var(--accent)',
             padding: 0,
             cursor: 'pointer',
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             textDecoration: 'underline',
             fontFamily: 'inherit',
           }}
@@ -103,7 +103,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
               marginTop: 6,
               padding: '6px 0',
               color: 'var(--ink)',
-              fontSize: 'var(--fs-dense)',
+              fontSize: 12,
             }}
           >
             Switching to {altBank} would cost you the friction of fresh KYC,
@@ -173,7 +173,7 @@ export function UpdateTermsButton({
           color: 'var(--accent)',
           borderRadius: 0,
           cursor: 'pointer',
-          fontSize: 'var(--fs-label)',
+          fontSize: 11,
           fontWeight: 600,
           fontFamily: 'inherit',
           letterSpacing: '0.06em',
@@ -233,7 +233,7 @@ export function EligibilityCaveat({
       style={{
         marginTop: 6,
         padding: '6px 10px',
-        fontSize: 'var(--fs-small)',
+        fontSize: 11,
         lineHeight: 1.5,
         background: 'transparent',
         border: '1px dotted var(--border)',
@@ -274,7 +274,7 @@ export function RateAsOfBadge({
       style={{
         marginLeft: 6,
         padding: '2px 6px',
-        fontSize: 'var(--fs-label)',
+        fontSize: 10,
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
         background: 'transparent',

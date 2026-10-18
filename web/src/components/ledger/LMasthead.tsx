@@ -69,7 +69,8 @@ function timeNow(country: Country): string {
   });
 }
 
-const TAB_STYLE = { fontSize: 13, fontFamily: 'var(--font-mono)', letterSpacing: 'var(--nav-tracking, 0.12em)', textTransform: 'uppercase' } as const;
+// UI revert 18 Oct 2026: the tabs at the original LBracket size (10px, 0.14em).
+const TAB_STYLE = { fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: 'var(--nav-tracking, 0.14em)', textTransform: 'uppercase' } as const;
 
 /** `strategy` shows the payoff order switch; left out when there is no
  *  debt to order. */
@@ -161,14 +162,14 @@ export function LMasthead({
       >
         <div
           style={{
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: 700,
             letterSpacing: '0.18em',
           }}
         >
           RightDue
         </div>
-        <div className="rd-mh-stamp" style={{ fontSize: 'var(--fs-label)', color: L_T.muted, letterSpacing: '0.1em' }}>
+        <div className="rd-mh-stamp" style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
           {stamp(country)} · {time || '--:--'} {tzLabel(country)}
         </div>
         {hasMenu && (
@@ -181,9 +182,8 @@ export function LMasthead({
             onClick={() => setMenuOpen((v) => !v)}
             style={{
               fontFamily: L_MONO,
-              fontSize: 13,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
+              fontSize: 10,
+              letterSpacing: '0.14em',
               background: 'transparent',
               border: 'none',
               color: L_T.ink,
@@ -193,7 +193,7 @@ export function LMasthead({
             }}
           >
             <span aria-hidden="true">[{menuOpen ? '✕ ' : '☰ '}</span>
-            {menuOpen ? 'Close' : 'Menu'}
+            {menuOpen ? 'CLOSE' : 'MENU'}
             <span aria-hidden="true">]</span>
           </button>
         )}
@@ -286,7 +286,7 @@ export function LMasthead({
                     {g.links.map((l) => (
                       <li key={l.href + l.label}>
                         <Link href={l.href} aria-current={path === l.href.split('#')[0] ? 'page' : undefined}>
-                          <span className="rd-more-name" style={{ display: 'block', fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>
+                          <span className="rd-more-name" style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
                             {l.label}
                           </span>
                           {l.sub && (

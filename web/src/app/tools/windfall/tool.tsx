@@ -565,7 +565,7 @@ export function WindfallTool({
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       {!profile.isLive && (
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
           DEMO PROFILE · <a href="/onboarding"><span aria-hidden="true">[</span>SETUP →<span aria-hidden="true">]</span></a>
         </div>
       )}
@@ -584,7 +584,7 @@ export function WindfallTool({
           </LChipRow>
           {/* Live re-test 2 NEW-9: the help sits outside the <label> (it was
               part of the field's name) and a refused date sets aria-invalid. */}
-          <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label htmlFor="wf-date">{source === 'external' ? 'Date it came in' : 'Date you moved it'}</label>
             <input
               id="wf-date"
@@ -594,19 +594,19 @@ export function WindfallTool({
               onChange={(e) => { setReceived(e.target.value); setApplied(null); setLogged(null); }}
               aria-describedby="wf-date-help"
               aria-invalid={receivedCheck.ok ? undefined : true}
-              style={{ fontFamily: L_MONO, fontSize: 'var(--fs-body)', padding: '7px 8px', border: `1px solid ${receivedCheck.ok ? L_T.ruleSoft : L_T.negative}`, background: L_T.paper, color: L_T.ink }}
+              style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${receivedCheck.ok ? L_T.ruleSoft : L_T.negative}`, background: L_T.paper, color: L_T.ink }}
             />
-            <span id="wf-date-help" role={receivedCheck.ok ? undefined : 'alert'} style={{ fontSize: 'var(--fs-small)', lineHeight: 1.5, color: receivedCheck.ok ? undefined : L_T.negative }}>
+            <span id="wf-date-help" role={receivedCheck.ok ? undefined : 'alert'} style={{ fontSize: 11, lineHeight: 1.5, color: receivedCheck.ok ? undefined : L_T.negative }}>
               {receivedWarning ?? 'Activity records the payment on this date, so it counts in the right month. Change it if you paid it on a later day.'}
             </span>
           </div>
           {source === 'account' && accounts.length > 0 && (
-            <label style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
               From the account
               <select
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
-                style={{ fontFamily: L_MONO, fontSize: 'var(--fs-body)', padding: '7px 8px', border: `1px solid ${L_T.ruleSoft}`, background: L_T.paper, color: L_T.ink }}
+                style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${L_T.ruleSoft}`, background: L_T.paper, color: L_T.ink }}
               >
                 <option value="">Choose an account</option>
                 {accounts.map((a) => (
@@ -626,7 +626,7 @@ export function WindfallTool({
             {whereItGoesHeading(logged, fmt(total))}
           </LStepHead>
           {logged && (
-            <p data-testid="wf-next-round" style={{ margin: '0 0 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.ink }}>
+            <p data-testid="wf-next-round" style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.6, color: L_T.ink }}>
               {nextRoundNote(logged)}
             </p>
           )}
@@ -644,7 +644,7 @@ export function WindfallTool({
                 onClick={k === 'engine' ? resetEngine : goManual}
                 style={{
                   fontFamily: L_MONO,
-                  fontSize: 'var(--fs-label)',
+                  fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '0.12em',
                   padding: '9px 14px',
@@ -659,7 +659,7 @@ export function WindfallTool({
               </button>
             ))}
           </div>
-          <p style={{ margin: '0 0 14px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 14px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
             {mode === 'engine'
               ? 'The engine sets each slider: the emergency fund its share, the loans in your payoff order, then the rest of the fund. Choose MY SPLIT to move any of them.'
               : `Move any slider. Together they stop at ${fmt(total)}. ENGINE PICK puts the best split back.`}
@@ -672,7 +672,7 @@ export function WindfallTool({
           )}
 
           <div style={{ marginBottom: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 'var(--fs-small)', marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 11, marginBottom: 6 }}>
               <strong>{fmt(total)} TO PLACE</strong>
               <span>
                 <strong>{fmt(placed)}</strong> <span style={{ color: L_T.muted }}>PLACED · </span>
@@ -685,7 +685,7 @@ export function WindfallTool({
             </div>
           </div>
 
-          {picking && !pick && <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>Working out the best split…</div>}
+          {picking && !pick && <div style={{ fontSize: 11, color: L_T.muted }}>Working out the best split…</div>}
 
           {groups.map((g) => {
             const rows = targets.filter((t) => g.kinds.includes(t.kind));
@@ -749,7 +749,7 @@ export function WindfallTool({
             </div>
           )}
           {targets.length === 0 && (
-            <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
+            <p style={{ fontSize: 12, color: L_T.muted }}>
               No loans to pay, the emergency fund is full and no goal is waiting. Keep it, or add a goal on Goals & Tools.
             </p>
           )}
@@ -813,7 +813,7 @@ export function WindfallTool({
               disabled={!!applied || !(placed > 0)}
               style={{
                 fontFamily: L_MONO,
-                fontSize: 'var(--fs-label)',
+                fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: '0.12em',
                 padding: '10px 16px',
@@ -830,12 +830,12 @@ export function WindfallTool({
           )}
           {mode === 'manual' && <LBracket onClick={resetEngine}>BACK TO ENGINE PICK</LBracket>}
           {err && (
-            <span role="alert" style={{ color: L_T.negative, fontSize: 'var(--fs-small)' }}>
+            <span role="alert" style={{ color: L_T.negative, fontSize: 11 }}>
               {err}
             </span>
           )}
           {applied && (
-            <span role="status" style={{ fontSize: 'var(--fs-small)', flexBasis: '100%' }}>
+            <span role="status" style={{ fontSize: 11, flexBasis: '100%' }}>
               {applied} <LBracket href="/">HOME →</LBracket> <LBracket href="/activity">ACTIVITY →</LBracket>
             </span>
           )}
@@ -912,15 +912,15 @@ function AllocRow({
   return (
     <div style={{ padding: '12px 0', borderTop: first ? 'none' : `1px dashed ${L_T.faint}`, opacity: target.blocked ? 0.6 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, fontSize: 'var(--fs-body)', fontWeight: 700, flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
           {target.kind === 'loan' && (
-            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.negative, border: `1px solid ${L_T.negative}`, padding: '1px 5px', letterSpacing: '0.06em' }}>
+            <span style={{ fontSize: 9, color: L_T.negative, border: `1px solid ${L_T.negative}`, padding: '1px 5px', letterSpacing: '0.06em' }}>
               {((target.rate ?? 0) * 100).toFixed(2)}%
             </span>
           )}
           {target.goal?.priorityBump && <span style={{ color: L_T.accent }}>★</span>}
           {target.label}
-          {target.kind !== 'invest' && <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, fontWeight: 500 }}>up to {fmt(target.cap)}</span>}
+          {target.kind !== 'invest' && <span style={{ fontSize: 10, color: L_T.muted, fontWeight: 500 }}>up to {fmt(target.cap)}</span>}
         </span>
         <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: value > 0 ? L_T.ink : L_T.faint }}>{fmt(value)}</span>
       </div>
@@ -944,8 +944,8 @@ function AllocRow({
         />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.1em' }}>{Math.round(pct)}% OF IT</span>
-        {badge && <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em', color: badgeTone }}>▸ {badge}</span>}
+        <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.1em' }}>{Math.round(pct)}% OF IT</span>
+        {badge && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: badgeTone }}>▸ {badge}</span>}
       </div>
     </div>
   );

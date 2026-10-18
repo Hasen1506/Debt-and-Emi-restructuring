@@ -16,7 +16,7 @@ export default function PlanLoading() {
     >
       <div
         style={{
-          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+          fontSize: 11,
           letterSpacing: '0.15em',
           textTransform: 'uppercase',
           color: 'var(--soft, var(--muted))',
@@ -26,7 +26,7 @@ export default function PlanLoading() {
       </div>
       <div
         style={{
-          fontSize: 'var(--fs-body)',
+          fontSize: 14,
           color: 'var(--muted)',
           maxWidth: 520,
           lineHeight: 1.6,

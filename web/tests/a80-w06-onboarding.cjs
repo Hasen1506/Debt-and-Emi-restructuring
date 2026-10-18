@@ -88,13 +88,19 @@ test('B4/A22/E4: one savings baseline; "vs paying only minimums" is never a head
   assert.equal(likelySaving({ debtFreeMonth: 1, totalInterest: '1' }, null), null);
   // The old headline words appear nowhere in the app's source.
   const banned = [/VS PAYING ONLY MINIMUMS/, /LESS THAN MINIMUMS/, /'TIME SAVED'/, /'Vs paying only minimums'/, /SAME AS PAYING MINIMUMS/];
-  for (const [f, s] of ALL) for (const re of banned) assert.doesNotMatch(s, re, f);
-  for (const f of ['components/setup/QuickSetup.tsx', 'components/plan/LedgerPlan.tsx']) {
+  // UI revert 18 Oct 2026 (owner's call): Setup step 3 is the 4bc3dc8 layout,
+  // whose third row is "Vs paying only minimums", labelled as the most a plan
+  // can save, not a typical saving. Everywhere else keeps the B4 baseline.
+  const SETUP = 'components/setup/QuickSetup.tsx';
+  for (const [f, s] of ALL) if (!f.endsWith('setup/QuickSetup.tsx')) for (const re of banned) assert.doesNotMatch(s, re, f);
+  const qs = src(SETUP);
+  assert.match(qs, /'Vs paying only minimums',\n\s*interestSaved\.gt\(0\)/);
+  assert.match(qs, /the most a plan can save, not a typical saving/);
+  for (const f of ['components/plan/LedgerPlan.tsx']) {
     const s = src(f);
     assert.match(s, /WORST_CASE_LABEL/, f);
-    assert.match(s, /<details data-testid="(setup|plan)-worst-case"/, f);
+    assert.match(s, /<details data-testid="plan-worst-case"/, f);
   }
-  assert.match(src('components/setup/QuickSetup.tsx'), /LIKELY_LABEL/);
   assert.match(LIKELY_LABEL, /likely do without RightDue/);
   assert.match(WORST_CASE_LABEL, /^Worst case/);
   // The landing's KPI is the same baseline (smallest first, same total).
@@ -207,8 +213,13 @@ test('A3/A10/B9/B10/B11/B23: landing copy', () => {
   const steps = [...WELCOME.matchAll(/<div class="step[^"]*"><h3>([^<]+)<\/h3>/g)].map((m) => m[1]);
   assert.deepEqual(steps, ['Confirm your email', 'Say what comes in and goes out', 'Add a loan or card', 'Pay, mark it, repeat']);
   assert.match(WELCOME, /\.steps\{[^}]*counter-reset:s -1\}/);
-  // Example stamps aren't styled as filled buttons.
-  assert.doesNotMatch(WELCOME, /\.stamp\.paid\{background:var\(--pos\)/);
+  // Example stamps are not controls (aria-hidden, no pointer events). UI revert
+  // 18 Oct 2026: PAID is the original 4bc3dc8 stamp again, solid green and
+  // straight, not the tilted outline.
+  assert.match(WELCOME, /\.stamp\{[^}]*pointer-events:none/);
+  assert.doesNotMatch(WELCOME, /<button[^>]*data-stamp/);
+  assert.match(WELCOME, /\.stamp\.paid\{background:var\(--pos\);border-color:var\(--pos\);color:#fff\}/);
+  assert.doesNotMatch(WELCOME, /\.stamp\.paid\{[^}]*rotate/);
   assert.match(src('lib/report-problem.ts'), /SUPPORT_EMAIL = 'support@rightdue\.app'/);
 });
 

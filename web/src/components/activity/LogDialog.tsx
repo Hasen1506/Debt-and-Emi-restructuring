@@ -396,7 +396,7 @@ export function LogDialog({
         style={{ width: '100%', maxWidth: 600, background: L_T.paper, border: `2px solid ${L_T.ink}`, boxShadow: `6px 6px 0 0 ${L_T.ink}`, padding: '18px 20px', fontFamily: L_MONO, display: 'flex', flexDirection: 'column', gap: 14 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <h2 id="log-dialog-h" style={{ margin: 0, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.accent, fontWeight: 700 }}>
+          <h2 id="log-dialog-h" style={{ margin: 0, fontSize: 11, letterSpacing: '0.18em', color: L_T.accent, fontWeight: 700 }}>
             {edit ? 'CHANGE THIS ENTRY' : 'LOG AN ENTRY'}
           </h2>
           <LBracket onClick={onClose} label="Close">× CLOSE</LBracket>
@@ -468,7 +468,7 @@ export function LogDialog({
               </LChipRow>
             )}
             {shortfall.gt(0) && (
-              <div style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
                 {fmt(shortfall)} unpaid
                 {feeEstimate && feeEstimate.total.gt(0) && (
                   <>
@@ -527,7 +527,7 @@ export function LogDialog({
               />
             </div>
             {spendMode === 'month' && Number(spent) > 0 && budget > 0 && (
-              <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: Number(spent) > budget ? L_T.negative : L_T.positive }}>
+              <p style={{ margin: 0, fontSize: 12, color: Number(spent) > budget ? L_T.negative : L_T.positive }}>
                 {formatCurrencyWhole(Math.abs(Number(spent) - budget), ccy)} {Number(spent) > budget ? 'over' : 'under'} the plan. Kept as a
                 record; to change the plan, pick “from now on”.
               </p>
@@ -581,8 +581,8 @@ function Preview({
   if (!state) return null;
   const tone = (v: number) => (v > 0 ? L_T.negative : v < 0 ? L_T.positive : L_T.muted);
   return (
-    <div aria-live="polite" style={{ padding: '10px 12px', border: `1px dashed ${L_T.ink}`, background: L_T.bg, fontSize: 'var(--fs-small)', lineHeight: 1.7 }}>
-      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted }}>WHAT IT DOES TO THE PLAN</div>
+    <div aria-live="polite" style={{ padding: '10px 12px', border: `1px dashed ${L_T.ink}`, background: L_T.bg, fontSize: 11, lineHeight: 1.7 }}>
+      <div style={{ fontSize: 9, letterSpacing: '0.14em', color: L_T.muted }}>WHAT IT DOES TO THE PLAN</div>
       {state === 'none' && <div>Nothing changes: the plan already counts this.</div>}
       {state === 'held' && (
         <div>

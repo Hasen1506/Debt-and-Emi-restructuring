@@ -43,7 +43,7 @@ export function CreditCardChips({
     <section>
       <h3
         style={{
-          fontSize: 13, fontFamily: 'var(--font-mono)',
+          fontSize: 13,
           fontWeight: 600,
           color: 'var(--muted)',
           letterSpacing: '0.08em',
@@ -88,12 +88,12 @@ export function CreditCardChips({
                   alignItems: 'flex-start',
                 }}
               >
-                <span style={{ fontSize: 'var(--fs-small)', opacity: 0.7 }}>
+                <span style={{ fontSize: 11, opacity: 0.7 }}>
                   {c.bank || 'Credit card'}
                 </span>
                 <span
                   style={{
-                    fontSize: 'var(--fs-small)',
+                    fontSize: 10,
                     background: 'rgba(255,255,255,0.18)',
                     padding: '2px 6px',
                     borderRadius: 3,
@@ -118,18 +118,18 @@ export function CreditCardChips({
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', opacity: 0.65, letterSpacing: '0.08em' }}>
+                  <div style={{ fontSize: 9, opacity: 0.65, letterSpacing: '0.08em' }}>
                     CARDHOLDER
                   </div>
-                  <div style={{ fontSize: 'var(--fs-dense)' }}>
+                  <div style={{ fontSize: 12 }}>
                     {c.cardholder_name || '—'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', opacity: 0.65, letterSpacing: '0.08em' }}>
+                  <div style={{ fontSize: 9, opacity: 0.65, letterSpacing: '0.08em' }}>
                     OUTSTANDING
                   </div>
-                  <div style={{ fontSize: 'var(--fs-body)', fontWeight: 600 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
                     {formatCurrency(c.outstanding, ccy)}
                   </div>
                 </div>

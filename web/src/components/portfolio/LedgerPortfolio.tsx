@@ -13,7 +13,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 'var(--fs-label)',
+        fontSize: 11,
         color: 'var(--muted)',
         letterSpacing: '0.18em',
         marginBottom: 6,
@@ -47,7 +47,7 @@ export function LedgerPortfolio({
           flexDirection: 'column',
           gap: 22,
           fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--fs-dense)',
+          fontSize: 12,
           lineHeight: 1.55,
         }}
       >
@@ -59,7 +59,7 @@ export function LedgerPortfolio({
               border: '1px dashed var(--border)',
               padding: '14px 16px',
               color: 'var(--muted)',
-              fontSize: 'var(--fs-dense)',
+              fontSize: 12,
               lineHeight: 1.6,
             }}
           >
@@ -76,7 +76,7 @@ export function LedgerPortfolio({
                   background: 'var(--ink)',
                   color: 'var(--canvas)',
                   textDecoration: 'none',
-                  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
                   letterSpacing: '0.12em',
                 }}
               >
@@ -97,7 +97,7 @@ export function LedgerPortfolio({
         flexDirection: 'column',
         gap: 22,
         fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--fs-dense)',
+        fontSize: 12,
         lineHeight: 1.55,
       }}
     >
@@ -132,7 +132,7 @@ export function LedgerPortfolio({
 
       <section>
         <SectionLabel>HOLDINGS · LARGEST FIRST</SectionLabel>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-dense)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr
               style={{
@@ -148,7 +148,7 @@ export function LedgerPortfolio({
                     textAlign: i > 2 ? 'right' : 'left',
                     fontWeight: 700,
                     letterSpacing: '0.08em',
-                    fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
                     color: 'var(--muted)',
                   }}
                 >
@@ -168,7 +168,7 @@ export function LedgerPortfolio({
                   style={{
                     padding: '10px 12px',
                     color: 'var(--muted)',
-                    fontSize: 'var(--fs-small)',
+                    fontSize: 11,
                   }}
                 >
                   {assetTypeLabel(country, r.assetType).toUpperCase()}
@@ -206,7 +206,7 @@ export function LedgerPortfolio({
               background: 'var(--canvas)',
               color: 'var(--ink)',
               textDecoration: 'none',
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 11,
               letterSpacing: '0.12em',
             }}
           >
@@ -220,7 +220,7 @@ export function LedgerPortfolio({
               background: 'var(--ink)',
               color: 'var(--canvas)',
               textDecoration: 'none',
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 11,
               letterSpacing: '0.12em',
             }}
           >

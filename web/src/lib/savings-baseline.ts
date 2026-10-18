@@ -47,7 +47,3 @@ export function likelySavingText(s: LikelySaving | null, fc: (v: number) => stri
   if (s.same) return 'about the same';
   return `${fc(s.interest)} less${s.months > 0 ? ` \u00b7 ${s.months} mo sooner` : ''}`;
 }
-
-/** What to say when the plan and the likely baseline agree (A1's "obvious order" line). */
-export const SAME_AS_LIKELY_NOTE =
-  'Your order is the obvious one for these loans, so the saving is in paying more, not in the order. We\u2019ll tell you if that changes.';

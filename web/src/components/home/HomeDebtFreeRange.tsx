@@ -32,7 +32,7 @@ export async function HomeDebtFreeRange() {
   const words = rangeWords(r, label);
   if (!words) return null;
   return (
-    <details style={{ marginTop: 4, fontSize: 'var(--fs-dense)' }}>
+    <details style={{ marginTop: 4, fontSize: 12 }}>
       <summary style={{ cursor: 'pointer' }}>{words} · WHY THIS RANGE</summary>
       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
         {whyThisRange(r).map((line) => <li key={line}>{line}</li>)}

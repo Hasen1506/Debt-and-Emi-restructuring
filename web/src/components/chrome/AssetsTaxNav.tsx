@@ -24,7 +24,7 @@ export function AssetsTaxNav({ current }: { current: '/portfolio' | '/tax' }) {
               aria-current={on ? 'page' : undefined}
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 14,
+                fontSize: 11,
                 fontWeight: on ? 700 : 500,
                 letterSpacing: '0.06em',
                 padding: '8px 14px',

@@ -227,7 +227,7 @@ export function DecisionLogControls({
             background: 'var(--soft-bg)',
             border: '1px dashed var(--border)',
             borderRadius: 0,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             color: 'var(--muted)',
             lineHeight: 1.5,
             display: 'flex',
@@ -266,7 +266,7 @@ export function DecisionLogControls({
             padding: 12,
             border: '1px solid var(--border)',
             borderRadius: 0,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             lineHeight: 1.6,
           }}
         >
@@ -321,7 +321,7 @@ export function DecisionLogControls({
           padding: 12,
           border: '1px solid var(--border)',
           borderRadius: 0,
-          fontSize: 'var(--fs-dense)',
+          fontSize: 12,
           lineHeight: 1.55,
           display: 'flex',
           flexDirection: 'column',
@@ -464,7 +464,7 @@ function CalibrationBadge({
         background: 'var(--card)',
         border: `1px solid ${tone}`,
         borderRadius: 0,
-        fontSize: 'var(--fs-small)',
+        fontSize: 11,
         color: tone,
         lineHeight: 1.4,
       }}
@@ -493,7 +493,7 @@ function PrunedNotice({
         background: 'var(--soft-bg)',
         borderLeft: '3px solid var(--muted)',
         borderRadius: 0,
-        fontSize: 'var(--fs-small)',
+        fontSize: 11,
         color: 'var(--muted)',
         display: 'flex',
         alignItems: 'center',
@@ -519,7 +519,7 @@ function PrunedNotice({
           color: 'var(--muted)',
           borderRadius: 0,
           cursor: 'pointer',
-          fontSize: 'var(--fs-dense)',
+          fontSize: 12,
         }}
       >
         ×
@@ -532,13 +532,13 @@ const lblStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-  fontSize: 'var(--fs-small)',
+  fontSize: 11,
   color: 'var(--muted)',
 };
 
 const inputStyle: React.CSSProperties = {
   padding: '4px 8px',
-  fontSize: 'var(--fs-dense)',
+  fontSize: 12,
   border: '1px solid var(--border)',
   borderRadius: 0,
   background: 'var(--canvas)',
@@ -554,7 +554,7 @@ function btnStyle(color: string): React.CSSProperties {
     borderRadius: 0,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    fontSize: 'var(--fs-label)',
+    fontSize: 11,
     fontWeight: 700,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -578,7 +578,7 @@ const discardBtnStyle: React.CSSProperties = {
   color: 'var(--muted)',
   borderRadius: 0,
   cursor: 'pointer',
-  fontSize: 'var(--fs-body)',
+  fontSize: 14,
   lineHeight: 1.4,
   flexShrink: 0,
 };

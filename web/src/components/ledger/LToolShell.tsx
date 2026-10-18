@@ -45,7 +45,7 @@ export function LToolHeader({
     <section style={{ fontFamily: L_MONO }}>
       <div
         style={{
-          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+          fontSize: 11,
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 14,
@@ -55,7 +55,7 @@ export function LToolHeader({
           flexWrap: 'wrap',
         }}
       >
-        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 600, textDecoration: 'none' }}>
+        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
           ← ALL TOOLS
         </a>
         <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
@@ -125,7 +125,7 @@ export function LAllocationBar({
                 flexGrow: Math.max(0.0001, seg.pct),
                 background: bg,
                 color,
-                fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+                fontSize: 9,
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 display: 'flex',
@@ -147,7 +147,7 @@ export function LAllocationBar({
           display: 'flex',
           gap: 12,
           marginTop: 6,
-          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+          fontSize: 9,
           letterSpacing: '0.1em',
           color: L_T.muted,
           flexWrap: 'wrap',

@@ -18,7 +18,7 @@ export default async function NotFound() {
     display: 'inline-block',
     fontFamily: L_MONO,
     fontWeight: 700,
-    fontSize: 'var(--fs-label)',
+    fontSize: 12,
     letterSpacing: '0.1em',
     padding: '12px 18px',
     border: `1px solid ${L_T.ink}`,
@@ -26,11 +26,11 @@ export default async function NotFound() {
     color: L_T.bg,
     textDecoration: 'none',
   };
-  const link: CSSProperties = { display: 'inline-block', padding: '12px 0', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.ink };
+  const link: CSSProperties = { display: 'inline-block', padding: '12px 0', fontSize: 12, letterSpacing: '0.1em', color: L_T.ink };
   return (
     <div style={{ display: 'grid', gap: 14, maxWidth: 640, fontFamily: L_MONO }} data-testid="not-found">
       <h1 style={{ margin: 0, fontSize: 20, letterSpacing: '0.08em' }}>PAGE NOT FOUND</h1>
-      <p style={{ margin: 0, color: L_T.muted, fontSize: 'var(--fs-body)' }}>
+      <p style={{ margin: 0, color: L_T.muted, fontSize: 13 }}>
         This link doesn&apos;t go anywhere. It may be old or mistyped.
       </p>
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>

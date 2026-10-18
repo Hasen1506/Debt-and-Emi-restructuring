@@ -140,14 +140,12 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
               fxMissing
                 ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
                 : interest
-                  ? // Audit 80+ B19: this month's expected interest is a planned
-                    // figure, in ink; red is for what needs acting on.
-                    { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.ink }
+                  ? { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.negative }
                   : {
                       l: 'INTEREST',
                       v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
                       s: "AT TODAY'S BALANCES AND RATES",
-                      tone: L_T.ink,
+                      tone: L_T.negative,
                     },
               // Audit 80 B13: no average rate across a card and a loan (it
               // answers no decision); the costliest loan's own rate instead.
@@ -200,7 +198,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
     <section
       aria-label="Plan settings"
       style={{
-        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+        fontSize: 11,
         letterSpacing: '0.12em',
         color: L_T.muted,
         borderTop: `1px dashed ${L_T.ruleSoft}`,
@@ -287,7 +285,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
       >
         {cells.map((c) => (
           <div key={c.label} style={{ background: L_T.paper, padding: '14px 18px' }}>
-            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 6 }}>
               {c.label}
             </div>
             <div
@@ -306,7 +304,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
               </span>
               {c.value}
             </div>
-            <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 8, lineHeight: 1.5 }}>{c.note}</div>
+            <div style={{ fontSize: 11, color: L_T.muted, marginTop: 8, lineHeight: 1.5 }}>{c.note}</div>
           </div>
         ))}
       </div>
@@ -354,7 +352,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
         >
           <div
             style={{
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 10,
               letterSpacing: '0.18em',
               color: L_T.muted,
               marginBottom: 16,
@@ -364,7 +362,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 'var(--fs-body)',
+              fontSize: 13,
               color: L_T.muted,
               marginBottom: 22,
               lineHeight: 1.7,
@@ -393,7 +391,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
                   : localTerms(`KEEP CURRENT EMIS RUNNING.`, profile.user.country)}
             </span>
           </div>
-          <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
+          <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
             THE SINGLE MOST USEFUL THING YOU CAN DO RIGHT NOW.
             <br />
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
@@ -403,7 +401,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
             <dl
               aria-label="This month"
               data-testid="home-short-breakdown"
-              style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '18px 0 0', fontSize: 'var(--fs-dense)' }}
+              style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '18px 0 0', fontSize: 12 }}
             >
               <dt>DUE THIS MONTH</dt>
               <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(shortBreakdown.due)}</dd>
@@ -420,7 +418,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 10,
               color: L_T.muted,
               letterSpacing: '0.14em',
               textAlign: 'center',
@@ -432,7 +430,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           {/* Sprint L4: the distress triage, one tap from the soft view. */}
           <div
             style={{
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 10,
               color: L_T.muted,
               letterSpacing: '0.14em',
               textAlign: 'center',
@@ -445,7 +443,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           </div>
           <div
             style={{
-              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
+              fontSize: 10,
               letterSpacing: '0.18em',
               color: L_T.muted,
               marginTop: 20,
@@ -458,7 +456,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
         <div
           style={{
             maxWidth: 480,
-            fontSize: 'var(--fs-small)',
+            fontSize: 11,
             color: L_T.muted,
             textAlign: 'center',
             lineHeight: 1.7,
@@ -481,7 +479,7 @@ function EmptyState({ paidOff, country }: { paidOff: boolean; country?: string }
       <div style={{ padding: '40px 0' }}>
         <LCli>{paidOff ? 'STATUS · DEBT-FREE' : 'STATUS · NO DEBTS ON FILE'}</LCli>
         <LRule length={200} />
-        <div style={{ marginTop: 18, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
+        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
           {paidOff ? (
             <>
               {localTerms('Every loan on file is paid off. Put the old EMIs to work:', country)}{' '}

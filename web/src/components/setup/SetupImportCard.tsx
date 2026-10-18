@@ -34,13 +34,13 @@ export function SetupImportCard({
 
   if (mode === 'typed') {
     return added ? (
-      <p data-testid="setup-import-done" style={{ fontSize: 'var(--fs-dense)', margin: '0 0 8px' }}>
+      <p data-testid="setup-import-done" style={{ fontSize: 12, margin: '0 0 8px' }}>
         {added} loan{added === 1 ? '' : 's'} from your credit report. Check the highlighted figures below.
       </p>
     ) : null;
   }
 
-  const btn: React.CSSProperties = { minHeight: 48, flex: '1 1 200px', fontSize: 'var(--fs-body)' };
+  const btn: React.CSSProperties = { minHeight: 48, flex: '1 1 200px', fontSize: 14 };
 
   return (
     <section
@@ -48,8 +48,8 @@ export function SetupImportCard({
       aria-labelledby="setup-import-title"
       style={{ border: '1px solid currentColor', padding: 12, margin: '0 0 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
     >
-      <strong id="setup-import-title">Fill your loans in faster <span style={{ fontSize: 'var(--fs-small)', opacity: 0.7 }}>BETA</span></strong>
-      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
+      <strong id="setup-import-title">Fill your loans in faster <span style={{ fontSize: 11, opacity: 0.7 }}>BETA</span></strong>
+      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
         Your free credit report lists every loan and card in your name, even ones you&apos;ve forgotten. Upload it
         and we&apos;ll fill in what it shows. You check each one. You&apos;ll need the PDF and its password (about 1
         minute).
@@ -79,7 +79,7 @@ export function SetupImportCard({
           }}
         />
       )}
-      <p style={{ margin: 0, fontSize: 'var(--fs-small)', opacity: 0.75 }}>
+      <p style={{ margin: 0, fontSize: 11, opacity: 0.75 }}>
         Read on RightDue&apos;s server by fixed rules, then deleted. Never stored or shared. Your name, PAN and date of
         birth are not read into the app. Have a KFS or bank SMS? You can read those in Profile → Loans later.
       </p>

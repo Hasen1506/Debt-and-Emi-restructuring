@@ -71,7 +71,7 @@ const groupIN = (s: string) => {
 /** The ledger's underlined select (as Loan check's LENDER), not the OS grey box (C-07). */
 const selectStyle: CSSProperties = {
   fontFamily: 'inherit',
-  fontSize: 'var(--fs-body)',
+  fontSize: 13,
   fontWeight: 600,
   color: L_T.ink,
   background: 'transparent',
@@ -82,7 +82,7 @@ const selectStyle: CSSProperties = {
   minHeight: 32,
   maxWidth: '100%',
 };
-const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
+const captionStyle: CSSProperties = { fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
 export function CantPay() {
   const profile = useStoredProfile();
@@ -137,7 +137,7 @@ export function CantPay() {
           <h1 id="cp-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>
             CAN&apos;T PAY EVERYTHING THIS MONTH?
           </h1>
-          <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7, marginTop: 8 }}>
+          <p style={{ fontSize: 12, color: L_T.muted, lineHeight: 1.7, marginTop: 8 }}>
             One step at a time. First, what to keep paying. Then what a missed payment costs, a letter to your lender,
             and your rights. Nothing here is sent or saved.
           </p>
@@ -148,7 +148,7 @@ export function CantPay() {
             <span id="cp-protect">WHAT TO PROTECT FIRST</span>
           </LSectionHeader>
           {lines.length === 0 ? (
-            <p style={{ fontSize: 'var(--fs-dense)' }}>
+            <p style={{ fontSize: 12 }}>
               No loans on file. <LBracket href="/profile?step=loans">ADD YOUR LOANS →</LBracket>
             </p>
           ) : (
@@ -171,7 +171,7 @@ export function CantPay() {
               </div>
               <ol style={{ paddingLeft: 18, margin: '14px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {order.map((l) => (
-                  <li key={l.key} data-testid="cp-protect-row" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
+                  <li key={l.key} data-testid="cp-protect-row" style={{ fontSize: 12, lineHeight: 1.6 }}>
                     <strong>{l.label}</strong>: {fc(l.required)}
                     {l.loan_type === 'credit_card' ? ' (minimum due)' : ''} ·{' '}
                     {!hasAvailable ? (
@@ -185,7 +185,7 @@ export function CantPay() {
                           : `${fc(l.short)} SHORT`}
                     </span>
                     )}
-                    <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{l.reason}</div>
+                    <div style={{ color: L_T.muted, fontSize: 11 }}>{l.reason}</div>
                   </li>
                 ))}
               </ol>
@@ -229,7 +229,7 @@ export function CantPay() {
           </LSectionHeader>
           <Rule r={TRIAGE_RULES.recovery} />
           <Rule r={TRIAGE_RULES.recovery_2027} />
-          <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7 }}>
             If an agent breaks these rules: write to the lender&apos;s grievance officer with dates and times. If it
             isn&apos;t fixed in 30 days, the RBI Ombudsman complaint route (cms.rbi.org.in) is free.
           </p>
@@ -242,7 +242,7 @@ export function CantPay() {
           <Rule r={TRIAGE_RULES.settlement} />
           <Rule r={TRIAGE_RULES.restructuring} />
           <Rule r={TRIAGE_RULES.sma} />
-          <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7 }}>
             Debt-settlement firms usually ask you to stop paying and save instead, then negotiate. That pushes every
             account into default first: late charges, recovery calls and credit-report damage while the savings build.
             RightDue earns nothing from lenders or settlement firms.
@@ -250,7 +250,7 @@ export function CantPay() {
         </section>
         </>)}
 
-        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
+        <p style={{ fontSize: 10, color: L_T.muted }}>
           {isIN ? <>Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}.</> : <>Collector rules from the CFPB&apos;s Regulation F, read 14 Oct 2026.</>} A calculator and a draft, not legal advice.
         </p>
       </div>
@@ -261,9 +261,9 @@ export function CantPay() {
 export function Rule({ r }: { r: TriageRule }) {
   return (
     <LCardPaper>
-      <div style={{ fontSize: 'var(--fs-dense)', fontWeight: 700 }}>{r.title}</div>
-      <div style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.7, marginTop: 4 }}>{r.plain}</div>
-      <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 700 }}>{r.title}</div>
+      <div style={{ fontSize: 12, lineHeight: 1.7, marginTop: 4 }}>{r.plain}</div>
+      <div style={{ fontSize: 10, color: L_T.muted, marginTop: 6 }}>
         Source:{' '}
         <a href={r.url} target="_blank" rel="noreferrer" className="rd-cite" style={{ color: 'inherit' }}>
           {r.source}
@@ -345,16 +345,16 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           placeholder="see bank's charges"
         />
       </div>
-      <label className="l-check-row" style={{ fontSize: 'var(--fs-dense)', marginTop: 6 }}>
+      <label className="l-check-row" style={{ fontSize: 12, marginTop: 6 }}>
         <input type="checkbox" checked={autoDebit} onChange={(e) => setAutoDebit(e.target.checked)} />
         <span>Paid by auto-debit (NACH / mandate)</span>
       </label>
       {valid && n === 0 ? (
-        <p data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.8, marginTop: 10 }}>
+        <p data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
           {missedCostClosing(0, fc(0))}
         </p>
       ) : valid ? (
-        <div data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.8, marginTop: 10 }}>
+        <div data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
           {n === 1
             ? `Interest on the unpaid ${fc(pick.required)} at the loan\u2019s own ${pick.ratePct.toFixed(2)}%: ${fc(cost.interest)}`
             : `${n} unpaid instalments of ${fc(pick.required)} (${fc(cost.arrears)} overdue by month ${n}). Interest on them at the loan\u2019s own ${pick.ratePct.toFixed(2)}%, each from its own due date: ${fc(cost.interest)}`}
@@ -370,7 +370,7 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           {missedCostClosing(n, fc(cost.total)).slice(`Adds about ${fc(cost.total)}`.length)}
         </div>
       ) : (
-        <p data-testid="cp-cost-total" role="status" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative, marginTop: 10 }}>
+        <p data-testid="cp-cost-total" role="status" style={{ fontSize: 12, color: L_T.negative, marginTop: 10 }}>
           Fix the field above to see the cost.
         </p>
       )}
@@ -493,8 +493,8 @@ export function LetterSection({
         />
         <LField label="Loan account number" value={accountRef} onChange={setAccountRef} />
       </div>
-      <fieldset style={{ border: 'none', padding: 0, margin: '8px 0', fontSize: 'var(--fs-dense)' }}>
-        <legend style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
+      <fieldset style={{ border: 'none', padding: 0, margin: '8px 0', fontSize: 12 }}>
+        <legend style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
         {(Object.keys(HARDSHIP_ASK_TEXT) as HardshipAsk[]).map((a) => (
           <label key={a} className="l-check-row">
             <input type="checkbox" checked={asks.includes(a)} onChange={() => toggle(a)} />
@@ -511,10 +511,10 @@ export function LetterSection({
         value={letter}
         onChange={(e) => setEdited(e.target.value)}
         rows={18}
-        style={{ width: '100%', fontFamily: 'inherit', fontSize: 'var(--fs-body)', lineHeight: 1.5, padding: 10, border: `1px solid ${L_T.ink}`, borderRadius: 0, boxSizing: 'border-box' }}
+        style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: 10, border: `1px solid ${L_T.ink}`, borderRadius: 0, boxSizing: 'border-box' }}
       />
       {edited !== null && edited !== draft && (
-        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '4px 0 0' }}>
+        <p style={{ fontSize: 11, color: L_T.muted, margin: '4px 0 0' }}>
           You have edited the letter, so the fields above no longer change it.{' '}
           <LBracket onClick={() => setEdited(null)}>RESET TO DRAFT</LBracket>
         </p>
@@ -525,10 +525,10 @@ export function LetterSection({
         {canShare && <LBracket onClick={share}>SHARE</LBracket>}
         <LBracket onClick={download}>DOWNLOAD .TXT</LBracket>
       </div>
-      <p role="status" aria-live="polite" data-testid="cp-letter-said" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>
+      <p role="status" aria-live="polite" data-testid="cp-letter-said" style={{ fontSize: 11, color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>
         {said}
       </p>
-      <div style={{ fontSize: 'var(--fs-dense)', marginTop: 8 }}>
+      <div style={{ fontSize: 12, marginTop: 8 }}>
         <strong>Before you send it:</strong>
         <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
           {LETTER_SELF_CHECK.map((c) => (

@@ -15,17 +15,17 @@ export default async function GlossaryPage() {
   return (
     <LShell>
       <header style={{ marginBottom: 18, maxWidth: 820 }}>
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>GLOSSARY · PLAIN WORDS</div>
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>GLOSSARY · PLAIN WORDS</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>What the words mean</h1>
-        <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>
+        <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
           Every technical term in RightDue, in 30 words or fewer. Tap a dotted word anywhere in the app to see its line here.
         </p>
       </header>
       <dl style={{ margin: 0, maxWidth: 820 }}>
         {entries.map(([key, e]) => (
           <div key={key} id={key} style={{ padding: '10px 0', borderBottom: `1px dashed ${L_T.ruleSoft}` }}>
-            <dt style={{ fontWeight: 700, fontSize: 'var(--fs-body)' }}>{e.term}</dt>
-            <dd style={{ margin: '4px 0 0', color: L_T.inkSoft, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>{e.plain}</dd>
+            <dt style={{ fontWeight: 700, fontSize: 13 }}>{e.term}</dt>
+            <dd style={{ margin: '4px 0 0', color: L_T.inkSoft, fontSize: 13, lineHeight: 1.6 }}>{e.plain}</dd>
           </div>
         ))}
       </dl>

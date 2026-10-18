@@ -35,7 +35,7 @@ export function SetupThisMonth({
   if (shortfall > 0.5) {
     const lines = shortPriority(setupPayMonth(plan, minimums, { ...planUser, loans }), loans, shortfall);
     body = (
-      <div data-testid="setup-this-month-short" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
+      <div data-testid="setup-this-month-short" style={{ fontSize: 14, lineHeight: 1.5 }}>
         {shortPriorityText(lines, shortfall, (v) => money(String(Math.round(v))), country)}{' '}
         <LBracket href="/cant-pay">WHAT TO SAY TO THE {country === 'US' ? 'LENDER' : 'BANK'} →</LBracket>
       </div>
@@ -45,13 +45,13 @@ export function SetupThisMonth({
     const moveLoan = move ? loans[move.index] : null;
     body =
       move && moveLoan ? (
-        <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, lineHeight: 1.5 }}>
           {every} and card minimum, then put{' '}
           <strong>{money(String(move.extra), loanCurrency(moveLoan, country))}</strong> extra on{' '}
           <strong>{moveLoan.nickname ? loanName(moveLoan) : `your ${loanName(moveLoan)}`}</strong>.
         </div>
       ) : (
-        <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, lineHeight: 1.5 }}>
           {every} and card minimum. Nothing is left over for extra payments this month.
         </div>
       );

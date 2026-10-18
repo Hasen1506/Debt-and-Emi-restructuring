@@ -234,7 +234,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
     variant === 'ledger'
       ? {
           fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--fs-dense)',
+          fontSize: 12,
           border: '1px solid var(--ink)',
           padding: 12,
           background: 'var(--card)',
@@ -290,7 +290,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
               borderRadius: 4,
               padding: '4px 10px',
               cursor: status.kind === 'loading' ? 'wait' : 'pointer',
-              fontSize: 'var(--fs-dense)',
+              fontSize: 12,
               color: 'var(--accent)',
             }}
           >
@@ -300,7 +300,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
       </div>
 
       {holdings.length === 0 ? (
-        <div className="muted" style={{ marginTop: 8, fontSize: 'var(--fs-body)' }}>
+        <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
           No shares or funds tracked yet. Add a ticker below: its latest
           price comes from Yahoo Finance, and the value is quantity × price.
         </div>
@@ -309,7 +309,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
           <div
             style={{
               marginTop: 10,
-              fontSize: 'var(--fs-dense)',
+              fontSize: 12,
               display: 'flex',
               gap: 12,
               flexWrap: 'wrap',
@@ -340,7 +340,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
               width: '100%',
               borderCollapse: 'collapse',
               marginTop: 10,
-              fontSize: 'var(--fs-dense)',
+              fontSize: 12,
             }}
           >
             <thead>
@@ -367,7 +367,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                     <td style={{ padding: '6px 6px' }}>
                       <strong>{h.ticker}</strong>
                       {h.label && h.label !== h.ticker && (
-                        <div className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+                        <div className="muted" style={{ fontSize: 11 }}>
                           {h.label}
                         </div>
                       )}
@@ -378,7 +378,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                     <td style={{ textAlign: 'right', padding: '6px 6px' }}>
                       {last != null ? `${h.price_currency ? `${h.price_currency} ` : ''}${last.toFixed(2)}` : '—'}
                       {h.price_currency && h.fx_to_user && (
-                        <div className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+                        <div className="muted" style={{ fontSize: 10 }}>
                           1 {h.price_currency} = {h.fx_to_user} {userCcy}
                           {h.fx_as_of ? `, ${h.fx_as_of}` : ''}
                         </div>
@@ -409,7 +409,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                           borderRadius: 3,
                           padding: '2px 6px',
                           cursor: 'pointer',
-                          fontSize: 'var(--fs-small)',
+                          fontSize: 11,
                           color: 'var(--accent)',
                         }}
                       >
@@ -427,7 +427,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                           borderRadius: 3,
                           padding: '2px 6px',
                           cursor: 'pointer',
-                          fontSize: 'var(--fs-small)',
+                          fontSize: 11,
                           color: 'var(--muted-ink)',
                         }}
                       >
@@ -512,7 +512,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             padding: '8px 14px',
             cursor: status.kind === 'loading' ? 'wait' : 'pointer',
             fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--fs-label)',
+            fontSize: 11,
             fontWeight: 700,
             letterSpacing: '0.14em',
           }}
@@ -525,7 +525,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
         <div
           style={{
             marginTop: 8,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             color:
               status.kind === 'error'
                 ? 'var(--negative)'
@@ -547,7 +547,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4,
   background: 'var(--canvas)',
   color: 'var(--ink)',
-  fontSize: 'var(--fs-body)',
+  fontSize: 13,
   width: 110,
 };
 
@@ -562,12 +562,12 @@ function Field({
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+      <span className="muted" style={{ fontSize: 11 }}>
         {label}
       </span>
       {children}
       {hint && (
-        <span className="muted" style={{ fontSize: 'var(--fs-small)' }}>
+        <span className="muted" style={{ fontSize: 10 }}>
           {hint}
         </span>
       )}

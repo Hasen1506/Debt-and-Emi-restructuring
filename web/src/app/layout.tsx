@@ -19,6 +19,7 @@ import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 import { INTRO_HIDE_SCRIPT } from '@/lib/intro-seen';
 import { THEME_SCRIPT } from '@/lib/theme';
+import { ThemeKeeper } from '@/components/site/ThemeToggle';
 import { OfflineSupport } from '@/components/site/OfflineSupport';
 import { OtherTabSavedNotice } from '@/lib/tab-guard';
 
@@ -33,12 +34,10 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', images: ['/og.png'] },
 };
 
-// UX2 #23: the browser bar matches the page in light and dark.
+// The browser bar matches the page, which is light unless Profile >
+// Appearance chose Dark (UI revert 18 Oct 2026: the system setting is not followed).
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fbfaf3' },
-    { media: '(prefers-color-scheme: dark)', color: '#141412' },
-  ],
+  themeColor: '#fbfaf3',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -53,13 +52,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         {/* UX2 #23: a chosen light/dark theme applies before the first paint. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-        {/* The ledger look: IBM Plex Mono for figures and labels, IBM Plex
-            Sans for body text, self-hosted (UX50 A-12, audit 80+ B5;
-            @font-face in styles/globals.css). */}
+        {/* One family: the ledger look is IBM Plex Mono throughout, self-hosted
+            (UX50 A-12; @font-face in styles/globals.css). */}
         <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
         <link rel="preload" href="/fonts/ibm-plex-mono-700-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
-        {/* Audit 80+ B5: body text is IBM Plex Sans. */}
-        <link rel="preload" href="/fonts/ibm-plex-sans-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
         {/* R12-1: note a leave that starts before the app's scripts have
             loaded (lib/page-abort.ts reads it), so the half-hydrated page
             doesn't start requests the navigation then cuts off. */}
@@ -73,6 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to content
         </a>
         <SecureCookies />
+        <ThemeKeeper />
         <SessionHydrator />
         <FxAutoRefresh />
         <LMasthead

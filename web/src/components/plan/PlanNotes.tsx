@@ -205,11 +205,11 @@ export function PlanNotes({ plan }: { plan: PlanData }) {
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.accent, fontWeight: 700 }}>
+            <span style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.accent, fontWeight: 700 }}>
               {String(i + 1).padStart(2, '0')} · {n.eyebrow}
             </span>
-            <strong style={{ fontSize: 'var(--fs-body)', lineHeight: 1.45 }}>{n.title}</strong>
-            <p style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.65, color: L_T.inkSoft }}>{n.body}</p>
+            <strong style={{ fontSize: 13, lineHeight: 1.45 }}>{n.title}</strong>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.65, color: L_T.inkSoft }}>{n.body}</p>
             {n.math && (
               <div style={{ maxWidth: 560 }}>
                 <LMathBlock rows={n.math} />

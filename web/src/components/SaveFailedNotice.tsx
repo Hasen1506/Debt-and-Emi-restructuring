@@ -29,7 +29,7 @@ export function SaveFailedNotice() {
         padding: '10px 14px',
         border: '1px solid var(--negative)',
         color: 'var(--negative)',
-        fontSize: 'var(--fs-body)',
+        fontSize: 13,
         lineHeight: 1.55,
         display: 'flex',
         gap: 12,
@@ -46,7 +46,7 @@ export function SaveFailedNotice() {
         onClick={() => setFailed(false)}
         aria-label="Dismiss"
         className="l-hit"
-        style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 'var(--fs-body)', padding: '0 6px' }}
+        style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 14, padding: '0 6px' }}
       >
         ×
       </button>

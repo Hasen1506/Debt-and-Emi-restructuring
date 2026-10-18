@@ -4,8 +4,8 @@
  *
  * Every assertion guards a class of defect on every page it lists, not one
  * repro:
- *  - B5   type floor: no visible text under 12px, and at most a budgeted
- *         share at 12px (labels), on every app page at 390 and 1366.
+ *  - Type: the original ledger look (UI revert 18 Oct 2026, B5 undone):
+ *         one family, IBM Plex Mono, on every app page; no IBM Plex Sans.
  *  - E3/B18 no page scrolls sideways at 320, 390 or 1366.
  *  - E10  layout shift under 0.1 on Home and Setup at 390, slow 4G, 4x CPU.
  *  - B26  the "More" menu opens every extra section at 390 and 1366.
@@ -30,9 +30,6 @@ const SHOTS = process.env.UI_SHOTS_DIR;
 
 const PAGES = ['/', '/plan', '/activity', '/goals', '/portfolio', '/tax', '/profile', '/cant-pay', '/tools/windfall'];
 const WIDTHS = [1366, 390, 320];
-/** B5 budget: share of visible characters at 12px (labels, figures in
- *  dense tables). Was 80–94% on Home/Plan/Activity before W7. */
-const LE12_BUDGET = 35;
 /** CLS "good" threshold (web.dev/articles/cls, checked 2026-10-14). */
 const CLS_BUDGET = 0.1;
 
@@ -54,7 +51,7 @@ async function settle(page: Page) {
 test.describe('visual system @w7', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('B5 + E3: type floor and no sideways scroll on every app page at 320, 390 and 1366', async ({ page }) => {
+  test('Type + E3: one mono family and no sideways scroll on every app page at 320, 390 and 1366', async ({ page }) => {
     test.setTimeout(400_000);
     await setUpPersona(page, 'w7-visual@rightdue.app');
     const failures: string[] = [];
@@ -70,8 +67,10 @@ test.describe('visual system @w7', () => {
           await page.screenshot({ path: path.join(SHOTS, `${width}${p === '/' ? '_home' : p.replace(/\//g, '_')}.png`), fullPage: true });
         }
         if (over > 0) failures.push(`${p} @${width}: scrolls sideways by ${over}px`);
-        if (stats.lt11 > 0) failures.push(`${p} @${width}: ${stats.lt11}% of text under 11px`);
-        if (width !== 320 && stats.le12 > LE12_BUDGET) failures.push(`${p} @${width}: ${stats.le12}% of text at or under 12px (budget ${LE12_BUDGET}%)`);
+        // UI revert 18 Oct 2026: the pre-audit look is back (labels at
+        // 10-11px are the design), so no B5 type floor; one family instead.
+        const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+        if (!/IBM Plex Mono/.test(family) || /Plex Sans/.test(family)) failures.push(`${p} @${width}: body font ${family}`);
       }
     }
     if (!ONLY_MEASURE) expect(failures).toEqual([]);
@@ -158,7 +157,7 @@ test.describe('visual system @w7', () => {
     await expect(page.locator('header.rd-masthead svg')).toHaveCount(0);
   });
 
-  test('B18 + B19 + E13: plan reads on a phone and to a screen reader', async ({ page }) => {
+  test('Plan table + E13: plan reads on a phone and to a screen reader', async ({ page }) => {
     test.skip(ONLY_MEASURE, 'new structure');
     await setUpPersona(page, 'w7-visual@rightdue.app');
     await page.setViewportSize({ width: 390, height: 844 });
@@ -168,23 +167,15 @@ test.describe('visual system @w7', () => {
     // The answer is a heading, and the figures a term list.
     await expect(main.getByRole('heading', { level: 2, name: /^Debt-free: [A-Z][a-z]+ \d{4}/ })).toBeVisible();
     await expect(main.locator('dl[aria-label="Plan summary"] dt').first()).toBeVisible();
-    // B18: up to 820px the months are cards, no sideways swipe. "Month by
-    // month" in the plan's header is a jump link to #schedule.
+    // UI revert 18 Oct 2026 (B18 cards undone): phones get the month
+    // table, which scrolls inside its own box with a swipe hint; the page
+    // itself never scrolls sideways. "Month by month" is a jump link.
     await main.getByRole('link', { name: /^month by month$/i }).first().click();
     await expect(page).toHaveURL(/#schedule$/);
-    await expect(page.getByText(/swipe sideways/i)).toHaveCount(0);
-    const cards = main.locator('[data-testid="month-card"]');
-    await expect(cards.first()).toBeVisible();
+    await expect(page.getByText(/swipe sideways for every column/i)).toBeVisible();
+    await expect(main.locator('[data-testid="month-card"]')).toHaveCount(0);
+    await expect(main.getByRole('region', { name: 'Month-by-month schedule' })).toBeVisible();
     expect(await sidewaysOverflow(page)).toBe(0);
-    // Each card: date heading, paid, interest, left.
-    await expect(cards.first()).toContainText(/Paid/);
-    await expect(cards.first()).toContainText(/Interest/);
-    await expect(cards.first()).toContainText(/Left/);
-    // B19: planned interest is ink, not alarm red.
-    const red = await cards.first().evaluate((el) =>
-      Array.from(el.querySelectorAll('*')).filter((n) => getComputedStyle(n).color === 'rgb(185, 28, 28)').map((n) => n.textContent),
-    );
-    expect(red).toEqual([]);
     // Wide: the table has a caption and scoped, unique column headers.
     await page.setViewportSize({ width: 1366, height: 900 });
     const table = main.locator('table:has(caption)').first();

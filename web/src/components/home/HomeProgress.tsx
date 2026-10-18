@@ -175,7 +175,7 @@ export function HomeProgress({
           </ol>
         </div>
       )}
-      <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
         {s ? shavedLine(s) : ym ? `Debt-free in ${ymLabel(ym)}. Each extra payment you log moves it sooner, and this counter keeps score.` : shortLine ?? 'Once the plan has a debt-free date, this counts the months you take off it.'}
       </p>
       {ym && realMove && (
@@ -194,17 +194,17 @@ export function HomeProgress({
             src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(shareCardSvg(shareInput))}`}
             style={{ border: `1px solid ${L_T.ruleSoft}` }}
           />
-          <figcaption style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
+          <figcaption style={{ fontSize: 11, color: L_T.muted }}>
             No amounts, lenders or income on it. <a download="rightdue-progress.svg" href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(shareCardSvg(shareInput))}`}>Download the card</a>
           </figcaption>
         </figure>
       )}
       {prompts.length > 0 && (
         <div aria-label="This month" style={{ borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 8 }}>
-          <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 4 }}>THIS MONTH</div>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 4 }}>THIS MONTH</div>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {prompts.map((p) => (
-              <li key={p.key} style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, padding: '6px 0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <li key={p.key} style={{ fontSize: 12, lineHeight: 1.6, padding: '6px 0', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ flex: '1 1 260px' }}>{p.text}</span>
                 {p.href && <a href={p.href} style={{ ...lPayBtn(false), textDecoration: 'none' }}>OPEN</a>}
                 {p.action === 'check_advice' && (
@@ -214,7 +214,7 @@ export function HomeProgress({
                 )}
                 {(p.action === 'copy_plan' || p.action === 'check_advice') && <button type="button" style={lPayBtn(false)} onClick={() => void copyPlan()}>COPY MY PLAN</button>}
                 {/* A12: it hides the prompt on this device; it never sent anything. */}
-                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 'var(--fs-small)' }}>
+                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
                   Hide until next month
                 </button>
                 {p.action === 'check_advice' && showCheck && (
@@ -227,7 +227,7 @@ export function HomeProgress({
           </ul>
         </div>
       )}
-      {said && <p role="status" style={{ fontSize: 'var(--fs-dense)', color: L_T.positive }}>{said}</p>}
+      {said && <p role="status" style={{ fontSize: 12, color: L_T.positive }}>{said}</p>}
       {country === 'IN' && <RateMoveEmail loans={rateLoans} />}
       {/* A18: after the first month on this device, a fake door for a paid tier (counts only). */}
       {sinceFirst !== null && sinceFirst >= 1 && <FakeDoor door="plus" />}

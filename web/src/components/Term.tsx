@@ -54,7 +54,7 @@ export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | stri
             border: `1px solid ${L_T.ink}`,
             background: L_T.paper,
             color: L_T.inkSoft,
-            fontSize: 'var(--fs-dense)',
+            fontSize: 12,
             lineHeight: 1.55,
             fontWeight: 400,
             textTransform: 'none',
