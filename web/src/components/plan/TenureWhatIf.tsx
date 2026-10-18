@@ -144,9 +144,12 @@ export function TenureWhatIf({
         you back to your plan). Nothing is saved until you change the loan in Profile.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
-        <label>
-          Loan{' '}
-          <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch">
+        {/* UI revert 2: the card is open again, so at 320px the loan picker
+            (label + widest option) was 3px wider than the card; it may now
+            shrink to the card's width. */}
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
+          Loan
+          <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch" style={{ minWidth: 0, flex: '1 1 auto', maxWidth: '100%' }}>
             {options.map(({ l, i }) => (
               <option key={i} value={i}>
                 {loanLabel(l)} · {pw.one === 'EMI' ? 'EMI' : 'Payment'} {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
