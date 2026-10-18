@@ -15,7 +15,7 @@ import { getCountryToday, monthIndexToCountryLabel, monthIndexToDate, MONTH_NAME
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
-import { loanClears, owedAtStart } from './plan-milestones';
+import { loanClears, owedNowAtStart } from './plan-milestones';
 import { chartEndMonth, linesCoincide } from '@/lib/plan-gap';
 import { minimumsClearMonth } from '@/lib/trajectory';
 
@@ -47,9 +47,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       // "OCT ’26", not "OCT 26", which reads as a day.
       return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`;
     };
-    // The line starts at what's owed now (Home's OUTSTANDING), not after
-    // this month's payments: its top read ₹48.51L against ₹48.80L owed.
-    const start = traj[0].month === 1 ? owedAtStart(plan) : 0;
+    // The line starts at what's owed now (Home's OUTSTANDING, after what's
+    // already paid this month; owed-fix), not after this month's payments.
+    const start = traj[0].month === 1 ? owedNowAtStart(plan) : 0;
     // Total debt includes gap borrowing (grill #38): a short month goes on
     // a card, and that card balance is debt too.
     const withGap = traj.map((p) =>

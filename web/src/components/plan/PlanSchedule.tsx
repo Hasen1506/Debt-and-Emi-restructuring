@@ -12,13 +12,13 @@ import { useState } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, formatPct, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
-import { owedTodayLine } from '@/lib/owed-today';
+import { owedTodayLine, shortDay } from '@/lib/owed-today';
 import { localTerms } from '@/lib/terms';
 import { loanCurrency } from '@/lib/currency';
 import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type ScheduleCsvRow } from '@/lib/schedule-csv';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
-import { loanClears, owedAtStart } from './plan-milestones';
+import { loanClears, owedAtStart, owedNowAtStart, owedNowByLoan } from './plan-milestones';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -162,6 +162,21 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
 
   // How the columns add up to what's owed today (lib/schedule-reconcile).
   const owedToday = owedAtStart(plan);
+  // Owed-fix: the start row shows what's owed now (Home's figure): the
+  // opening balance less what's gone out this month. This month's row still
+  // pays the whole month, so a card's cell says what's paid and what's to go.
+  const owedNow = owedNowAtStart(plan);
+  const owedNowLoans = owedNowByLoan(plan);
+  const paidNow = new Map((plan.paidNow ?? []).map((p) => [p.index, p]));
+  const showOwedNow = Math.abs(owedToday - owedNow) >= 1;
+  const owedNowNote = (() => {
+    if (!showOwedNow) return null;
+    const notes = plan.paidNow ?? [];
+    const money = (v: number) => fc(Math.round(v).toFixed(0));
+    if (notes.length === 1 && Math.abs(owedToday - owedNow - notes[0].amount) < 1)
+      return `${money(owedToday)} LESS ${money(notes[0].amount)} PAID ${shortDay(notes[0].date).toUpperCase()}`;
+    return `${money(owedToday)} AT THE START OF THE MONTH LESS ${money(owedToday - owedNow)} ALREADY PAID`;
+  })();
   // The month each loan's last payment goes out: its cell says FINAL, so a
   // small last payment doesn't read as what's owed on it.
   const finalMonth = new Map<number, number>(loanClears(plan).map((c) => [c.index, c.month]));
@@ -246,13 +261,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   date: startLabel,
                   // Each loan's balance now (its column is payments below).
                   perLoan: Object.fromEntries(
-                    loanCols.map((l, i) => [i, (l.planned_effective_month ?? 1) > 1 ? '0' : String(Number(l.outstanding) || 0)]),
+                    loanCols.map((l, i) => [i, (l.planned_effective_month ?? 1) > 1 ? '0' : String(Number(owedNowLoans[i]?.outstanding ?? l.outstanding) || 0)]),
                   ),
                   extra: 0,
                   interest: 0,
                   principal: 0,
-                  balance: owedToday,
-                  event: 'OWED AT THE START',
+                  balance: owedNow,
+                  event: owedNowNote ? `OWED NOW (${owedNowNote})` : 'OWED AT THE START',
                 })
               }
             >
@@ -345,19 +360,27 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
                 <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
-                <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
+                <td data-testid="schedule-start-label" style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>
+                  {owedNowNote ? 'OWED NOW' : 'OWED AT THE START'}
+                  {owedNowNote ? <div style={{ fontSize: 9, fontWeight: 400, color: L_T.muted }}>{owedNowNote}</div> : null}
+                </td>
                 {loanCols.map((l, idx) => {
-                  const owed = Number(l.outstanding) || 0;
+                  const was = Number(l.outstanding) || 0;
+                  const owed = Number(owedNowLoans[idx]?.outstanding ?? was) || 0;
                   const later = (l.planned_effective_month ?? 1) > 1;
+                  const lc = loanCurrency(l, plan.user.country);
                   return (
                     <td key={idx} style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>
-                      {later || owed <= 0 ? '—' : formatCurrencyWhole(owed.toFixed(0), loanCurrency(l, plan.user.country))}
+                      {later || owed <= 0 ? '—' : formatCurrencyWhole(owed.toFixed(0), lc)}
+                      {!later && Math.abs(was - owed) >= 1 ? (
+                        <div style={{ fontSize: 9, fontWeight: 400, color: L_T.muted }}>WAS {formatCurrencyWhole(was.toFixed(0), lc)}</div>
+                      ) : null}
                     </td>
                   );
                 })}
                 {mixed && <td />}
                 <td colSpan={3} />
-                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(owedToday.toFixed(0))}</td>
+                <td data-testid="schedule-start-balance" style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(owedNow.toFixed(0))}</td>
                 {showGap && <td style={{ padding: '7px 10px', textAlign: 'right' }}>—</td>}
               </tr>
               {visibleRows.map((r) => (
@@ -378,6 +401,12 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       {r.perLoan[idx]
                         ? formatCurrencyWhole(Number(r.perLoan[idx]).toFixed(0), loanCurrency(l, plan.user.country))
                         : '—'}
+                      {r.mo === 1 && r.perLoan[idx] && paidNow.get(idx) ? (
+                        <div data-testid="schedule-paid-to-go" style={{ fontSize: 9, letterSpacing: '0.04em', color: L_T.muted }}>
+                          {formatCurrencyWhole(Math.round(paidNow.get(idx)!.paid).toFixed(0), loanCurrency(l, plan.user.country))} PAID ·{' '}
+                          {formatCurrencyWhole(Math.max(0, Math.round(Number(r.perLoan[idx]) - paidNow.get(idx)!.paid)).toFixed(0), loanCurrency(l, plan.user.country))} TO GO
+                        </div>
+                      ) : null}
                       {r.perLoan[idx] && finalMonth.get(idx) === r.mo ? (
                         <div style={{ fontSize: 9, letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
                       ) : null}

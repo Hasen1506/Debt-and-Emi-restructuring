@@ -921,11 +921,19 @@ class LifecycleEventIn(_In):
         return self
 
 
+class PaidOffIn(_In):
+    loan_index: Annotated[int, Field(ge=0, le=200)]
+    amount: Amount
+
+
 class SimulateRequest(_In):
     user: UserIn
     strategy: Strategy = Strategy.AVALANCHE
     # UX fix 4: loans whose EMI for this month is already paid (owed_today).
     paid_emi_this_month: list[Annotated[int, Field(ge=0, le=200)]] = Field(default_factory=list, max_length=200)
+    # Owed-fix: money gone out this month the opening balance still holds
+    # (card payments logged after the statement), loan's currency.
+    paid_off_this_month: list[PaidOffIn] = Field(default_factory=list, max_length=200)
     horizon_months: Horizon = 360
     matched_contribution: Amount = D("0")
     marginal_rate: Optional[TaxRate] = None
@@ -1296,6 +1304,7 @@ class SimulateResponse(_Base):
     owed_today: Optional[Decimal] = None
     owed_start_of_month: Optional[Decimal] = None
     owed_today_interest_in_paid: Optional[Decimal] = None
+    owed_today_paid_off: Optional[Decimal] = None
     total_interest_paid: Decimal
     total_invested: Decimal
     trajectory: list[TrajectoryPoint]

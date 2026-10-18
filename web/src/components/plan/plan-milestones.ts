@@ -6,6 +6,8 @@
 import type { PlanData } from './PlanData';
 import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { deriveMetrics } from '@/lib/derived';
+import { owedNowLoans } from '@/lib/owed-now-core';
+import type { LoanPayload } from '@/lib/api';
 import type { StoredProfile } from '@/lib/user-store';
 
 export interface LoanClear {
@@ -61,4 +63,18 @@ export function loanClears(plan: PlanData): LoanClear[] {
  *  later aren't owed yet. */
 export function owedAtStart(plan: PlanData): number {
   return Number(deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile).totalOutstanding);
+}
+
+/** Owed-fix: what's owed now, the figure Home shows: the plan's opening
+ *  balance less what has gone out this month (EMIs paid, card payments
+ *  logged), as the engine's owed_today counts it (lib/owed-now-core). */
+export function owedNowAtStart(plan: PlanData): number {
+  const start = owedAtStart(plan);
+  const o = plan.owedToday;
+  return o ? Math.max(0, start - Math.max(0, o.startOfMonth - o.today)) : start;
+}
+
+/** Each loan's owed-now balance (loan's currency), for the start row. */
+export function owedNowByLoan(plan: PlanData): LoanPayload[] {
+  return owedNowLoans(plan.user.loans, { emis: plan.runArgs?.paid_emi_this_month ?? [], off: plan.paidNow ?? [] });
 }

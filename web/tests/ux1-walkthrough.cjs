@@ -249,7 +249,7 @@ test('fix 4: one "owed today": the add-back and the paid EMI cancel, tools and t
   assert.equal(o.owedTodayLine(o.owedTodayOf({ owed_today: '100', owed_start_of_month: '100' }), 'October', inr), null);
   // Tools that show a balance read what's owed today, and load-plan sends the paid set to the engine.
   assert.match(src('app/tools/nri-prepay/tool.tsx'), /useOwedTodayProfile as useStoredProfile/);
-  assert.match(src('components/WhatIfPanel.tsx'), /owedTodayLoans\(user\.loans, runArgs\?\.paid_emi_this_month/);
+  assert.match(src('components/WhatIfPanel.tsx'), /emis: runArgs\?\.paid_emi_this_month/);
   assert.match(src('components/plan/load-plan.ts'), /loadPaidNowServer\(profile\.user\.loans/);
 });
 

@@ -712,6 +712,8 @@ export interface SimulateResponse {
   owed_today?: string | null;
   owed_start_of_month?: string | null;
   owed_today_interest_in_paid?: string | null;
+  /** Owed-fix: card payments (and the plan's own extra) logged this month, off owed_today. */
+  owed_today_paid_off?: string | null;
   /** Round 2 (item 4): set when the profile has a seasonal pattern. */
   seasonal?: SeasonalOutRaw | null;
 }
@@ -2127,6 +2129,9 @@ export interface SimulateArgs {
   simulation_start_month?: number;
   /** UX fix 4: loans whose EMI this month is already paid (owed_today). */
   paid_emi_this_month?: number[];
+  /** Owed-fix: money gone out this month the opening balance still holds
+   *  (lib/owed-now-core), loan's currency. */
+  paid_off_this_month?: { loan_index: number; amount: string }[];
   /** Auto-reinvest events — month-indexed lump-sum injections in user
    *  residence currency, routed to the highest-effective-APR active loan
    *  at the matching month. Frontend pre-computes from projected annual

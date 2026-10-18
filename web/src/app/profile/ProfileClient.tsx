@@ -53,6 +53,7 @@ import {
 import { BALANCES_ENTERED_KEY, type BalanceDropReason } from '@/lib/activity';
 import { balanceDropOf, logBalanceDrops } from '@/lib/prepay-choice';
 import { BalanceDropQuestion } from '@/components/profile/BalanceDropQuestion';
+import { OwedNowHint } from '@/components/profile/OwedNowHint';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
@@ -1695,6 +1696,7 @@ function ProfileEditor({
                     </>
                   }
                 />
+                <OwedNowHint loan={l} country={country} />
                 {askPaid(l) && (
                   <EmiPaidQuestion
                     monthName={thisMonthName}

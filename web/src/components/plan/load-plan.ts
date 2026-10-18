@@ -57,6 +57,7 @@ import {
   loadActivityDeltasServer,
   loadActivityPaceServer,
   loadPaidNowServer,
+  loadPaidOffServer,
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
@@ -404,6 +405,9 @@ export async function loadPlanInputs(
     ...paidAtEntryThisMonth(profile.user.loans, nowKey),
     ...(await loadPaidNowServer(profile.user.loans, nowKey)),
   ])].sort((a, b) => a - b);
+  // Owed-fix: card payments (and the plan's own extra) logged this month,
+  // against the balances the plan starts from (lib/owed-now-core).
+  const paidOff = await loadPaidOffServer(adjustedUser.loans, nowKey);
   const simBaseArgs = {
     user: adjustedUser,
     horizon_months: HORIZON_MONTHS,
@@ -412,6 +416,7 @@ export async function loadPlanInputs(
     // UX walkthrough fix 4: the EMIs already paid this month, so the engine's
     // owed_today is the balance Home shows (engine/owed_today.py).
     paid_emi_this_month: paidEmis.length > 0 ? paidEmis : undefined,
+    paid_off_this_month: paidOff.length > 0 ? paidOff.map((o) => ({ loan_index: o.index, amount: String(o.amount) })) : undefined,
     reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
@@ -443,6 +448,7 @@ export async function loadPlanInputs(
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    paidOff,
     ownInflation,
   };
 }
@@ -473,6 +479,7 @@ export async function loadPlan(
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    paidOff,
     ownInflation,
   } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
@@ -638,6 +645,7 @@ export async function loadPlan(
       ...planEnd(scenario),
       seasonal: scenario.seasonal ?? null,
       owedToday: owedTodayOf(scenario),
+      paidNow: paidOff,
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       totalInterest: scenario.total_interest_paid,

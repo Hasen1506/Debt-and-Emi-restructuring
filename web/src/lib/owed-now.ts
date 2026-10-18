@@ -17,8 +17,7 @@ import type { Country, LoanPayload } from './api';
 import { readActivityClient, type ActivityEntry } from './activity';
 import { refreshActivityCookieClient } from './activity-cookie';
 import { alignToLoans } from './loan-ids';
-import { afterOneEmi } from './roll-forward';
-import { paymentState } from './payment-state';
+import { emiStateThisMonth, owedNowLoans, paidThisMonth } from './owed-now-core';
 import { getCountryToday, localIsoDate } from './today';
 
 export type EmiStatus = 'paid' | 'part' | 'missed' | 'due' | 'first';
@@ -33,42 +32,24 @@ export interface OwedNow {
   cardBefore?: Decimal;
 }
 
-/** Entered balance less this month's card payments marked after it (UX50 B-12).
- *  One logged in the same instant counts (a frozen test clock; never earlier). */
-function cardAfterPayments(loan: LoanPayload, i: number, entries: ActivityEntry[], month: string): Decimal | null {
-  const owed = new Decimal(Number(loan.outstanding) || 0);
-  const asOf = loan.balance_as_of?.slice(0, 10);
-  const paid = entries
-    .filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month && e.kind.startsWith('paid'))
-    .filter((e) => !(asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at && Date.parse(e.loggedAt) < Date.parse(loan.balance_recorded_at)))))
-    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  return paid > 0 ? Decimal.max(0, owed.sub(paid)) : null;
-}
-
+/** Home's rows, from the one owed-now helper (lib/owed-now-core). */
 export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: string): OwedNow[] {
+  const paid = paidThisMonth(loans, entries, month);
+  const owedLoans = owedNowLoans(loans, paid);
   return loans.map((loan, i) => {
     const owed = new Decimal(Number(loan.outstanding) || 0);
+    const now = new Decimal(Number(owedLoans[i].outstanding) || 0);
     const emi = Number(loan.scheduled_emi) || 0;
     if (loan.loan_type === 'credit_card' && owed.gt(0)) {
-      const after = cardAfterPayments(loan, i, entries, month);
-      return after ? { status: null, owed: after, cardBefore: owed } : { status: null, owed };
+      return paid.off.some((o) => o.index === i) ? { status: null, owed: now, cardBefore: owed } : { status: null, owed };
     }
     if (loan.loan_type === 'credit_card' || !(emi > 0) || !owed.gt(0)) return { status: null, owed };
     // Taken this month: nothing due until its first EMI.
     if (loan.first_emi_month && loan.first_emi_month > month) return { status: 'first', owed };
     const mine = entries.filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month);
-    const state = paymentState(mine, Math.min(emi, owed.mul(new Decimal(loan.nominal_rate || '0').div(12).add(1)).toNumber()), emi);
+    const state = emiStateThisMonth(loan, mine);
     if (state === 'due' || state === 'missed' || state === 'part') return { status: state, owed };
-    // The plan's own extra marked paid comes off once the month is over
-    // (lib/activity-cookie); any other extra is off the balance already.
-    const planned = mine.reduce((s, e) => {
-      const asOf = loan.balance_as_of?.slice(0, 10);
-      if (asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at &&
-        Date.parse(e.loggedAt) <= Date.parse(loan.balance_recorded_at)))) return s;
-      return s + Number(e.plannedExtra || 0);
-    }, 0);
-    const after = loan.rate_basis === 'flat' || Number(loan.pre_emi_months_remaining || 0) > 0 ? owed : afterOneEmi(loan);
-    return { status: 'paid', owed: Decimal.max(0, after.sub(planned)) };
+    return { status: 'paid', owed: now };
   });
 }
 
