@@ -3,6 +3,9 @@
  * A Chennai borrower whose take-home minus spending (₹50,000) can't cover
  * a ₹35,000 home EMI, a ₹15,000 car EMI and a card minimum: the page keeps
  * the home and car loans whole and shows the card minimum as short.
+ * Owed-fix (18 Oct 2026): Can't pay counts EMIs already gone out this month
+ * as paid, so these borrowers answer "Not yet" for October's EMIs: all of
+ * this month's payments are still to make.
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
@@ -26,8 +29,8 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
   await page.getByLabel(/Take-home pay a month/).fill('90000');
   await page.getByLabel(/Spending a month/).fill('40000');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
-  await fillLoan(page, 0, { kind: /^home$/i, balance: '3500000', rate: '8.5', emi: '35000' });
-  await fillLoan(page, 1, { kind: /^car$/i, balance: '500000', rate: '9', emi: '15000' });
+  await fillLoan(page, 0, { kind: /^home$/i, balance: '3500000', rate: '8.5', emi: '35000', emiGoneOut: 'due' });
+  await fillLoan(page, 1, { kind: /^car$/i, balance: '500000', rate: '9', emi: '15000', emiGoneOut: 'due' });
   await fillLoan(page, 2, { kind: /^card$/i, balance: '85000', rate: '42' });
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
@@ -71,8 +74,8 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   await page.getByLabel(/Take-home pay a month/).fill('90000');
   await page.getByLabel(/Spending a month/).fill('40000');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
-  await fillLoan(page, 0, { kind: /^home$/i, balance: '3500000', rate: '8.5', emi: '35000' });
-  await fillLoan(page, 1, { kind: /^personal$/i, balance: '400000', rate: '14', emi: '20000' });
+  await fillLoan(page, 0, { kind: /^home$/i, balance: '3500000', rate: '8.5', emi: '35000', emiGoneOut: 'due' });
+  await fillLoan(page, 1, { kind: /^personal$/i, balance: '400000', rate: '14', emi: '20000', emiGoneOut: 'due' });
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();

@@ -4,7 +4,7 @@
  * reads the plan, checks /tax, signs out; then signs in again on a clean
  * browser and gets the saved plan back from the account.
  */
-import { expect, fillLoan, isSetupPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
+import { chooseAllSpareCash, expect, fillLoan, isSetupPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-usa@rightdue.app';
 
@@ -79,6 +79,10 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
 
   await test.step('signing in again on a new browser restores the saved plan', async () => {
     const fresh = await browser.newContext();
+    // The debt budget is the user's choice, made up front on each browser
+    // (fixtures.chooseAllSpareCash); unchosen, the plan pays only the
+    // minimums and would not match the plan saved above.
+    await chooseAllSpareCash(fresh);
     await fresh.route((u) => !/^(localhost|127\.0\.0\.1)$/.test(u.hostname), (r) => r.abort('blockedbyclient'));
     const p2 = await fresh.newPage();
     await p2.clock.setFixedTime(new Date(process.env.E2E_FROZEN_NOW ?? '2026-10-07T04:30:00.000Z'));

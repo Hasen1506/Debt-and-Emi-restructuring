@@ -1,4 +1,4 @@
-import { test as base, expect, type Page, type Response } from '@playwright/test';
+import { test as base, expect, type BrowserContext, type Page, type Response } from '@playwright/test';
 
 /** The test's "now": 7 Oct 2026, 10:00 IST (same instant the server uses). */
 export const FROZEN_NOW = new Date(process.env.E2E_FROZEN_NOW ?? '2026-10-07T04:30:00.000Z');
@@ -16,7 +16,7 @@ export const test = base.extend<{ page: Page }>({
     // user chooses a monthly total for debts. The journeys and goldens were
     // recorded with all spare cash; they choose it up front. The prompt's own
     // spec clears this cookie.
-    await context.addCookies([{ name: 'rightdue_debt_budget', value: 'all', domain: 'localhost', path: '/' }]);
+    await chooseAllSpareCash(context);
     // page.goto and page.reload go through settleNavigation (below): a
     // goto the app's own refresh aborted is sent again, and a navigation
     // Playwright stranded in Firefox is released.
@@ -27,6 +27,13 @@ export const test = base.extend<{ page: Page }>({
     await use(page);
   },
 });
+
+/** The debt-budget choice the journeys make up front: all spare cash. Set
+ *  on this browser only (the cookie a choice writes); a journey that opens a
+ *  second browser makes the same choice there. */
+export async function chooseAllSpareCash(context: BrowserContext) {
+  await context.addCookies([{ name: 'rightdue_debt_budget', value: 'all', domain: 'localhost', path: '/' }]);
+}
 
 /** page.goto errors that mean "another navigation replaced this one". */
 const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED|interrupted by another navigation|Navigation interrupted/;
@@ -158,6 +165,8 @@ export interface LoanInput {
   balance: string;
   rate: string;            // percent a year
   emi?: string;            // EMI loans only
+  /** "Has this month's EMI gone out?" (EMI loans). Default 'paid'. */
+  emiGoneOut?: 'paid' | 'due';
 }
 
 export async function fillLoan(page: Page, index: number, loan: LoanInput) {
@@ -174,7 +183,7 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
   if (!card) {
     // R7-7: US Setup says "Monthly payment" where India says "EMI a month".
     await b.getByRole('textbox', { name: /EMI a month|Monthly payment/ }).fill(loan.emi!);
-    await b.getByRole('button', { name: /PAID ALREADY/ }).click();
+    await b.getByRole('button', { name: loan.emiGoneOut === 'due' ? /^NOT YET$/ : /PAID ALREADY/ }).click();
   }
 }
 
