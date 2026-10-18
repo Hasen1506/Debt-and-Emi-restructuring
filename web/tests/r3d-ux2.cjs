@@ -114,8 +114,9 @@ test('#23: every text colour on every surface is WCAG AA (4.5:1) in light and da
   const css = src('styles/globals.css');
   const light = palette(css, ':root {');
   const darkA = palette(css, ":root[data-theme='dark'] {");
-  const darkB = palette(css, ":root:not([data-theme='light']) {");
-  assert.deepEqual(darkA, darkB, 'the chosen-dark and system-dark palettes are the same');
+  // UI revert 18 Oct 2026: dark is opt-in only, so there is no system-dark
+  // palette any more (it was required to equal the chosen-dark one).
+  assert.doesNotMatch(css, /prefers-color-scheme: dark/, 'the system dark setting is not followed');
   const texts = ['ink', 'muted', 'accent', 'negative', 'positive', 'warning', 'accent-ink'];
   const surfaces = ['canvas', 'card', 'soft-bg', 'highlight', 'highlight-soft'];
   for (const [name, p] of [['light', light], ['dark', darkA]]) {
@@ -144,8 +145,10 @@ test('#23: the theme is set before the first paint (no flash) and the Profile to
   assert.ok(layout.indexOf('THEME_SCRIPT') < layout.indexOf('<body>'), 'the script is in <head>');
   assert.match(layout, /<html lang="en" suppressHydrationWarning>/);
   const { THEME_SCRIPT, THEME_KEY } = lib('theme.ts');
-  // Run the script against a fake document: a stored choice wins; none leaves the system's.
-  for (const [stored, want] of [['dark', 'dark'], ['light', 'light'], [null, undefined], ['blue', undefined]]) {
+  // Run the script against a fake document: only a stored Dark sets the
+  // attribute; anything else leaves the page light (UI revert 18 Oct 2026:
+  // light by default, the system setting is not followed).
+  for (const [stored, want] of [['dark', 'dark'], ['light', undefined], [null, undefined], ['blue', undefined]]) {
     const attrs = {};
     const ctx = { localStorage: { getItem: (k) => (k === THEME_KEY ? stored : null) }, document: { documentElement: { setAttribute: (k, v) => { attrs[k] = v; } } } };
     new Function('localStorage', 'document', THEME_SCRIPT)(ctx.localStorage, ctx.document);
@@ -155,7 +158,12 @@ test('#23: the theme is set before the first paint (no flash) and the Profile to
   // Print stays light: the dark tokens are screen-only.
   const css = src('styles/globals.css');
   assert.match(css, /@media screen \{\s*:root\[data-theme='dark'\]/);
-  assert.match(css, /@media screen and \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme='light'\]\)/);
+  assert.doesNotMatch(css, /prefers-color-scheme/);
+  // Appearance offers Light and Dark only; no "as my device".
+  const toggle = src('components/site/ThemeToggle.tsx');
+  assert.match(toggle, /'LIGHT'/);
+  assert.match(toggle, /'DARK'/);
+  assert.doesNotMatch(toggle, /system|AS MY DEVICE/);
 });
 
 // ── #23 offline ───────────────────────────────────────────────────────────────

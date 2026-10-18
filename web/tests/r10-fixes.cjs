@@ -279,8 +279,8 @@ test('Home interest: the tile reads the plan’s month-1 interest (as Plan and i
   assert.match(src('app/page.tsx'), /<HomeInterestValue \/>/);
   const l = src('components/home/LedgerHome.tsx');
   assert.doesNotMatch(l, /'CHARGED THIS MONTH'/);
-  // Audit 80+ B19: planned interest is in ink; red is kept for a shortfall.
-  assert.match(l, /\{ l: 'INTEREST', v: interest\.v, s: interest\.s, tone: L_T\.ink \}/);
+  // UI revert 18 Oct 2026: interest is red again, as before audit 80+ B19.
+  assert.match(l, /\{ l: 'INTEREST', v: interest\.v, s: interest\.s, tone: L_T\.negative \}/);
   // The CSV and Plan table read the same trajectory interest.
   assert.match(src('lib/trajectory.ts'), /interest: s\?\.interest \?\? 0/);
 });

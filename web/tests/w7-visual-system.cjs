@@ -37,52 +37,48 @@ function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
 }
 
-// ── B5: type floor ─────────────────────────────────────────────────────────
-test('B5: the type scale tokens: 16px body, nothing under 12px', () => {
+// ── Type: the original ledger look (UI revert, 18 Oct 2026) ──────────────
+// Vijay asked for the pre-audit look back: one family (IBM Plex Mono),
+// 14px body, 11-12px labels. The audit 80+ B5 scale (Plex Sans, 16px body,
+// 12px floor) is gone; these guard the original instead.
+test('Type: one family (IBM Plex Mono) at the original sizes; no IBM Plex Sans', () => {
   const css = src('styles/globals.css');
   const tok = (name) => {
     const m = css.match(new RegExp(`--${name}:\\s*(\\d+)px`));
     assert.ok(m, `--${name} defined`);
     return Number(m[1]);
   };
-  assert.equal(tok('fs-body'), 16);
-  assert.ok(tok('fs-label') >= 12, 'labels at least 12px');
-  for (const t of ['fs-small', 'fs-table', 'fs-dense']) assert.ok(tok(t) >= 14, `${t} at least 14px`);
-  assert.ok(tok('fs-lead') > tok('fs-body') && tok('fs-figure') > tok('fs-lead') && tok('fs-h1') > tok('fs-figure'), 'the scale rises');
-  // Body text is IBM Plex Sans, self-hosted (no third-party font request).
-  const faces = css.match(/@font-face \{[^}]*\}/g) || [];
-  const sans = faces.filter((f) => /IBM Plex Sans'/.test(f));
-  assert.ok(sans.length >= 2, 'IBM Plex Sans faces');
-  for (const f of sans) {
+  assert.match(css, /body \{[^}]*font-size: 14px;[^}]*line-height: 1\.5;/);
+  assert.match(css, /--font-sans: 'IBM Plex Mono'/);
+  assert.equal(tok('fs-body'), 13);
+  assert.equal(tok('fs-label'), 11);
+  for (const t of ['fs-small', 'fs-table', 'fs-dense']) assert.ok(tok(t) <= 12, `${t} at the original 11-12px`);
+  assert.doesNotMatch(css, /IBM Plex Sans/);
+  assert.equal(fs.readdirSync(path.join(__dirname, '../public/fonts')).filter((f) => /plex-sans/.test(f)).length, 0);
+  // The mono faces stay self-hosted (no third-party font request).
+  const faces = (css.match(/@font-face \{[^}]*\}/g) || []).filter((f) => /IBM Plex Mono'/.test(f));
+  assert.ok(faces.length >= 2, 'IBM Plex Mono faces');
+  for (const f of faces) {
     const file = f.match(/url\('\/fonts\/([^']+)'\)/)[1];
     const bytes = fs.readFileSync(path.join(__dirname, '../public/fonts', file));
     assert.equal(bytes.subarray(0, 4).toString('latin1'), 'wOF2', `${file} is a woff2`);
   }
 });
 
-test('B5: no inline or stylesheet font size under 12px anywhere in the app', () => {
+test('Type: no font size under the original 9px floor anywhere in the app', () => {
   const bad = [];
   for (const { rel, text } of FILES) {
     for (const m of text.matchAll(/fontSize:\s*'?(\d+(?:\.\d+)?)(px)?'?\s*[,}\n]/g)) {
-      if (Number(m[1]) < 12) bad.push(`${rel}:${lineOf(text, m.index)} fontSize ${m[1]}`);
+      if (Number(m[1]) < 9) bad.push(`${rel}:${lineOf(text, m.index)} fontSize ${m[1]}`);
     }
-    // SVG chart annotations (axis, markers): 11px floor.
     for (const m of text.matchAll(/fontSize=\{?"?(\d+(?:\.\d+)?)"?\}?/g)) {
-      if (Number(m[1]) < 11) bad.push(`${rel}:${lineOf(text, m.index)} svg fontSize ${m[1]}`);
+      if (Number(m[1]) < 9) bad.push(`${rel}:${lineOf(text, m.index)} svg fontSize ${m[1]}`);
     }
     for (const m of text.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)) {
-      if (Number(m[1]) < 12) bad.push(`${rel}:${lineOf(text, m.index)} font-size ${m[1]}px`);
+      if (Number(m[1]) < 9) bad.push(`${rel}:${lineOf(text, m.index)} font-size ${m[1]}px`);
     }
   }
   assert.deepEqual(bad, []);
-});
-
-test('B5: the type-scale codemod has nothing left to convert to a smaller size', () => {
-  // Re-running scripts/w7-type-scale.py after a merge is idempotent; any
-  // numeric fontSize <= 11 it would move is caught by the test above.
-  const py = fs.readFileSync(path.join(__dirname, '../scripts/w7-type-scale.py'), 'utf8');
-  assert.match(py, /--fs-label/);
-  assert.match(py, /--fs-small/);
 });
 
 // ── B26 / A20: four core tabs + More ───────────────────────────────────────
@@ -198,21 +194,25 @@ test('E13: KPI figures are a term list; the plan answer reads as whole words', (
   }
 });
 
-test('B18/E13: the month table has a caption and scoped headers; phones get cards', () => {
+test('Plan table: caption and scoped headers; phones get the same table (no B18 cards), events highlighted', () => {
   const s = src('components/plan/PlanSchedule.tsx');
   assert.match(s, /<caption className="sr-only">/);
   assert.match(s, /scope="col"/);
-  assert.match(s, /@media \(max-width: 820px\)\{\.rd-month-table\{display:none !important\}\.rd-month-cards\{display:block\}\}/);
-  assert.match(s, /data-testid="month-card"/);
+  // UI revert 18 Oct 2026: the original month table on every width, with
+  // the swipe hint on phones and the yellow event rows in the full view.
+  assert.doesNotMatch(s, /rd-month-cards|data-testid="month-card"/);
+  assert.match(s, /SWIPE SIDEWAYS FOR EVERY COLUMN/);
+  assert.match(s, /background: expanded && r\.event \? L_T\.highlight : 'transparent'/);
 });
 
-// ── B19: red means act ────────────────────────────────────────────────────
-test('B19: planned figures (interest, the dearest loan) are never drawn in alarm red', () => {
+// ── Original colours (UI revert 18 Oct 2026; B19 undone) ─────────────────
+test('Colours: interest and the dearest loan in red, the plan extra in accent, as before audit 80+ B19', () => {
   const home = src('components/home/LedgerHome.tsx');
-  assert.doesNotMatch(home, /l: 'INTEREST'[^}]*tone: L_T\.negative/);
+  assert.match(home, /l: 'INTEREST', v: interest\.v, s: interest\.s, tone: L_T\.negative/);
   const pos = src('components/home/OpenPositions.tsx');
-  assert.doesNotMatch(pos, /isDearest \? L_T\.negative/);
-  assert.doesNotMatch(pos, /isDearest \? lStrip\('negative'\)/);
+  assert.match(pos, /isDearest \? L_T\.negative/);
+  assert.match(pos, /isDearest \? lStrip\('negative'\)/);
+  assert.match(src('components/plan/PlanSchedule.tsx'), /textAlign: 'right', color: L_T\.accent, fontWeight: 700 \}\}>\s*\{r\.extra > 0/);
 });
 
 // ── E10 / E11 ─────────────────────────────────────────────────────────────
