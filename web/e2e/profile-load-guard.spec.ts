@@ -44,7 +44,12 @@ test('slow account load: the loans form waits, then fills, and a save does not w
   await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
   await expect(page.getByTestId('tab-conflict')).toHaveCount(0);
   expect(wiped).toEqual([]);
+  // Save returns to the summary and drops ?step=. Wait for that navigation
+  // before reloading, or the reload can reopen the editor from the old URL.
+  await page.waitForURL((u) => u.pathname === '/profile' && !u.searchParams.has('step'));
   await page.reload();
+  await expect(page.getByRole('row', { name: /Home loan/ })).toContainText('₹25,00,000');
+  await page.getByRole('link', { name: 'Edit Loans' }).click();
   await expect(page.getByLabel('Outstanding balance')).toHaveValue(/25,00,000|2500000/);
 });
 

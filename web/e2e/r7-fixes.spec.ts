@@ -48,7 +48,9 @@ test('R7-4/R7-5/R7-6: print view, Sell to repay rate, New debt score', async ({ 
   await expect(main.getByRole('button').first()).toBeVisible();
 
   // R7-5: Sell to repay's loan rate is checked as it's typed.
+  // A saved loan is used as-is; the rate box is the one behind EDIT.
   await page.goto('/tools/liquidate');
+  await page.getByRole('button', { name: 'EDIT', exact: true }).click();
   const rate = page.getByLabel('Its rate (%)');
   await expect(rate).toBeVisible();
   await rate.fill('99999999999999');
