@@ -93,7 +93,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
             ? 'EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT'
             : plan.debtBudgetChoice === 'min' || allSpare - required < 1
               ? 'EMIS AND MINIMUMS ONLY'
-              : 'ALL SPARE CASH',
+              : `${u.country === 'US' ? 'PAYMENTS' : 'EMIS'} + ALL SPARE CASH`,
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (

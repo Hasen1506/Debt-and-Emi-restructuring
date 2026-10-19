@@ -237,7 +237,8 @@ export async function continueToPlan(page: Page) {
  *  on the summary for the whole two minutes. So click until the part's own
  *  heading shows; what the test asserts afterwards is unchanged. */
 export async function openProfileSection(page: Page, section: string) {
-  const edit = page.getByRole('button', { name: `Edit ${section}`, exact: true });
+  const edit = page.getByRole('button', { name: `Edit ${section}`, exact: true })
+    .or(page.getByRole('link', { name: `Edit ${section}`, exact: true }));
   const opened = page.getByRole('heading', { level: 1, name: section, exact: true });
   await expect(edit.or(opened).first()).toBeVisible();
   await expect(async () => {

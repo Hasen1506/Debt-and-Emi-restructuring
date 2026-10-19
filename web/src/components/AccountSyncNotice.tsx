@@ -36,6 +36,7 @@ const SLICE_NAMES: Record<string, string> = {
   cash_events: 'spare-cash entries',
   monthly_spend: 'monthly spending',
   decisions: 'decisions',
+  cant_pay: 'what you typed on Can\'t pay',
   decision_log: 'the decision log',
 };
 

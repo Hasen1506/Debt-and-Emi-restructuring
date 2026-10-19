@@ -258,6 +258,14 @@ class Loan:
     debt_status: str = "normal"
     overdue_amount: Optional[Decimal] = None
     extra_ok: bool = False
+    # Who lent it, whether it is for a business, and when and for how much it
+    # was sanctioned. engine/prepayment_fee.py uses these to decide whether
+    # RBI sets the prepayment charge to 0. None = not given (a personal loan
+    # is the usual reading of a blank business answer).
+    lender_type: Optional[str] = None
+    business_purpose: Optional[bool] = None
+    sanction_year: Optional[int] = None
+    sanctioned_amount: Optional[Decimal] = None
 
     def __post_init__(self) -> None:
         # Principal counts in s.123 [80C] only for buying or building a house,

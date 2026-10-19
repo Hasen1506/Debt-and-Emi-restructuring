@@ -90,7 +90,7 @@ export function DebtBudgetControl({
                 if (choice !== 'all') save('all');
               }}
             >
-              All spare cash · {fmt(allSpare)}
+              {emiWord === 'EMI' ? 'EMIs' : 'Payments'} + all spare cash · {fmt(allSpare)}
             </LChip>
             {why('why-all', allSpareLine(figures, fmt))}
           </div>
@@ -141,7 +141,7 @@ export function DebtBudgetControl({
       )}
       <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
         {prompt
-          ? `Until you choose, the plan pays only your ${emiWord}s and minimums (${fmt(required)}) and puts nothing extra on any loan. All spare cash makes you debt-free soonest; a smaller total keeps the rest with you. You can change it any time under TO DEBTS on Plan.`
+          ? `Until you choose, the plan pays only your ${emiWord}s and minimums (${fmt(required)}) and puts nothing extra on any loan. ${emiWord === 'EMI' ? 'EMIs' : 'Payments'} + all spare cash makes you debt-free soonest; a smaller total keeps the rest with you. You can change it any time under TO DEBTS on Plan.`
           : `${currency === 'USD' ? 'Monthly payments' : 'EMIs'} and card minimums are ${fmt(required)} this month; the plan always pays those. Anything you don’t put on debts stays with you to save or spend.`}
         {!prompt &&
           (hasFundTarget

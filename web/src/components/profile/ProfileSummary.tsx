@@ -38,6 +38,10 @@ export const PROFILE_SECTIONS = [
   'Savings, banks and credit score',
 ] as const;
 
+/** `?step=` names, same order as PROFILE_SECTIONS. A link, so [EDIT] works
+ *  before the page's script has attached (a button's click was lost then). */
+const SECTION_STEP = ['you', 'tax', 'income', 'loans', 'savings'] as const;
+
 export function ProfileSummary({
   user,
   creditScore,
@@ -75,7 +79,7 @@ export function ProfileSummary({
     [user.prepay_hurdle, a?.ef_months, a?.ef_save_amount, a?.goal_buffer_pct].filter((v) => v != null && v !== '').length;
   const held = assets.reduce((s, a) => s.add(Number(a.current_market_value) > 0 ? a.current_market_value : 0), new Decimal(0));
   const edit = (n: number) => (
-    <LBracket accent onClick={() => onEdit(n)} label={`Edit ${PROFILE_SECTIONS[n]}`}>
+    <LBracket accent href={`/profile?step=${SECTION_STEP[n]}`} onClick={() => onEdit(n)} label={`Edit ${PROFILE_SECTIONS[n]}`}>
       EDIT
     </LBracket>
   );

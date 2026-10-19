@@ -52,7 +52,7 @@ export function SetupThisMonth({
         </div>
       ) : (
         <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-          {every} and card minimum. Nothing is left over for extra payments this month.
+          {every} and card minimum. Nothing extra goes on a loan this month.
         </div>
       );
   }

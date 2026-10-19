@@ -3,7 +3,7 @@
  * debts?" prompt and the TO DEBTS chip suggest says how it was arrived at,
  * in one line, from the figures the plan itself uses, so the sum matches:
  *
- *   All spare cash ₹X = take-home ₹A − costs ₹B − emergency fund ₹C
+ *   All spare cash ₹X = take-home ₹A − spending ₹B − emergency fund ₹C
  *                       [− goals ₹G] [− other set-asides ₹R]
  *   EMIs and minimums ₹Y = card minimum ₹10,000 [+ home loan EMI ₹…]
  *   Suggested ₹S = halfway between ₹Y and ₹X
@@ -60,10 +60,12 @@ export function debtBudgetFigures(plan: PlanSlice): DebtBudgetFigures {
   return { takeHome, costs, fund, goals, other, required, allSpare, suggested, minimums };
 }
 
-/** "₹98,646 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354
- *  (₹10,000 of EMIs and minimums + ₹88,646 extra)". */
+/** "₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354
+ *  (₹10,000 of EMIs and minimums + ₹88,646 extra)".
+ *  "Spending" is the same word as cash flow's spending figure. "Costs"
+ *  used to sit above a different number (spending + the amount due). */
 export function allSpareLine(f: DebtBudgetFigures, money: (v: number) => string): string {
-  const parts = [`take-home ${money(f.takeHome)}`, `costs ${money(f.costs)}`];
+  const parts = [`take-home ${money(f.takeHome)}`, `spending ${money(f.costs)}`];
   if (f.fund > 0) parts.push(`emergency fund ${money(f.fund)}`);
   if (f.goals > 0) parts.push(`goals ${money(f.goals)}`);
   let line = `${money(f.allSpare)} = ${parts.join(' − ')}`;
@@ -81,5 +83,5 @@ export function minimumsLine(f: DebtBudgetFigures, money: (v: number) => string,
 /** "Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and all spare cash ₹98,646". */
 export function suggestedLine(f: DebtBudgetFigures, money: (v: number) => string): string {
   if (f.suggested <= f.required) return `Suggested ${money(f.suggested)} = your EMIs and minimums; nothing is spare above them`;
-  return `Suggested ${money(f.suggested)} = halfway between EMIs and minimums ${money(f.required)} and all spare cash ${money(f.allSpare)}`;
+  return `Suggested ${money(f.suggested)} = halfway between EMIs and minimums ${money(f.required)} and EMIs + all spare cash ${money(f.allSpare)}`;
 }

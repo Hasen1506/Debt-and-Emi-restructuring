@@ -65,10 +65,11 @@ test('short month: schedule stops, what-if redraws the chart and table', async (
     await expect(main.locator('#schedule')).not.toContainText(dated);
     await expect(main.getByRole('heading', { level: 2 }).first()).not.toContainText(/^Debt-free:/);
     await expect(main).toContainText(/NOT FUNDABLE( AS IT STANDS)? FROM [A-Za-z]{3} \d{4}/);
-    const all = main.getByRole('button', { name: /ALL \d+ MONTHS/ });
-    const n = Number((await all.textContent())!.match(/ALL (\d+) MONTHS/)![1]);
+    const showing = main.getByTestId('schedule-showing');
+    await expect(showing).toContainText(/Showing \d+ of \d+ months/);
+    const n = Number((await showing.textContent())!.match(/of (\d+) months/)![1]);
     expect(n).toBeLessThanOrEqual(360);
-    await all.click();
+    await main.getByRole('button', { name: 'SHOW ALL', exact: true }).click();
     const text = (await main.locator('#schedule').innerText()) ?? '';
     expect(text).not.toMatch(huge);
     expect(text).not.toMatch(/2125/);

@@ -17,6 +17,7 @@
  * legal review" marker until counsel signs off (docs/FOUNDER-RECORDS.md).
  */
 import { useEffect, useState, type CSSProperties } from 'react';
+import { clearCantPay, readCantPayDraft, saveUs } from '@/lib/cant-pay-draft';
 import { LShell, LSectionHeader, LBracket, LField, L_T } from '@/components/ledger/primitives';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { formatCurrencyWhole, type LoanType } from '@/lib/api';
@@ -75,8 +76,8 @@ export function UsLetters() {
         <section aria-labelledby="usl-head">
           <h1 id="usl-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>US LETTERS: HARDSHIP, DISPUTES, DEBT COLLECTORS</h1>
           <p style={{ ...body, marginTop: 8 }}>
-            Federal rules for the USA, as letters you can send yourself. No sign-in needed; what you type stays in this
-            browser. Each one is a draft: read it against your statement before you send it.
+            Federal rules for the USA, as letters you can send yourself. The hardship letter stays on this device, and
+            in your account when you are signed in. Each one is a draft: read it against your statement before you send it.
           </p>
           <div role="radiogroup" aria-label="Which letter" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {KINDS.map((k) => (
@@ -104,6 +105,20 @@ export function UsLetters() {
 function Hardship() {
   const kinds = PUBLIC_LETTER_KINDS.US;
   const [type, setType] = useState<LoanType>('credit_card');
+  const [epoch, setEpoch] = useState(0);
+  useEffect(() => {
+    const saved = readCantPayDraft().us?.loanType as LoanType | undefined;
+    if (saved && kinds.some((k) => k.type === saved)) setType(saved);
+  }, [epoch, kinds]);
+  const chooseType = (next: LoanType) => {
+    setType(next);
+    saveUs({ loanType: next }, 'now');
+  };
+  const startOver = () => {
+    clearCantPay('us');
+    setType('credit_card');
+    setEpoch((n) => n + 1);
+  };
   const k = kinds.find((x) => x.type === type) ?? kinds[0];
   const line: Line = {
     key: k.type, label: k.label, loan_type: k.type, required: 0, ratePct: 0, floating: false, bank: '',
@@ -113,7 +128,12 @@ function Hardship() {
   return (
     <>
       <div data-testid="usl-hardship">
+        <p style={{ fontSize: 'var(--fs-body)', margin: '0 0 8px' }}>
+          <LBracket onClick={startOver}>START OVER</LBracket>
+          <span style={{ color: L_T.muted }}> Clears this letter. </span>
+        </p>
         <LetterSection
+          key={epoch}
           lines={[line]}
           name=""
           fc={fc}
@@ -122,7 +142,7 @@ function Hardship() {
           loanPicker={
             <label style={{ display: 'block', marginBottom: 10 }}>
               <span style={caption}>Kind of loan</span>
-              <select value={k.type} onChange={(e) => setType(e.target.value as LoanType)} data-testid="usl-hardship-kind">
+              <select value={k.type} onChange={(e) => chooseType(e.target.value as LoanType)} data-testid="usl-hardship-kind">
                 {kinds.map((x) => <option key={x.type} value={x.type}>{x.label}</option>)}
               </select>
             </label>

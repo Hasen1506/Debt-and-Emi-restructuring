@@ -22,8 +22,15 @@ export function parseWhatIfBox(
   if (mode === 'bps') {
     const s = t.replace(/\s|,/g, '').replace(/bps?$/i, '');
     if (!/^[+-]?\d+(\.\d+)?$/.test(s)) return { value: null, error: 'Type a whole number of basis points, like 50 or -25.', note: null };
-    n = Number(s);
-    if (step > 0) n = Math.round(n / step) * step;
+    // The slider still moves in `step`s. A typed amount stays exact: 30
+    // basis points is 0.30%, not silently 25 or 50.
+    void step;
+    const typed = Number(s);
+    n = Math.round(typed);
+    if (n !== typed) {
+      const clampedEarly = Math.min(max, Math.max(min, n));
+      return { value: clampedEarly, error: null, note: `Basis points are whole numbers: set to ${clampedEarly}.` };
+    }
   } else {
     const p = parseAmountText(t, currency);
     if (p.value === null) return { value: null, error: p.error, note: null };

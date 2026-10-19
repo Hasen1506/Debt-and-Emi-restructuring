@@ -357,7 +357,9 @@ export function WhatIfPanel({
   );
 
   // ₹100 steps. The typed box still takes an exact amount (it does not snap).
-  const surplusStep = 100;
+  // A drag is coarse. +/− and a typed amount stay exact (founder, 19 Oct 2026).
+  const surplusStep = 500;
+  const surplusNudge = 100;
   const lumpStep = lumpTargetCap > 0 && lumpTargetCap < 100 ? Math.min(1, lumpTargetCap) : 100;
 
   // Active goals + their saved totals — for the goal-impact line on the
@@ -411,13 +413,16 @@ export function WhatIfPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', borderTop: `2px solid ${L_T.ink}` }}>
+      <p data-testid="not-saved" style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>
+        Not saved. What you try here stays on this visit only.
+      </p>
       <AppliedChangeCard kinds={['lump_sum', 'spending_cut']} />
       <SliderRow
         country={user.country}
         title={'Spend less'}
         hint={
           fixedExpensesCap > 0
-            ? `Up to ${fmtUser(fixedExpensesCap)}, what you spend now. Move it, then choose every month or just this month.`
+            ? `Up to ${fmtUser(fixedExpensesCap)}, what you spend now. The slider moves in ${userCcy === 'USD' ? '$' : '₹'}500 steps; + and − change it by ${userCcy === 'USD' ? '$' : '₹'}100; a typed amount stays exact. Then choose every month or just this month.`
             : 'Add your monthly spending in Profile to try this.'
         }
         unit={spendOnce ? ' once' : '/mo'}
@@ -425,6 +430,7 @@ export function WhatIfPanel({
         min={0}
         max={fixedExpensesCap}
         step={surplusStep}
+        nudge={surplusNudge}
         value={surplusDelta}
         onChange={setSurplusDelta}
         formatValue={(v) => (v === 0 ? 'no change' : `+${fmtUser(v)}`)}
@@ -491,7 +497,7 @@ export function WhatIfPanel({
         title={'If floating rates change'}
         hint={
           hasFloating
-            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. The box counts basis points: 25 = 0.25%, 100 = 1%.'
+            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. Type any whole number of basis points (25 = 0.25%, 100 = 1%). The slider moves in steps of 5.'
             : 'None of your loans has a floating rate, so a rate change doesn’t move the plan.'
         }
         disabled={!hasFloating}
@@ -499,7 +505,7 @@ export function WhatIfPanel({
         currency={userCcy}
         min={-200}
         max={300}
-        step={25}
+        step={5}
         value={rateShockBps}
         onChange={setRateShockBps}
         formatValue={(v) =>
@@ -786,6 +792,7 @@ function SliderRow({
   min,
   max,
   step,
+  nudge,
   value,
   onChange,
   formatValue,
@@ -807,6 +814,8 @@ function SliderRow({
   min: number;
   max: number;
   step: number;
+  /** +/− buttons. The range still uses `step`. Omitted: no nudge buttons. */
+  nudge?: number;
   value: number;
   onChange: (v: number) => void;
   formatValue: (v: number) => string;
@@ -863,6 +872,12 @@ function SliderRow({
           placeholder="0"
           label={title}
         />
+        {nudge != null && !disabled && (
+          <>
+            <button type="button" className="l-hit" style={small} aria-label={`Decrease ${title} by ${nudge}`} onClick={() => onChange(Math.max(min, value - nudge))}>−</button>
+            <button type="button" className="l-hit" style={small} aria-label={`Increase ${title} by ${nudge}`} onClick={() => onChange(Math.min(max, value + nudge))}>+</button>
+          </>
+        )}
         {showMaxButton && !disabled && (
           <button type="button" onClick={() => onChange(max)} className="l-hit" style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
             MAX

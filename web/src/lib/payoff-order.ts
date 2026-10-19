@@ -13,11 +13,30 @@ import { LOAN_TYPE_NAME } from './loan-types';
 import type { StrategyName } from './strategy';
 import { applyRules, rulesOrDefault, parseRules } from './payoff-rules';
 
+/** Fee the ranker may use. Mirrors engine/prepayment_fee.py without the lender
+ *  catalogue, so this file stays out of the letters page's extra download. */
+function rankLoan<T extends UserPayload['loans'][number]>(loan: T, country: UserPayload['country']): T {
+  const market = loan.currency === 'USD' ? 'US' : loan.currency === 'INR' ? 'IN' : country;
+  const given = loan.lender_type as string | undefined;
+  const lender = given === 'commercial_bank' ? 'bank' : given;
+  const year = loan.sanction_year ?? 0;
+  const amt = Number(loan.sanctioned_amount);
+  const cap = lender === 'small_finance_bank' || lender === 'regional_rural_bank' || lender === 'hfc';
+  const barred = market === 'IN' && loan.rate_type === 'floating' && loan.loan_type !== 'credit_card' && lender !== 'other'
+    && (!loan.business_purpose || (year >= 2026 && (lender === 'bank' || (cap && amt <= 5_000_000))));
+  if (!barred) return loan;
+  const lock = year >= 2026 ? 0 : loan.prepay_lock_in_months;
+  const raw = (loan.prepayment_penalty_pct ?? '').trim();
+  if ((raw === '' || raw === '0') && lock === loan.prepay_lock_in_months) return loan;
+  return { ...loan, prepayment_penalty_pct: '0', prepay_lock_in_months: lock };
+}
+
 export function payoffOrders(user: UserPayload, marginalRate: string): Record<StrategyName, number[]> {
-  const idx = user.loans.flatMap((l, i) => (isOpenCurrentLoan(l) ? [i] : []));
+  const priced = { ...user, loans: user.loans.map((l) => rankLoan(l, user.country)) };
+  const idx = priced.loans.flatMap((l, i) => (isOpenCurrentLoan(l) ? [i] : []));
   // Avalanche and the rules' "by rate" fallback rank by the marginal cost
   // of the next payment (roadmap PR J), as the engine does.
-  const mcs = userMarginalCosts(user, marginalRate, idx);
+  const mcs = userMarginalCosts(priced, marginalRate, idx);
   const eff = new Map(idx.map((i) => [i, mcs.get(i)?.orderKey.toNumber() ?? 0]));
   const bal = (i: number) => Number(user.loans[i].outstanding);
   const byRate = (a: number, b: number) => (eff.get(b) ?? 0) - (eff.get(a) ?? 0);

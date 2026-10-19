@@ -68,7 +68,8 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: Schedule
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Revoking in the same turn cancels the download before the browser reads it.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 /** What happens in each month of the plan, by month. Glyphs:
@@ -276,14 +277,17 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             </LBracket>
             <LBracket onClick={() => window.print()}>PRINT</LBracket>
             <LBracket onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '↑ EVENTS ONLY' : `↓ ALL ${totalCount} MONTHS`}
+              {expanded ? 'EVENTS ONLY' : 'SHOW ALL'}
             </LBracket>
           </span>
         }
       >
-        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''} ·{' '}
-        {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''}
       </LSectionHeader>
+      <p data-testid="schedule-showing" style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6 }}>
+        Showing {expanded ? totalCount : eventRows.length} of {totalCount} months
+        {expanded ? '' : '. Show all for every month.'}
+      </p>
       {visibleRows.length === 0 ? (
         <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
           NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
@@ -358,7 +362,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             <tbody>
               {/* Where the plan starts: what each loan owes before this
                   month's payments. The rows below are what's paid. */}
-              <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
+              <tr data-month="0" data-balance={Math.round(owedNow)} style={{ borderBottom: `1px solid ${L_T.ink}` }}>
                 <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
                 <td data-testid="schedule-start-label" style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>
@@ -387,6 +391,8 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               {visibleRows.map((r) => (
                 <tr
                   key={r.mo}
+                  data-month={r.mo}
+                  data-balance={Math.round(r.balance)}
                   // UI revert 2 (18 Oct 2026): every event row is yellow, in the
                   // events view and the full view, on every width, as it was
                   // from R3.3 (4fb2d3b, 1 Oct) until UX50 B-16 (b37ddf4, 13 Oct).

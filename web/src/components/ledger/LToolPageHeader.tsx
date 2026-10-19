@@ -54,6 +54,9 @@ export function LToolPageHeader({
           date={today}
           question={question}
         />
+        <p data-testid="not-saved" style={{ margin: '-8px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+          Not saved. This calculator stays on this visit only.
+        </p>
         {children}
         <div style={{ marginTop: 18 }}>
           <ToolStrip user={user} title="Other tools" except={id} />

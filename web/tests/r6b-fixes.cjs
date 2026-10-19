@@ -58,6 +58,10 @@ test('R6B-2: what-if boxes use the shared amount parser with inline errors', () 
   assert.match(capped.note, /Kept within/);
   assert.equal(r.parseWhatIfBox('', 'integer', 'INR', 0, 1e7).value, 0);
   assert.equal(r.parseWhatIfBox('-25', 'bps', 'INR', -200, 200, 25).value, -25);
+  // A typed rate change stays exact. The slider step must not rewrite it.
+  assert.equal(r.parseWhatIfBox('30', 'bps', 'INR', -200, 300, 5).value, 30);
+  assert.equal(r.parseWhatIfBox('10', 'bps', 'INR', -200, 300, 25).value, 10);
+  assert.equal(r.parseWhatIfBox('30', 'bps', 'INR', -200, 300, 5).note, null);
   assert.match(r.parseWhatIfBox('5x', 'bps', 'INR', -200, 200, 25).error, /basis points/);
   const w = src('components/WhatIfPanel.tsx');
   assert.match(w, /parseWhatIfBox\(raw, mode, currency, min, max, step\)/);

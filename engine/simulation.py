@@ -514,6 +514,12 @@ def simulate_plan(
     included, is returned (engine/fee_order.py: every order up to 5 loans,
     greedy plus local swaps above). Ties keep the greedy plan."""
     from engine.fee_order import choose_order, has_fee_loan
+    from engine.prepayment_fee import apply_statutory_prepayment
+    # A floating-rate loan RBI bars a charge on is prepaid at 0, even when a
+    # fee was typed or imported. Done before the fee-aware order search, so
+    # a legally zero fee does not move which loan the extra goes to.
+    for ln in user.loans:
+        apply_statutory_prepayment(ln, user.country)
     if (strategy != Strategy.AVALANCHE or args or kwargs.get("minimums_only")
             or not has_fee_loan(user.loans)):
         return _simulate_plan(user, strategy, *args, **kwargs)

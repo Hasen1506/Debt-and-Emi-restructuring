@@ -9,7 +9,8 @@
  * hardship letter and, in India, a recovery-agent complaint. What to protect
  * first *with your own loans* still needs sign-in, and says so.
  *
- * Nothing typed here is sent or saved: the letters are built in the browser.
+ * What you type stays on this device and, when you are signed in, in the
+ * account. Nothing is sent to a lender. The letters are built in the browser.
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 import { LShell, LSectionHeader, LBracket, L_T } from '@/components/ledger/primitives';
@@ -19,6 +20,7 @@ import { TIER_REASON, TRIAGE_RULES, TRIAGE_VERIFIED_ON, US_COLLECTOR_RULE } from
 import { LetterSection, Rule, type Line } from './CantPay';
 import { AgentComplaintSection } from './AgentComplaint';
 import { UsLettersLink } from './UsLettersLink';
+import { clearCantPay, readCantPayDraft, saveIndia, saveUs } from '@/lib/cant-pay-draft';
 
 type C = 'IN' | 'US';
 
@@ -72,6 +74,22 @@ export function CantPayPublic() {
   const [country, setCountry] = useState<C>('IN');
   useEffect(() => setCountry(readCountryCookie()), []);
   const [kind, setKind] = useState<LoanType>('personal_loan');
+  const [epoch, setEpoch] = useState(0);
+  const isIN = country === 'IN';
+  useEffect(() => {
+    const saved = (isIN ? readCantPayDraft().in?.loanType : readCantPayDraft().us?.loanType) as LoanType | undefined;
+    if (saved) setKind(saved);
+  }, [epoch, isIN]);
+  const chooseKind = (next: LoanType) => {
+    setKind(next);
+    if (isIN) saveIndia({ loanType: next }, 'now');
+    else saveUs({ loanType: next }, 'now');
+  };
+  const startOver = () => {
+    clearCantPay(isIN ? 'in' : 'us');
+    setKind(isIN ? 'personal_loan' : 'credit_card');
+    setEpoch((n) => n + 1);
+  };
   const kinds = PUBLIC_LETTER_KINDS[country];
   const k = kinds.find((x) => x.type === kind) ?? kinds[0];
   const line: Line = {
@@ -90,7 +108,6 @@ export function CantPayPublic() {
   };
   const ccy = country === 'IN' ? 'INR' : 'USD';
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
-  const isIN = country === 'IN';
   const signIn = '/login?next=%2Fcant-pay';
   return (
     <LShell>
@@ -100,8 +117,12 @@ export function CantPayPublic() {
             CAN&apos;T PAY EVERYTHING THIS MONTH?
           </h1>
           <p style={{ fontSize: 'var(--fs-body)', lineHeight: 1.6, marginTop: 8 }}>
-            No sign-in needed. What to pay first, a letter to your lender and your rights. Nothing you type here is
-            sent or saved.
+            No sign-in needed. What to pay first, a letter to your lender and your rights. What you type stays on this
+            device, and in your account when you are signed in. Nothing is sent to a lender.
+          </p>
+          <p style={{ fontSize: 'var(--fs-body)', marginTop: 8 }}>
+            <LBracket onClick={startOver}>START OVER</LBracket>
+            <span style={{ color: L_T.muted }}> Clears what you typed for these rules.</span>
           </p>
           <div role="group" aria-label="Whose rules" style={{ display: 'flex', gap: 0, marginTop: 10 }}>
             <button type="button" aria-pressed={isIN} style={toggleStyle(isIN)} onClick={() => { setCountry('IN'); setKind('personal_loan'); }} data-testid="cp-country-in">India</button>
@@ -123,6 +144,7 @@ export function CantPayPublic() {
         </section>
 
         <LetterSection
+          key={`pub-${country}-${epoch}`}
           lines={[line]}
           name=""
           fc={fc}
@@ -131,7 +153,7 @@ export function CantPayPublic() {
           loanPicker={
             <label style={{ display: 'block', marginBottom: 10 }}>
               <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 }}>Kind of loan</span>
-              <select value={k.type} onChange={(e) => setKind(e.target.value as LoanType)} data-testid="cp-letter-kind">
+              <select value={k.type} onChange={(e) => chooseKind(e.target.value as LoanType)} data-testid="cp-letter-kind">
                 {kinds.map((x) => <option key={x.type} value={x.type}>{x.label}</option>)}
               </select>
             </label>
@@ -140,7 +162,7 @@ export function CantPayPublic() {
 
         {isIN ? (
           <>
-            <AgentComplaintSection step={3} />
+            <AgentComplaintSection key={`agent-${epoch}`} step={3} />
             <section aria-labelledby="cp-rights" data-testid="cp-rights">
               <LSectionHeader step={4}>
                 <span id="cp-rights">YOUR RIGHTS WITH RECOVERY AGENTS</span>

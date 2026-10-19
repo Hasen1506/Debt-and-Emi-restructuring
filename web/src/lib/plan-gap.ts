@@ -247,12 +247,10 @@ export function shortGapLine(args: ShortStoryArgs): string | null {
 }
 
 /**
- * The month the chart's x-axis ends on. Founder, 18 Oct 2026: the dashed
- * "paying only minimums" line is always shown whole, to the month it clears
- * (`minClear`), or to the engine's horizon when it never clears (the chart
- * says so), so both flows are seen side by side. It used to stop at the
- * plan's payoff (live re-test L#17), leaving a stub when a card plan clears
- * in 3 months and the minimums take years.
+ * The month the chart's x-axis ends on. Founder, 19 Oct 2026: end at the
+ * plan's payoff month. Running on to the minimums line left a long ₹0 tail
+ * after the stack was already paid off. The caption still names when paying
+ * only the minimums would clear, including when they never do.
  */
 export function chartEndMonth(args: {
   planClears: number | null;
@@ -268,12 +266,11 @@ export function chartEndMonth(args: {
   notFundableFrom?: number | null;
 }): number {
   const { planClears, minClear, lastMonth, growingGapFrom, notFundableFrom } = args;
+  void minClear;
   if (notFundableFrom != null) return Math.max(1, Math.min(lastMonth, notFundableFrom));
   if (!planClears && growingGapFrom) return Math.min(lastMonth, Math.max(24, growingGapFrom + 36));
   if (!planClears) return lastMonth;
-  // Minimums never clear: to the horizon, with the "never clear" note.
-  if (minClear == null) return lastMonth;
-  return Math.min(lastMonth, Math.max(planClears, minClear));
+  return Math.min(lastMonth, Math.max(1, planClears));
 }
 
 /**

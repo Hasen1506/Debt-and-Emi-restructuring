@@ -48,7 +48,7 @@ export type LoanType =
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
 /** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
-export type LenderType = 'bank' | 'small_finance_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
+export type LenderType = 'bank' | 'small_finance_bank' | 'regional_rural_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
 export type TaxRegimeIN = 'new' | 'old';
 export type FilingStatusUS = 'single' | 'mfj' | 'hoh' | 'mfs';   // C17: married filing separately
 

@@ -18,7 +18,7 @@
  * server blob stays grep-able and unambiguous.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onSignInPage, SESSION_CHANGED_EVENT } from './session-events';
 import { isGatedAppPath } from './app-routes';
@@ -58,6 +58,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   goal_contributions:{ kind: 'localStorage', name: 'rightdue_goal_contributions' },
   monthly_spend:     { kind: 'localStorage', name: 'rightdue_monthly_spend' },
   decisions:         { kind: 'localStorage', name: 'rightdue_decisions' },
+  cant_pay:          { kind: 'localStorage', name: 'rightdue_cant_pay' },
   ef_split:          { kind: 'cookie',       name: 'rightdue_ef_split' },
   debt_budget:       { kind: 'cookie',       name: 'rightdue_debt_budget' },
   low_rate_share:    { kind: 'cookie',       name: 'rightdue_low_rate_share' },  // audit 80+ A4
@@ -66,6 +67,36 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
 };
 
 export const HYDRATED_EVENT = 'rightdue:hydrated';
+/** The boot fetch of the account finished (with data, without data, or signed out). */
+export const ACCOUNT_SETTLED_EVENT = 'rightdue:account-settled';
+
+let accountSettled = process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true';
+
+/** True once this tab has finished loading the account, or there is no account. */
+export function isAccountSettled(): boolean {
+  return accountSettled;
+}
+
+function settleAccount(): void {
+  if (accountSettled) return;
+  accountSettled = true;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACCOUNT_SETTLED_EVENT));
+}
+
+/** The form waits on this before it can be saved over the account copy. */
+export function useAccountSettled(): boolean {
+  const [settled, setSettled] = useState(isAccountSettled);
+  useEffect(() => {
+    if (isAccountSettled()) {
+      setSettled(true);
+      return;
+    }
+    const on = () => setSettled(true);
+    window.addEventListener(ACCOUNT_SETTLED_EVENT, on);
+    return () => window.removeEventListener(ACCOUNT_SETTLED_EVENT, on);
+  }, []);
+  return settled;
+}
 const ACCOUNT_KEY = 'rightdue_account_id';
 let accountGeneration = 0;
 let localRevision = 0;
@@ -588,8 +619,15 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
     if (profile.creditScore != null) writeCookie('rightdue_score', String(profile.creditScore));
     else if (profile.creditScore === null) document.cookie = 'rightdue_score=; path=/; max-age=0';
   }
+  // A copy this browser has queued is newer than a fetch that started
+  // before that edit. Writing the fetch over it dropped a letter on refresh.
+  const pending = (() => {
+    const account = activeAccount();
+    return account ? pendingState(account) : {};
+  })();
   for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
     if (!(slice in data)) continue;
+    if (slice in pending) continue;
     let value = data[slice];
     if (value == null) continue;
     // Hybrid was retired for "Your rules" (roadmap PR E): an account saved
@@ -711,17 +749,25 @@ export function SessionHydrator(): null {
         if (cancelled || currentAttempt !== attempt) return;
         prepareAccountCache(user.id);
         const before = cookieSnapshot();
-        if (!await hydrateFromServer() || cancelled) return;
-        window.dispatchEvent(new Event(HYDRATED_EVENT));
-        // Render the page again only when the account copy changed a cookie
-        // the server reads. Refreshing every time drew each page twice
-        // (Plan's simulation too), and in WebKit the refresh cancelled a
-        // link followed in the meantime.
-        if (cookieSnapshot() !== before && !onSignInPage()) router.refresh();
+        const hydrated = await hydrateFromServer();
+        if (cancelled || currentAttempt !== attempt) return;
+        // The form may open before this returns. Settle only after the
+        // cookie has the account copy, so a save cannot replace it with
+        // the blank form this tab started with.
+        settleAccount();
+        if (hydrated) {
+          window.dispatchEvent(new Event(HYDRATED_EVENT));
+          // Render the page again only when the account copy changed a cookie
+          // the server reads. Refreshing every time drew each page twice
+          // (Plan's simulation too), and in WebKit the refresh cancelled a
+          // link followed in the meantime.
+          if (cookieSnapshot() !== before && !onSignInPage()) router.refresh();
+        }
       } catch (err) {
         // 401 (signed out): nothing to hydrate, but changes still queued for
         // the account that was signed in here are shown as such.
-        if (cancelled) return;
+        if (cancelled || currentAttempt !== attempt) return;
+        settleAccount();
         noteSignedOut();
         // D21: a definite "signed out" (not a network error) for a browser
         // that was caching an account: drop that account's copies.

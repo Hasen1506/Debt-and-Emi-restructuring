@@ -222,6 +222,7 @@ export function CreditReportImport({
             <input
               type="file"
               accept="application/pdf,.pdf"
+              aria-label="Credit report PDF"
               data-testid="cr-file"
               disabled={busy}
               onChange={(e) => onFile(e.target.files?.[0])}
@@ -358,6 +359,13 @@ export function CreditReportImport({
                     </span>
                   </span>
                 )}
+                {!a.is_open ? (
+                  <span data-testid="cr-closed">
+                    <strong>{f.lender?.value}</strong> · {a.loan_type ? TYPE_LABEL[a.loan_type] : f.account_type?.value ?? 'Account'}
+                    {f.account_number ? ` · ${f.account_number.value}` : ''}
+                    {' · '}Closed, nothing to add
+                  </span>
+                ) : (
                 <span>
                   <input
                     type="checkbox"
@@ -371,8 +379,8 @@ export function CreditReportImport({
                   />{' '}
                   <strong>{f.lender?.value}</strong> · {a.loan_type ? TYPE_LABEL[a.loan_type] : f.account_type?.value ?? 'Account'}
                   {f.account_number ? ` · ${f.account_number.value}` : ''}
-                  {!a.is_open ? ' · closed' : ''}
                 </span>
+                )}
                 <span className="muted" style={{ fontSize: 12 }}>
                   Balance {rupees(f.balance?.value)}
                   {f.emi ? ` · EMI ${rupees(f.emi.value)}` : ''}

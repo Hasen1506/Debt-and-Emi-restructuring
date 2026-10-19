@@ -34,6 +34,7 @@ import { loadProfileClient } from '@/lib/user-store';
 import { persistClientSlices, type ClientSliceWrite } from '@/lib/persist-client-slices';
 import { TEMPLATE_CATALOGUE, expandTemplate, type TemplateKind } from '@/lib/life-templates';
 import { localIsoDate } from '@/lib/today';
+import { HYDRATED_EVENT } from '@/lib/server-sync';
 import { useWidth } from '@/lib/use-width';
 import type { AmountCurrency } from '@/lib/amount';
 import { LBracket, LKpi, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
@@ -85,6 +86,18 @@ export function GoalsPage({
   const indicativeRate = Number(lowestRates.personal?.low) || (user.country === 'IN' ? 0.12 : 0.1);
   const indicativeBank = lowestRates.personal?.bank ?? null;
 
+  const goalsRef = useRef(goals);
+  goalsRef.current = goals;
+  const contributionsRef = useRef(contributions);
+  contributionsRef.current = contributions;
+
+  function adoptStoredGoals(g: Goal[]) {
+    setGoals(g);
+    setContributions(readContributionsClient());
+    // The account copy arrived after the empty form was painted.
+    if (g.length > 0) setForm((f) => (f?.mode === 'edit' ? f : null));
+  }
+
   useEffect(() => {
     const g = readGoalsClient();
     setGoals(g);
@@ -92,6 +105,14 @@ export function GoalsPage({
     setLoaded(true);
     // No goals yet: the form is the page (already open from the server).
     if (g.length > 0) setForm(null);
+    // A second device's goals land in localStorage after this read. Pick them up.
+    const onHydrated = () => {
+      const next = readGoalsClient();
+      if (JSON.stringify(next) === JSON.stringify(goalsRef.current)) return;
+      adoptStoredGoals(next);
+    };
+    window.addEventListener(HYDRATED_EVENT, onHydrated);
+    return () => window.removeEventListener(HYDRATED_EVENT, onHydrated);
   }, []);
 
   const saved = useMemo(() => totalsByGoal(contributions), [contributions]);
@@ -105,9 +126,27 @@ export function GoalsPage({
     return out;
   }, [goals, saved, ctx]);
 
+  // The page itself writes fundingStartMonth once the plan is known. That is
+  // not another device. A save in the same moment used to be refused.
+  function goalsForSave(): Goal[] {
+    const stored = readGoalsClient();
+    const current = goalsRef.current;
+    if (JSON.stringify(stored) === JSON.stringify(current)) return current;
+    const onlyDefer = stored.length === current.length && stored.every((g, i) => {
+      const c = current[i];
+      if (!c || g.id !== c.id) return false;
+      const { fundingStartMonth: storedStart, ...storedRest } = g;
+      const { fundingStartMonth: currentStart, ...currentRest } = c;
+      return JSON.stringify(storedRest) === JSON.stringify(currentRest) && storedStart !== currentStart;
+    });
+    if (!onlyDefer) throw new Error('Your goals changed elsewhere. Reload before saving.');
+    goalsRef.current = stored;
+    return stored;
+  }
+
   function updateGoals(next: Goal[]) {
     try {
-      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals)) throw new Error('Your goals changed elsewhere. Reload before saving.');
+      goalsForSave();
       writeGoalsClient(next); setGoals(readGoalsClient()); setError(''); return true;
     }
     catch (e) { setError((e as Error).message); return false; }
@@ -142,7 +181,8 @@ export function GoalsPage({
 
   function saveGoalChoice(next: Goal[], draft: Omit<DecisionEntry,'id'|'at'|'reverted'>, initialContributions?: GoalContributionEntry[]): boolean {
     try {
-      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals) || (initialContributions && JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions)))
+      goalsForSave();
+      if (initialContributions && JSON.stringify(readContributionsClient()) !== JSON.stringify(contributionsRef.current))
         throw new Error('Your goals changed elsewhere. Reload before saving.');
       const goalWrite = goalSliceWrite(next);
       const normalized = goalWrite.value as Goal[];
@@ -160,15 +200,16 @@ export function GoalsPage({
   }
 
   function saveDraft({ goal, alreadySaved }: GoalDraft) {
-    const before = goals.find(g => g.id === goal.id);
+    const base = goalsRef.current;
+    const before = base.find(g => g.id === goal.id);
     if (before) {
-      if (!saveGoalChoice(goals.map(g => g.id === goal.id ? goal : g), {
+      if (!saveGoalChoice(base.map(g => g.id === goal.id ? goal : g), {
         kind:'goal_edited',label:`Changed goal: ${goal.label}`,snapshot:{goal:before},result:{goalId:goal.id},impactDeltaMonths:null,
       })) return;
     } else {
       const g = {...goal,createdAt:new Date().toISOString(),status:'active' as const};
-      const initial = alreadySaved > 0 ? addContribution(contributions,{goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'}) : undefined;
-      if (!saveGoalChoice([...goals,g], {
+      const initial = alreadySaved > 0 ? addContribution(contributionsRef.current,{goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'}) : undefined;
+      if (!saveGoalChoice([...base,g], {
         kind:'goal_added',label:`Added goal: ${g.label}`,snapshot:{goalCount:goals.length},result:{goalCount:goals.length+1,kind:g.kind,goalId:g.id},impactDeltaMonths:null,
       },initial)) return;
     }

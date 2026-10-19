@@ -230,6 +230,11 @@ class LoanIn(_In):
     rate_drift_annualized: SignedRate = D("0")
     # True-APR restructuring triggers — see engine/models.py:Loan docstring.
     prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
+    # RBI prepayment rule (engine/prepayment_fee.py). Omitted = not given.
+    lender_type: Optional[str] = None
+    business_purpose: Optional[bool] = None
+    sanction_year: Optional[int] = Field(None, ge=1990, le=2100)
+    sanctioned_amount: Optional[Amount] = None
     prepay_lock_in_months: Months = 0
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     # Lender's minimum part-payment (grill #30); extra below it is set aside.
@@ -427,6 +432,8 @@ class LoanIn(_In):
         # reducing) stays consistent. No-op for the default "reducing"
         # case which covers all bank quotes.
         effective_rate, _ = self.reducing_rate()
+        from engine.prepayment_fee import fee_lender_from_bank
+        lender = (self.lender_type or None) or fee_lender_from_bank(self.bank)
         return Loan(
             loan_type=self.loan_type, bank=self.bank,
             nominal_rate=effective_rate, rate_type=self.rate_type,
@@ -442,6 +449,10 @@ class LoanIn(_In):
             next_reset_month=self.next_reset_month,
             rate_drift_annualized=self.rate_drift_annualized,
             prepayment_penalty_pct=self.prepayment_penalty_pct,
+            lender_type=lender,
+            business_purpose=self.business_purpose,
+            sanction_year=self.sanction_year,
+            sanctioned_amount=self.sanctioned_amount,
             prepay_lock_in_months=self.lock_in_months_left(),
             min_prepay_amount=self.min_prepay_amount,
             part_payment_freq_months=self.part_payment_freq_months,

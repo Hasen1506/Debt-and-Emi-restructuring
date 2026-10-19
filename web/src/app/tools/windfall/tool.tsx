@@ -9,7 +9,8 @@
  *   split) up to its gap; the rest goes where the engine says, loan after
  *   loan in the plan's payoff order, or to an investment when that beats
  *   every loan. Goals get nothing here: paying debt first is the plan.
- *   MY SPLIT: every slider moves; the pool caps them.
+ *   Sliders move without a mode switch. The cushion takes the difference.
+ *   ENGINE PICK puts the best split back.
  *
  * Each debt slider shows what its amount alone does to the debt-free
  * date; the KPIs run the plan once with the whole split.
@@ -33,11 +34,13 @@ import { rollBalancesForward } from '@/lib/roll-forward';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
 import { countryMonthKey } from '@/lib/today';
 import { readEfSplitClient } from '@/lib/ef-split';
+import { effectivePrepaymentPct } from '@/lib/prepayment-fee';
 import { allocateCash, type CashFunding } from '@/lib/cash-allocation';
 import { commitCashChange } from '@/lib/commit-cash-change';
 import { readCashEventsClient } from '@/lib/cash-events';
 import { addActivityEntry, readActivityClient } from '@/lib/activity';
 import { loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { rebalanceCushion } from '@/lib/windfall-split';
 import { getCountryToday, localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
 import { loanLabel } from '@/lib/loan-types';
 import { cashCushion, checkReceivedDate, fundFirst, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
@@ -215,7 +218,7 @@ export function WindfallTool({
     for (const { l, i } of loans) {
       const fx = loanToUser(1, l, country, planUser.fx_to_user_currency);
       if (fx == null) continue;
-      const feePct = Number(l.prepayment_penalty_pct || 0);
+      const feePct = Number(effectivePrepaymentPct(l, country) || 0);
       const owedL = (l.id ? owedLoans.find((o) => o.id === l.id) : owedLoans[i]) ?? l;
       const cap = (Math.min(Number(l.outstanding), Number(owedL.outstanding)) * fx) / (feePct < 1 ? 1 - feePct : 1);
       out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l), ...(l.debt_status === 'collections' ? { collections: true } : {}) });
@@ -322,12 +325,18 @@ export function WindfallTool({
 
   function setItem(t: Target, v: number) {
     setApplied(null);
-    setManual((prev) => {
-      const others = sum(prev) - (prev[t.key] ?? 0);
-      const cap = Math.min(t.cap, Math.max(0, total - others));
-      const nv = Math.max(0, Math.min(Math.round(v * 100) / 100, cap));
-      return { ...prev, [t.key]: nv };
-    });
+    const fromEngine = mode === 'engine';
+    if (fromEngine) setMode('manual');
+    const cushion = targets.find((x) => x.key === 'ef') ?? null;
+    setManual((prev) => rebalanceCushion(
+      fromEngine ? { ...engineAlloc } : prev,
+      t.key,
+      v,
+      t.cap,
+      total,
+      cushion && t.key !== 'ef' ? 'ef' : null,
+      cushion?.cap ?? 0,
+    ));
   }
   function goManual() {
     setManual({ ...engineAlloc });
@@ -458,7 +467,7 @@ export function WindfallTool({
         if (!loan) throw new Error(`${t.label} is no longer in your profile. Reload and try again.`);
         if (Number(currentLoans[index].outstanding) <= 0 || block(currentLoans[index])) throw new Error(`${t.label} is no longer available for prepayment. Reload and try again.`);
         const currentFx = loanToUser(1, currentLoans[index], country, stored.user.fx_to_user_currency);
-        if (currentFx !== t.fx || Number(currentLoans[index].prepayment_penalty_pct || 0) !== t.feePct)
+        if (currentFx !== t.fx || Number(effectivePrepaymentPct(currentLoans[index], country) || 0) !== t.feePct)
           throw new Error('The exchange rate or prepayment terms changed. Check the split again.');
         const fee = feeOf(t, v);
         const principal = new Decimal(v).minus(fee).div(t.fx!);
@@ -664,8 +673,8 @@ export function WindfallTool({
           </div>
           <p style={{ margin: '0 0 14px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
             {mode === 'engine'
-              ? 'The engine sets each slider: the emergency fund its share, the loans in your payoff order, then the rest of the fund. Choose MY SPLIT to move any of them.'
-              : `Move any slider. Together they stop at ${fmt(total)}. ENGINE PICK puts the best split back.`}
+              ? 'The engine sets each slider: the emergency fund its share, the loans in your payoff order, then the rest of the fund. Move any slider — the cushion takes the difference. ENGINE PICK puts this split back.'
+              : `Move any slider. The cushion takes the difference, and together they stop at ${fmt(total)}. ENGINE PICK puts the best split back.`}
           </p>
           {Number(planUser.efund_target || 0) <= 0 && cushionOffer > 0 && (
             <label data-testid="wf-cushion" style={{ display: 'flex', gap: 8, alignItems: 'baseline', margin: '-6px 0 14px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
@@ -730,7 +739,7 @@ export function WindfallTool({
                       value={v}
                       total={total}
                       step={0.01}
-                      disabled={mode === 'engine' || !!t.blocked}
+                      disabled={!!t.blocked}
                       onChange={(x) => setItem(t, x)}
                       badge={badge}
                       badgeTone={tone}

@@ -2,8 +2,9 @@
 
 /**
  * "I can't pay this month" (sprint L4; critique #3, add #2). Reached from
- * Home's "Feeling overwhelmed?" soft view. Reads the saved profile only;
- * nothing is sent anywhere and nothing is saved.
+ * Home's "Feeling overwhelmed?" soft view. Reads the saved profile. What you
+ * type is kept on this device and, when you are signed in, in the account.
+ * Nothing is sent to a lender.
  *
  * 1. What to protect first, filled from the money the user says they have.
  * 2. What a missed payment costs (lib/distress-triage missedPaymentCost).
@@ -15,7 +16,7 @@
  * (sprint L2: TenureWhatIf.tsx, engine/tenure_whatif.py, engine/gap_debt.py);
  * this page links there instead of repeating them.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -55,6 +56,8 @@ import { AgentComplaintSection } from './AgentComplaint';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { UsLettersLink } from './UsLettersLink';
 import { emiOffTakeHome } from '@/lib/loan-status-core';
+import { clearCantPay, readCantPayDraft, saveIndia, saveUs, type LetterDraft } from '@/lib/cant-pay-draft';
+import { HYDRATED_EVENT } from '@/lib/server-sync';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));
@@ -149,14 +152,34 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
   // user's own edit is never overwritten.
   const [availableText, setAvailableText] = useState('');
   const [availableTouched, setAvailableTouched] = useState(false);
+  const [epoch, setEpoch] = useState(0);
+  const isIN = country === 'IN';
   const fromProfile = profile.isLive && leftBeforeEmis > 0 ? groupIN(String(Math.round(leftBeforeEmis))) : '';
   useEffect(() => {
     if (!availableTouched) setAvailableText(fromProfile);
   }, [fromProfile, availableTouched]);
+  useEffect(() => {
+    const saved = (isIN ? readCantPayDraft().in?.available : readCantPayDraft().us?.available) ?? '';
+    if (saved) {
+      setAvailableText(saved);
+      setAvailableTouched(true);
+    }
+  }, [epoch, isIN]);
+  const keepAvailable = (v: string) => {
+    setAvailableTouched(true);
+    setAvailableText(v);
+    if (isIN) saveIndia({ available: v });
+    else saveUs({ available: v });
+  };
+  const startOver = () => {
+    clearCantPay(isIN ? 'in' : 'us');
+    setAvailableText('');
+    setAvailableTouched(false);
+    setEpoch((n) => n + 1);
+  };
   const hasAvailable = availableText.trim() !== '';
   const available = num(availableText);
   const order = useMemo(() => protectOrder(lines, available), [lines, available]);
-  const isIN = country === 'IN';
 
   // A17/B3: signed out (no saved profile) the page is public: the rules and
   // a blank letter, never the demo profile's loans.
@@ -171,7 +194,11 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
           </h1>
           <p style={{ fontSize: 12, color: L_T.muted, lineHeight: 1.7, marginTop: 8 }}>
             One step at a time. First, what to keep paying. Then what a missed payment costs, a letter to your lender,
-            and your rights. Nothing here is sent or saved.
+            and your rights. What you type stays on this device, and in your account when you are signed in. Nothing is sent to a lender.
+          </p>
+          <p style={{ fontSize: 12, marginTop: 8 }}>
+            <LBracket onClick={startOver}>START OVER</LBracket>
+            <span style={{ color: L_T.muted }}> Clears what you typed on this page. Your loans and your plan stay as they are.</span>
           </p>
         </section>
 
@@ -189,8 +216,15 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
                 <LField
                   label="Money you have for loan payments this month"
                   value={availableText}
-                  onChange={(v) => { setAvailableTouched(true); setAvailableText(v); }}
-                  onBlur={() => setAvailableText((v) => groupIN(v))}
+                  onChange={keepAvailable}
+                  onBlur={() => {
+                    setAvailableText((v) => {
+                      const grouped = groupIN(v);
+                      if (isIN) saveIndia({ available: grouped }, 'now');
+                      else saveUs({ available: grouped }, 'now');
+                      return grouped;
+                    });
+                  }}
                   inputMode="decimal"
                   prefix={ccy === 'INR' ? '₹' : '$'}
                   testId="cp-available"
@@ -256,8 +290,8 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
           )}
         </section>
 
-        {isIN && <MissCostSection lines={order} fc={fc} />}
-        <LetterSection lines={order} name={profile.user.display_name ?? ''} fc={fc} country={isIN ? 'IN' : 'US'} step={isIN ? 3 : 2} />
+        {isIN && <MissCostSection key={`cost-${epoch}`} lines={order} fc={fc} />}
+        <LetterSection key={`letter-${epoch}`} lines={order} name={profile.user.display_name ?? ''} fc={fc} country={isIN ? 'IN' : 'US'} step={isIN ? 3 : 2} />
 
         {!isIN && (
           <section aria-labelledby="cp-rights" data-testid="cp-rights">
@@ -269,7 +303,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
           </section>
         )}
         {isIN && (<>
-        <AgentComplaintSection name={profile.user.display_name ?? ''} lines={order} />
+        <AgentComplaintSection key={`agent-${epoch}`} name={profile.user.display_name ?? ''} lines={order} />
         <section aria-labelledby="cp-rights" data-testid="cp-rights">
           <LSectionHeader step={4}>
             <span id="cp-rights">YOUR RIGHTS WITH RECOVERY AGENTS</span>
@@ -334,6 +368,28 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
   const [penal, setPenal] = useState('');
   const [bounce, setBounce] = useState('');
   const [autoDebit, setAutoDebit] = useState(true);
+  const loaded = useRef(false);
+  const dirty = useRef(false);
+  useEffect(() => {
+    const apply = (saved: NonNullable<ReturnType<typeof readCantPayDraft>['in']>['cost']) => {
+      if (!saved) return;
+      if (saved.loanKey) setKey(saved.loanKey);
+      if (saved.months != null) setMonths(saved.months);
+      if (saved.penal != null) setPenal(saved.penal);
+      if (saved.bounce != null) setBounce(saved.bounce);
+      if (saved.autoDebit != null) setAutoDebit(saved.autoDebit);
+    };
+    apply(readCantPayDraft().in?.cost);
+    loaded.current = true;
+    const onHydrated = () => { if (!dirty.current) apply(readCantPayDraft().in?.cost); };
+    window.addEventListener(HYDRATED_EVENT, onHydrated);
+    return () => window.removeEventListener(HYDRATED_EVENT, onHydrated);
+  }, []);
+  const keepCost = (patch: NonNullable<ReturnType<typeof readCantPayDraft>['in']>['cost'], sync: 'soon' | 'now' = 'soon') => {
+    if (!loaded.current || !patch) return;
+    dirty.current = true;
+    saveIndia({ cost: patch }, sync);
+  };
   const pick = lines.find((l) => l.key === (key || defaultKey(lines))) ?? lines[0];
   if (!pick) return null;
   const isCard = pick.loan_type === 'credit_card';
@@ -357,7 +413,7 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
       </LSectionHeader>
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan to check</span>
-        <select value={pick.key} onChange={(e) => setKey(e.target.value)} style={selectStyle} data-testid="cp-cost-loan">
+        <select value={pick.key} onChange={(e) => { setKey(e.target.value); keepCost({ loanKey: e.target.value }, 'now'); }} style={selectStyle} data-testid="cp-cost-loan">
           {lines.map((l) => (
             <option key={l.key} value={l.key}>
               {l.label}
@@ -369,7 +425,8 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
         <LField
           label="Months unpaid"
           value={months}
-          onChange={setMonths}
+          onChange={(v) => { setMonths(v); keepCost({ months: v }); }}
+          onBlur={() => keepCost({ months: readCantPayDraft().in?.cost?.months ?? months }, 'now')}
           inputMode="numeric"
           error={m.error}
           hint={`0 to ${MAX_MONTHS_UNPAID}. One missed EMI each month.`}
@@ -378,7 +435,8 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
         <LField
           label={isCard ? 'Late payment fee (from your statement)' : 'Penal charge (from your KFS)'}
           value={penal}
-          onChange={setPenal}
+          onChange={(v) => { setPenal(v); keepCost({ penal: v }); }}
+          onBlur={() => keepCost({ penal: readCantPayDraft().in?.cost?.penal ?? penal }, 'now')}
           inputMode="decimal"
           error={p.error}
           placeholder="check your KFS"
@@ -386,14 +444,15 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
         <LField
           label="Bounce / NACH return charge"
           value={bounce}
-          onChange={setBounce}
+          onChange={(v) => { setBounce(v); keepCost({ bounce: v }); }}
+          onBlur={() => keepCost({ bounce: readCantPayDraft().in?.cost?.bounce ?? bounce }, 'now')}
           inputMode="decimal"
           error={b.error}
           placeholder="see bank's charges"
         />
       </div>
       <label className="l-check-row" style={{ fontSize: 12, marginTop: 6 }}>
-        <input type="checkbox" checked={autoDebit} onChange={(e) => setAutoDebit(e.target.checked)} />
+        <input type="checkbox" checked={autoDebit} onChange={(e) => { setAutoDebit(e.target.checked); keepCost({ autoDebit: e.target.checked }, 'now'); }} />
         <span>Paid by auto-debit (NACH / mandate)</span>
       </label>
       {valid && n === 0 ? (
@@ -452,14 +511,67 @@ export function LetterSection({
   const [asks, setAsks] = useState<HardshipAsk[]>(['pause', 'longer_tenure']);
   const [edited, setEdited] = useState<string | null>(null);
   const [said, setSaid] = useState('');
+  // The server HTML must not include today's date: the browser clock and the
+  // server clock can differ, and a keystroke into that HTML never reaches
+  // this state. The fields appear once this effect has run.
+  const [ready, setReady] = useState(false);
+  const scope = country === 'US' ? 'us' : 'in';
+  const dirty = useRef(false);
+  const rootRef = useRef<HTMLElement>(null);
+  const letterRef = useRef<LetterDraft>({});
+  const readLetter = () => (scope === 'us' ? readCantPayDraft().us?.letter : readCantPayDraft().in?.letter) ?? {};
+  const writeLetter = (letter: LetterDraft, sync: 'soon' | 'now' = 'soon') => {
+    if (scope === 'us') saveUs({ letter }, sync);
+    else saveIndia({ letter }, sync);
+  };
+  letterRef.current = {
+    loanKey: key, lender: lenderText ?? undefined, name: nameText, reason,
+    canPay: canPayText ?? undefined, account: accountRef, asks, edited: edited ?? undefined,
+  };
+  const commit = (partial: Partial<LetterDraft>, sync: 'soon' | 'now' = 'soon') => {
+    dirty.current = true;
+    const next = { ...letterRef.current, ...partial };
+    letterRef.current = next;
+    writeLetter(next, sync);
+  };
+  const applyLetter = (saved: LetterDraft) => {
+    if (saved.loanKey) setKey(saved.loanKey);
+    if (saved.lender != null) setLenderText(saved.lender);
+    if (saved.name != null) setNameText(saved.name);
+    if (saved.reason != null) setReason(saved.reason);
+    if (saved.canPay != null) setCanPayText(saved.canPay);
+    if (saved.account != null) setAccountRef(saved.account);
+    if (saved.asks) setAsks(saved.asks);
+    setEdited(saved.edited ?? null);
+  };
+  useEffect(() => {
+    setReady(true);
+    // A keystroke that landed before this effect keeps what was typed.
+    if (!dirty.current) applyLetter(readLetter());
+    const onHydrated = () => { if (!dirty.current) applyLetter(readLetter()); };
+    window.addEventListener(HYDRATED_EVENT, onHydrated);
+    return () => window.removeEventListener(HYDRATED_EVENT, onHydrated);
+    // Once, then on the account copy. Edits go through commit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const pick = lines.find((l) => l.key === (key || defaultKey(lines))) ?? lines[0];
   if (!pick) return null;
+  if (!ready) {
+    return (
+      <section ref={rootRef} aria-labelledby="cp-letter" data-testid="cp-letter" aria-busy="true">
+        <LSectionHeader step={step}>
+          <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
+        </LSectionHeader>
+        <p style={{ ...captionStyle, letterSpacing: 0, fontFamily: 'inherit' }}>Loading the letter</p>
+      </section>
+    );
+  }
   // C-06: start from what section 1 says this loan gets: the part paid when
   // it is short, its EMI when covered. The user can change it.
   const suggested = pick.covered === 'full' ? pick.required : pick.pay;
   const canPay = canPayText ?? (suggested > 0 ? groupIN(String(Math.round(suggested))) : '');
   const lender = lenderText ?? pick.bank;
-  const today = formatMonthDate(getCountryToday('IN'), 'long', true);
+  const today = formatMonthDate(getCountryToday(country), 'long', true);
   const canPayNum = num(canPay);
   const draft = hardshipLetter({
     name: nameText.trim(),
@@ -475,7 +587,15 @@ export function LetterSection({
   });
   const letter = edited ?? draft;
   const subject = `Request for hardship relief on my ${pick.label}${accountRef.trim() ? `, account ${accountRef.trim()}` : ''}`;
-  const toggle = (a: HardshipAsk) => setAsks((s) => (s.includes(a) ? s.filter((x) => x !== a) : [...s, a]));
+  const toggle = (a: HardshipAsk) => {
+    const next = asks.includes(a) ? asks.filter((x) => x !== a) : [...asks, a];
+    setAsks(next);
+    commit({ asks: next }, 'now');
+  };
+  const resetDraft = () => {
+    setEdited(null);
+    commit({ edited: '' }, 'now');
+  };
   const canShare = typeof navigator !== 'undefined' && typeof (navigator as Navigator).share === 'function';
   const copy = async () => {
     try {
@@ -506,7 +626,7 @@ export function LetterSection({
   };
   const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(forSending(letter))}`;
   return (
-    <section aria-labelledby="cp-letter" data-testid="cp-letter">
+    <section ref={rootRef} aria-labelledby="cp-letter" data-testid="cp-letter" data-hydrated="1">
       <LSectionHeader step={step}>
         <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
       </LSectionHeader>
@@ -515,7 +635,7 @@ export function LetterSection({
       {loanPicker ?? (
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan for the letter</span>
-        <select value={pick.key} onChange={(e) => { setKey(e.target.value); setLenderText(null); setCanPayText(null); }} style={selectStyle} data-testid="cp-letter-loan">
+        <select value={pick.key} onChange={(e) => { setKey(e.target.value); setLenderText(null); setCanPayText(null); commit({ loanKey: e.target.value, lender: '', canPay: '' }, 'now'); }} style={selectStyle} data-testid="cp-letter-loan">
           {lines.map((l) => (
             <option key={l.key} value={l.key}>
               {l.label}
@@ -525,26 +645,30 @@ export function LetterSection({
       </label>
       )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <LField label="Lender" value={lender} onChange={setLenderText} placeholder={country === 'US' ? 'e.g. Chase' : 'e.g. HDFC Bank'} />
-        <LField label="Your name" value={nameText} onChange={setNameText} placeholder="as on the loan" />
-        <LField label="Reason (short and true)" value={reason} onChange={setReason} />
+        <LField label="Lender" value={lender} onChange={(v) => { setLenderText(v); commit({ lender: v }); }} onBlur={() => commit({}, 'now')} placeholder={country === 'US' ? 'e.g. Chase' : 'e.g. HDFC Bank'} />
+        <LField label="Your name" value={nameText} onChange={(v) => { setNameText(v); commit({ name: v }); }} onBlur={() => commit({}, 'now')} placeholder="as on the loan" />
+        <LField label="Reason (short and true)" value={reason} onChange={(v) => { setReason(v); commit({ reason: v }); }} onBlur={() => commit({}, 'now')} />
         <LField
           label="You can pay a month"
           value={canPay}
-          onChange={setCanPayText}
-          onBlur={() => setCanPayText(groupIN(canPay))}
+          onChange={(v) => { setCanPayText(v); commit({ canPay: v }); }}
+          onBlur={() => {
+            const grouped = groupIN(letterRef.current.canPay ?? canPay);
+            setCanPayText(grouped);
+            commit({ canPay: grouped }, 'now');
+          }}
           inputMode="decimal"
           prefix={country === 'US' ? '$' : '₹'}
           placeholder=""
           testId="cp-canpay"
         />
-        <LField label="Loan account number" value={accountRef} onChange={setAccountRef} />
+        <LField label="Loan account number" value={accountRef} onChange={(v) => { setAccountRef(v); commit({ account: v }); }} onBlur={() => commit({}, 'now')} />
       </div>
       <fieldset style={{ border: 'none', padding: 0, margin: '8px 0', fontSize: 12 }}>
         <legend style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
         {(Object.keys(HARDSHIP_ASK_TEXT) as HardshipAsk[]).map((a) => (
           <label key={a} className="l-check-row">
-            <input type="checkbox" checked={asks.includes(a)} onChange={() => toggle(a)} />
+            <input type="checkbox" checked={asks.includes(a)} data-testid={`ask-${a}`} onChange={() => toggle(a)} />
             <span>{(country === 'US' ? US_ASK_TEXT : HARDSHIP_ASK_TEXT)[a]}</span>
           </label>
         ))}
@@ -556,14 +680,15 @@ export function LetterSection({
         id="cp-letter-text"
         data-testid="cp-letter-text"
         value={letter}
-        onChange={(e) => setEdited(e.target.value)}
+        onChange={(e) => { setEdited(e.target.value); commit({ edited: e.target.value }); }}
+        onBlur={() => commit({}, 'now')}
         rows={18}
         style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, padding: 10, border: `1px solid ${L_T.ink}`, borderRadius: 0, boxSizing: 'border-box' }}
       />
       {edited !== null && edited !== draft && (
         <p style={{ fontSize: 11, color: L_T.muted, margin: '4px 0 0' }}>
           You have edited the letter, so the fields above no longer change it.{' '}
-          <LBracket onClick={() => setEdited(null)}>RESET TO DRAFT</LBracket>
+          <LBracket onClick={resetDraft}>RESET TO DRAFT</LBracket>
         </p>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10 }} data-testid="cp-letter-actions">

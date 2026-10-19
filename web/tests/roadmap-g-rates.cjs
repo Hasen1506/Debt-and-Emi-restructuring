@@ -146,14 +146,18 @@ test('KFS review: every field marked from your KFS / worked out / you entered, e
   assert.ok(dropKfsFields(loan, { prepayment_penalty_pct: '0.05' }).includes('prepayment_penalty_pct'));
 });
 
-test('a KFS prepayment charge replaces the RBI default, and says where it came from', () => {
+test('a KFS prepayment charge does not override a forbidden charge, and is kept where a charge can apply', () => {
   const { feeShown } = lib('prepayment-fee.ts');
   const home = { loan_type: 'home_loan', rate_type: 'floating', prepayment_penalty_pct: '' };
   assert.equal(feeShown(home, 'IN').status, 'assumed');
+  // Floating-rate, not for a business: the circulars set the charge to 0 even if the KFS names one.
   const fromKfs = feeShown({ ...home, prepayment_penalty_pct: '0.02', kfs_fields: ['prepayment_penalty_pct'] }, 'IN');
-  assert.equal(fromKfs.status, 'kfs');
-  assert.match(fromKfs.hint, /Key Facts Statement/);
-  assert.equal(feeShown({ ...home, prepayment_penalty_pct: '0.02', kfs_fields: [] }, 'IN').status, 'entered');
+  assert.equal(fromKfs.status, 'assumed');
+  const fixed = { loan_type: 'personal_loan', rate_type: 'fixed', prepayment_penalty_pct: '0.02', kfs_fields: ['prepayment_penalty_pct'] };
+  const kept = feeShown(fixed, 'IN');
+  assert.equal(kept.status, 'kfs');
+  assert.match(kept.hint, /Key Facts Statement/);
+  assert.equal(feeShown({ ...fixed, kfs_fields: [] }, 'IN').status, 'entered');
 });
 
 test('wiring: the import never saves by itself; the market line sits beside the rate', () => {

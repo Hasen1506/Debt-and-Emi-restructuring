@@ -57,18 +57,23 @@ test('the form shows the default as "assumed" or "Not known", with its one-line 
   // A ₹ loan held by a US resident follows the Indian rule; a $ loan doesn't.
   assert.equal(feeShown({ ...home, currency: 'INR' }, 'US').status, 'assumed');
   assert.equal(feeShown({ ...home, currency: 'USD' }, 'IN').status, 'unknown');
-  assert.equal(feeShown({ ...home, prepayment_penalty_pct: '0.02' }, 'IN').status, 'entered');
+  // A typed figure on a floating-rate personal loan does not override the rule.
+  assert.equal(feeShown({ ...home, prepayment_penalty_pct: '0.02' }, 'IN').status, 'assumed');
+  assert.equal(feeShown({ loan_type: 'personal_loan', rate_type: 'fixed', prepayment_penalty_pct: '0.02' }, 'IN').status, 'entered');
   assert.match(RBI_PREPAYMENT_URL, /rbi\.org\.in\/Scripts\/NotificationUser\.aspx\?Id=12878/);
-  // Setup and Profile use it; a blank fee is not an error and the label says optional.
+  // The fee box lives under More options, and only where a charge can apply.
+  const box = src('components/profile/PrepaymentFeeFields.tsx');
+  assert.match(box, /label="Prepayment fee \(%\, optional\)"/);
+  assert.match(box, /placeholder=\{shown\.placeholder\}/);
+  assert.match(box, /RBI_ZERO_NOTE/);
+  assert.match(box, /askOpen && !barred/);
   const qs = src('components/setup/QuickSetup.tsx');
-  assert.match(qs, /label="Prepayment fee, % \(optional\)"/);
-  assert.match(qs, /placeholder=\{feeShown\(loan, country\)\.placeholder\}/);
+  assert.match(qs, /PrepaymentFeeFields/);
   assert.match(qs, /if \(fee && !/);
   const pc = profileSource();
-  assert.match(pc, /hint=\{feeShown\(l, country\)\.hint\}/);
+  assert.match(pc, /PrepaymentFeeFields/);
   assert.ok(!/frequently 2-4%/.test(pc), 'no made-up fee ranges in the help');
-  // The bank chip is never offered where RBI fixes the fee.
-  assert.match(pc, /feeShown\(l, country\)\.status === 'unknown' &&/);
+  assert.ok(!/frequently 2-4%/.test(box), 'no made-up fee ranges in the help');
 });
 
 test('"why this loan first": the engine\'s fee note reaches Home', () => {

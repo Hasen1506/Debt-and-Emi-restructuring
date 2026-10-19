@@ -208,15 +208,17 @@ def loan_marginal_cost(
     the loan's own fields (as of today); the simulation passes the values
     for the month it is in."""
     from engine.formulas import loan_market
+    from engine.prepayment_fee import chargeable_lock_in_months, chargeable_prepayment_pct
     india = loan_market(loan, country) == Country.IN
     card_gst = loan.loan_type == LoanType.CREDIT_CARD and india
+    lock = chargeable_lock_in_months(loan, country) if lock_in_months is None else lock_in_months
     return marginal_cost(
         loan.nominal_rate,
         card_gst,
         shield_fraction,
-        prepayment_fee_with_gst(loan.prepayment_penalty_pct or D("0"), india),
+        prepayment_fee_with_gst(chargeable_prepayment_pct(loan, country), india),
         loan.tenure_months_remaining if months_left is None else months_left,
-        loan.prepay_lock_in_months if lock_in_months is None else lock_in_months,
+        lock,
     )
 
 

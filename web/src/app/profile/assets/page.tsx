@@ -228,6 +228,11 @@ export default function OnboardingAssetsPage() {
                 />
                 I don't remember the exact purchase price
               </label>
+              {isApprox && (
+                <p data-testid="asset-approx-on" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                  Using the year and an approximate price. The ranker allows a wider error band.
+                </p>
+              )}
 
               {isApprox ? (
                 <>

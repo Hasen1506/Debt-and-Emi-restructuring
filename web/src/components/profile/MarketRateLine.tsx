@@ -10,7 +10,7 @@
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatINR } from '@/lib/api';
 import { loanMarket } from '@/lib/currency';
-import { feeShown } from '@/lib/prepayment-fee';
+import { effectivePrepaymentPct, feeShown } from '@/lib/prepayment-fee';
 import { bankLine, headline, marketFor, position, refinanceHint } from '@/lib/market-rates';
 
 export function MarketRateLine({ loan, country }: { loan: LoanPayload; country: Country }) {
@@ -26,7 +26,7 @@ export function MarketRateLine({ loan, country }: { loan: LoanPayload; country: 
           rate,
           outstanding: Number(loan.outstanding) || 0,
           monthsLeft: Number(loan.tenure_months_remaining) || 0,
-          prepaymentFee: Number(loan.prepayment_penalty_pct || 0) || 0,
+          prepaymentFee: Number(effectivePrepaymentPct(loan, country) || 0) || 0,
           feeKnown: fee.status !== 'unknown',
           gstOnFee: true,
         },
