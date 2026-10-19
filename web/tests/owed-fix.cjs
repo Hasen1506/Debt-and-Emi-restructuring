@@ -148,13 +148,13 @@ test('debt budget: each suggested figure says how it is made up, and the sum mat
   assert.equal(fig.allSpare, 98646);
   assert.equal(fig.required, 10000);
   assert.equal(fig.takeHome - fig.costs - fig.fund - fig.goals - fig.other, fig.allSpare, 'the terms add up exactly');
-  assert.equal(f.allSpareLine(fig, inr), '₹98,646 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354 (₹10,000 of EMIs and minimums + ₹88,646 extra)');
+  assert.equal(f.allSpareLine(fig, inr), '₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354 (₹10,000 of EMIs and minimums + ₹88,646 extra)');
   assert.equal(f.minimumsLine(fig, inr), '₹10,000 = Axis credit card minimum ₹10,000');
   assert.equal(f.suggestedLine(fig, inr), 'Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and all spare cash ₹98,646');
   // Anything else the engine holds back shows as its own term, so the sum still matches.
   const other = f.debtBudgetFigures({ ...plan, surplusAllocation: { ...plan.surplusAllocation, debtSlice: 80000 } });
   assert.equal(other.other, 8646);
-  assert.match(f.allSpareLine(other, inr), /^₹90,000 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354 − other set-asides ₹8,646/);
+  assert.match(f.allSpareLine(other, inr), /^₹90,000 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354 − other set-asides ₹8,646/);
 });
 
 test('debt budget: the prompt asks, with three choices, and labels the plan until then', () => {
@@ -167,7 +167,7 @@ test('debt budget: the prompt asks, with three choices, and labels the plan unti
   assert.match(html, /All spare cash · ₹98,646/);
   assert.match(html, /Set an amount/);
   assert.match(html, /Only EMIs and minimums · ₹10,000/);
-  assert.match(html, /₹98,646 = take-home ₹1,50,000 − costs ₹40,000 − emergency fund ₹11,354/);
+  assert.match(html, /₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354/);
   assert.match(src('components/plan/LedgerPlan.tsx'), /debtBudgetChoice === 'unset'/);
   assert.match(src('components/home/HomeDebtFree.tsx'), /debtBudgetChoice === 'unset'/);
   assert.match(src('components/plan/PlanAssumptions.tsx'), /EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);

@@ -491,7 +491,7 @@ export function WhatIfPanel({
         title={'If floating rates change'}
         hint={
           hasFloating
-            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. The box counts basis points: 25 = 0.25%, 100 = 1%.'
+            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. Type any whole number of basis points (25 = 0.25%, 100 = 1%). The slider moves in steps of 5.'
             : 'None of your loans has a floating rate, so a rate change doesn’t move the plan.'
         }
         disabled={!hasFloating}
@@ -499,7 +499,7 @@ export function WhatIfPanel({
         currency={userCcy}
         min={-200}
         max={300}
-        step={25}
+        step={5}
         value={rateShockBps}
         onChange={setRateShockBps}
         formatValue={(v) =>

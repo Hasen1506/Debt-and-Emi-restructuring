@@ -344,7 +344,9 @@ async function planDues(): Promise<number | undefined> {
 const planProfile = (plan: Awaited<ReturnType<typeof loadPlanOnce>>) => ({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
 
 export async function HomeCashFlow() {
-  return <CashFlow profile={planProfile(await loadPlanOnce())} dues={await planDues()} />;
+  const plan = await loadPlanOnce();
+  const pay = plan.live && plan.gaps.length === 0 ? payThisMonth(plan) : null;
+  return <CashFlow profile={planProfile(plan)} dues={pay?.duesUser} addsSpare={(pay?.extraUser ?? 0) >= 1} />;
 }
 
 export async function HomeDuesTotal() {

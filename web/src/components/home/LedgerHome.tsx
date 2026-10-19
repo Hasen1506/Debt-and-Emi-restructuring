@@ -4,7 +4,7 @@
  * Home — "what do I pay this month?" (REDESIGN R2).
  *
  * Top to bottom: one context line (the plan's settings; they're changed on
- * Plan), this month's cash flow (take-home − costs = left), the status
+ * Plan), this month's cash flow (take-home − spending − due = left), the status
  * figures, this month's payments, and the open loans. "Feeling
  * overwhelmed?" in the footer swaps all of it for one step.
  *
@@ -20,6 +20,7 @@ import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { cashFlowForMonth, deriveMetrics, monthlySpending, type DerivedMetrics } from '@/lib/derived';
+import { cashFlowLeftNote } from '@/lib/home-this-month';
 import { projectionGaps } from '@/lib/loan-gaps';
 import { dueVsAffordable } from '@/lib/plan-gap';
 import { dec } from '@/lib/safe-decimal';
@@ -237,11 +238,10 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
   );
 }
 
-/** Take-home − costs = left: the three numbers the month's plan comes from.
- *  UX2B-8: `dues` is the plan's month-1 EMIs and minimums (the card
- *  minimum on the average daily balance, the plan's exchange rate), so
- *  COSTS and LEFT match "This month" above them. */
-export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: number }) {
+/** Take-home − spending − due = left. `dues` is the plan's month-1 EMIs
+ *  and minimums, so SPEND + DUE matches "This month". `addsSpare` is true
+ *  only when Pay this month actually puts that spare on a loan. */
+export function CashFlow({ profile, dues, addsSpare = false }: { profile: StoredProfile; dues?: number; addsSpare?: boolean }) {
   const m = deriveMetrics(profile);
   const u = profile.user;
   const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
@@ -278,11 +278,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
       tone: noFx ? L_T.ink : left > 0 ? L_T.positive : left < 0 ? L_T.negative : L_T.ink,
       note: noFx
         ? 'Needs the exchange rate'
-        : left > 0
-          ? `Take-home ${fc(income)} − spending ${fc(spend)} − due ${fc(debts)}. Pay this month adds this ${fc(left)} (extra and set-aside) on top of the ${fc(debts)} due. It is not cash left after that payment.`
-          : left < 0
-            ? 'Spending and the amount due are more than take-home'
-            : 'Nothing spare this month',
+        : cashFlowLeftNote({ income, spend, due: debts, left, addsSpare, money: fc }),
     },
   ];
   return (

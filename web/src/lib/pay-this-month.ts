@@ -77,6 +77,8 @@ export interface PayThisMonth {
   duesUser: number;
   /** The user's own set monthly total for debts; 0 = not a set total (all spare cash, or EMIs and minimums only: plan.debtBudgetChoice). */
   budget: number;
+  /** Why `budget` is 0: all spare cash, EMIs only, or not chosen yet. */
+  budgetChoice?: 'unset' | 'all' | 'min' | 'set';
   /** Loans whose whole payment this month comes out of salary (not listed). */
   fromSalary: string[];
 }
@@ -191,7 +193,27 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   const unplaced = surplus - extraUser - ef - goals - tax - pots;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
-  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0), fromSalary: salaryOnly };
+  const budget = Number(plan.debtBudget || 0);
+  const budgetChoice = plan.debtBudgetChoice ?? (budget > 0 ? 'set' : 'all');
+  return { rows, total, leftOver, extraUser, duesUser, budget, budgetChoice, fromSalary: salaryOnly };
+}
+
+/** The line under Pay this month when some surplus is not paid to a loan.
+ *  A set total, a rate that loses to a safe return, and "EMIs only" are
+ *  three different reasons; the sentence names the one that applies. */
+export function leftOverLine(
+  data: { leftOver: number; budget: number; budgetChoice?: 'unset' | 'all' | 'min' | 'set' },
+  money: (n: number) => string,
+): string | null {
+  if (!(data.leftOver > 0)) return null;
+  const amt = money(Math.round(data.leftOver));
+  if (data.budget > 0 || data.budgetChoice === 'set') {
+    return `${amt} stays with you this month, outside your total for debts.`;
+  }
+  if (data.budgetChoice === 'all') {
+    return `${amt} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`;
+  }
+  return `${amt} is spare after the EMIs and minimums. It is not added on top until the monthly total for debts includes it.`;
 }
 
 /**

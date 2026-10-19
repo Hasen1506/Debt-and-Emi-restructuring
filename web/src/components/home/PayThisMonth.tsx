@@ -26,7 +26,7 @@ import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/us
 import { alignToLoans } from '@/lib/loan-ids';
 import { formatIso, formatMonth, localIsoDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
-import { owedAfterLabel, type PayRow, type PayThisMonth as PayData } from '@/lib/pay-this-month';
+import { leftOverLine, owedAfterLabel, type PayRow, type PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { owedNow } from '@/lib/owed-now';
 import { Field } from '@/components/ToolPrimitives';
 import { UpiPay } from './UpiPay';
@@ -602,10 +602,8 @@ export function PayThisMonth({
         </p>
       )}
       {data.leftOver > 0 && (
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
-          {data.budget > 0
-            ? `${fmt(data.leftOver)} stays with you this month, outside your total for debts.`
-            : `${fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`}
+        <p data-testid="pay-left-over" style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+          {leftOverLine(data, fmt)}
         </p>
       )}
       {cleared && cleared.loanIndex !== null && (

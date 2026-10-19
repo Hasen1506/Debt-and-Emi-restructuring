@@ -70,11 +70,46 @@ function homeThisMonthLineIn(
       link: 'GO TO PAYMENTS ↓',
     };
   }
+  const aside = setAside >= 1 ? `, and set aside ${money(setAside)}` : '';
+  // Spare cash can sit unused when the monthly total is still "EMIs and
+  // minimums only". That is not the same as having nothing left.
+  const spare = Math.round(data.leftOver || 0);
+  if (spare >= 1) {
+    const why = data.budgetChoice === 'all'
+      ? `${money(spare)} stays with you: no open loan costs more than a safe return.`
+      : `${money(spare)} is spare after the amount due and is not added on top.`;
+    return {
+      tone: 'ok',
+      text: `This month: pay every EMI and card minimum, ${money(dues)}${aside}. ${why}`,
+      link: 'GO TO PAYMENTS ↓',
+    };
+  }
   return {
     tone: 'ok',
-    text: `This month: pay every EMI and card minimum, ${money(dues)}${setAside >= 1 ? `, and set aside ${money(setAside)}` : ''}. Nothing is left over for extra payments.`,
+    text: `This month: pay every EMI and card minimum, ${money(dues)}${aside}. Nothing is spare above the EMIs and minimums.`,
     link: 'GO TO PAYMENTS ↓',
   };
+}
+
+/** Cash flow's LEFT caption. The arithmetic is always take-home − spending
+ *  − due. Whether Pay this month adds that spare on top depends on the
+ *  monthly total for debts, so the sentence must not claim it does when
+ *  the plan is still paying EMIs and minimums only. */
+export function cashFlowLeftNote(a: {
+  income: number;
+  spend: number;
+  due: number;
+  left: number;
+  addsSpare: boolean;
+  money: (n: number) => string;
+}): string {
+  const sum = `Take-home ${a.money(a.income)} − spending ${a.money(a.spend)} − due ${a.money(a.due)}`;
+  if (a.left < 0) return 'Spending and the amount due are more than take-home';
+  if (a.left === 0) return 'Nothing spare this month';
+  if (a.addsSpare) {
+    return `${sum}. Pay this month adds this ${a.money(a.left)} (extra and set-aside) on top of the ${a.money(a.due)} due. It is not cash left after that payment.`;
+  }
+  return `${sum}. This ${a.money(a.left)} is spare after the amount due. Pay this month does not add it on top while the monthly total for debts is only the EMIs and minimums.`;
 }
 
 /**
