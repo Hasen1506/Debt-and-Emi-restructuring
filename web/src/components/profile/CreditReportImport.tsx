@@ -166,7 +166,7 @@ export function CreditReportImport({
   if (!open) {
     return (
       <button type="button" className="btn-ghost" data-testid="cr-open" onClick={() => setOpen(true)}>
-        Import from your credit report (CIBIL, Experian, CRIF, Equifax) · beta
+        Import from your credit report (CIBIL, Experian, CRIF, Equifax)
       </button>
     );
   }
@@ -177,7 +177,7 @@ export function CreditReportImport({
       style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-        <strong>Fill from your credit report <span className="muted" style={{ fontSize: 11 }}>BETA · works with most CIBIL and Experian PDFs</span></strong>
+        <strong>Credit report PDF <span className="muted" style={{ fontSize: 11 }}>Works with most CIBIL and Experian PDFs. Check each loan before saving.</span></strong>
         <button type="button" className="btn-ghost" data-testid="cr-close" onClick={close}>
           Close
         </button>

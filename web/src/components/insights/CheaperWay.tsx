@@ -9,6 +9,7 @@
  */
 import { useState } from 'react';
 import { LBracket, LButton, LChip, LChipRow, L_T, LSectionHeader, lStrip } from '@/components/ledger/primitives';
+import { formatPct } from '@/lib/api';
 import { fetchConsolidation, type ConsolidationData, type ConsolidationScenario, type InsightsArgs } from '@/lib/insights';
 
 type Money = (v: number | string) => string;
@@ -42,7 +43,8 @@ export const CONSOLIDATION_EXPLAINER: { text: string; source?: { label: string; 
   { text: 'The trap: the card stays open. If it fills up again you owe the loan and the card. Keep using it only for what you clear in full each month.' },
 ];
 
-function pct(v: string | number, dp = 1): string {
+function pct(v: string | number, dp = 2): string {
+  if (dp === 2) return formatPct(v);
   return `${(Number(v) * 100).toFixed(dp)}%`;
 }
 

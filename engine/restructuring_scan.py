@@ -23,8 +23,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Callable, Literal, Optional
 
-from engine.marginal_cost import compounded, user_forward_rates
-from engine.formulas import emi
+from engine.marginal_cost import marginal_cost, user_forward_rates
+from engine.formulas import emi, loan_market
+from engine.tax.gst import GST_RATE_IN
 from engine.lenders import resolve as resolve_lender
 from engine.loan_check import _inr
 from engine.models import Country, IncomeType, Loan, LoanType, User
@@ -315,6 +316,27 @@ def _best_market_rate(
     return best_bank, best_rate
 
 
+def displayed_card_cost(card: Loan, card_effective: Decimal, country: Country) -> Decimal:
+    """The yearly cost Home shows for this card.
+
+    `card_effective` is `user_forward_rates`: nominal × (1 − shield) plus
+    GST on the nominal rate for an Indian card. Home's row is different:
+    interest compounded monthly, GST on that compounded interest (not itself
+    compounded), less the same shield. Compounding the forward rate treated
+    the GST as if it earned interest and did not match the row.
+    """
+    nominal = card.nominal_rate
+    gst_on = card.loan_type == LoanType.CREDIT_CARD and loan_market(card, country) == Country.IN
+    if nominal <= 0:
+        return card_effective
+    shield = D("1") + (GST_RATE_IN if gst_on else D("0")) - (card_effective / nominal)
+    if shield < 0:
+        shield = D("0")
+    elif shield > 1:
+        shield = D("1")
+    return marginal_cost(nominal, gst_on, shield, D("0"), 0).annual_cost
+
+
 def _fmt_pct(d: Decimal) -> str:
     return f"{(d * D('100')):.2f}%"
 
@@ -385,10 +407,9 @@ def _scan_card_balance_transfer(
     bt_cost = fee_pct * card.outstanding
     bt_breakeven = _breakeven_months(bt_cost, (card_effective - promo_rate) * card.outstanding)
     card_name = f"{card.bank} card" if card.bank else "card"
-    # The card's rate as its row on Home shows it: what it costs a year,
-    # compounded monthly (with GST on an Indian card). The saving above is
+    # The card's rate as its row on Home shows it. The saving above is
     # worked on the monthly charge, the balance held constant.
-    card_cost = compounded(card_effective)
+    card_cost = displayed_card_cost(card, card_effective, country)
 
     def title(o: RestructuringOpportunity) -> str:
         return (
@@ -400,9 +421,10 @@ def _scan_card_balance_transfer(
     rationale = (
         f"Card-to-card transfer. You'd pay roughly {_fmt_pct(cand.effective_bt_apr)} "
         f"on the new card during the {promo_months}-month promo period vs. "
-        f"{_fmt_pct(card_cost)} a year on your current card. Clear it before the "
-        f"promo ends — after that the rate snaps back to roughly "
-        f"{_fmt_pct(card_cost)} again. The new-card rate already accounts "
+        f"{_fmt_pct(card_cost)} a year on your current card, the same cost Home shows. "
+        f"Clear the balance before the promo ends. After that the new card charges "
+        f"its own regular rate, which this estimate does not know, so the comparison stops. "
+        f"The new-card rate already accounts "
         f"for the {_fmt_pct(fee_pct)} one-time transfer fee spread over the "
         f"promo months. This rate-comparison estimate holds today's balance constant; "
         f"paying the card down during the promo reduces the saving."

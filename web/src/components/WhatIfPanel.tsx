@@ -31,7 +31,7 @@ import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { owedNowLoans } from '@/lib/owed-now-core';
-import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
+import { countryMonthKey, formatMonthDate, monthIndexToCountryLabel } from '@/lib/today';
 import { addCommitment, readCommitmentsClient, removeCommitment, todayISO, writeCommitmentsClient, type CommitmentEntry } from '@/lib/commitments';
 import { isOpenGoal, readGoalsClient } from '@/lib/goals';
 import { readContributionsClient, totalsByGoal } from '@/lib/goal-contributions';
@@ -125,6 +125,9 @@ export function WhatIfPanel({
 
   // Surplus delta: ₹/month extra (positive = more cash to debts).
   const [surplusDelta, setSurplusDelta] = useState(0);
+  // Once the amount moves: every month (a spending cut) or just this month
+  // (the same money as a lump sum on the dearest loan). Hidden until then.
+  const [spendOnce, setSpendOnce] = useState(false);
   // Month from which the surplus delta kicks in (1-based). 1 = "starting now",
   // anything higher defers the cut. Drives surplus_delta_start_month.
   const [surplusStartMonth, setSurplusStartMonth] = useState(1);
@@ -297,18 +300,28 @@ export function WhatIfPanel({
   }
 
   useDebouncedScenario(
-    `${baseKey}|${surplusDelta}|${surplusStartMonth}`,
+    `${baseKey}|${surplusDelta}|${surplusStartMonth}|${spendOnce}|${defaultLoanIdx}`,
     setSurplus,
-    async (signal: AbortSignal) =>
-      surplusDelta === 0
-        ? null
-        : sharedSensitivity({
-            ...base,
-            horizon_months: HORIZON_MONTHS,
-            surplus_delta: String(surplusDelta),
-            spending_cut: true,
-            surplus_delta_start_month: surplusStartMonth,
-          }, signal),
+    async (signal: AbortSignal) => {
+      if (surplusDelta === 0) return null;
+      // A one-month cut is a lump sum of the same amount on the dearest open
+      // loan. The engine has no end month for a surplus change.
+      if (spendOnce && defaultLoanIdx >= 0) {
+        return sharedSensitivity({
+          ...base,
+          horizon_months: HORIZON_MONTHS,
+          lump_sum_amount: String(surplusDelta),
+          lump_sum_target_loan_index: defaultLoanIdx,
+        }, signal);
+      }
+      return sharedSensitivity({
+        ...base,
+        horizon_months: HORIZON_MONTHS,
+        surplus_delta: String(surplusDelta),
+        spending_cut: true,
+        surplus_delta_start_month: surplusStartMonth,
+      }, signal);
+    },
     surplusDelta !== 0,
   );
 
@@ -343,10 +356,9 @@ export function WhatIfPanel({
     lumpAmount !== 0 && lumpTarget >= 0,
   );
 
-  // Step size scales with the ceiling so the slider stays usable whether
-  // fixed expenses are ₹10k or ₹2L (1% rounded to the nearest 100/500/1000).
-  const surplusStep = roundStep(fixedExpensesCap / 50, 100);
-  const lumpStep = roundStep(lumpTargetCap / 100, 1_000);
+  // ₹100 steps. The typed box still takes an exact amount (it does not snap).
+  const surplusStep = 100;
+  const lumpStep = lumpTargetCap > 0 && lumpTargetCap < 100 ? Math.min(1, lumpTargetCap) : 100;
 
   // Active goals + their saved totals — for the goal-impact line on the
   // surplus slider. Read once at mount; the surplus delta itself drives
@@ -402,13 +414,13 @@ export function WhatIfPanel({
       <AppliedChangeCard kinds={['lump_sum', 'spending_cut']} />
       <SliderRow
         country={user.country}
-        title={'Spend less each month'}
+        title={'Spend less'}
         hint={
           fixedExpensesCap > 0
-            ? `Up to ${fmtUser(fixedExpensesCap)}, what you spend now. The cut goes to the plan's next loan.`
+            ? `Up to ${fmtUser(fixedExpensesCap)}, what you spend now. Move it, then choose every month or just this month.`
             : 'Add your monthly spending in Profile to try this.'
         }
-        unit="/mo"
+        unit={spendOnce ? ' once' : '/mo'}
         currency={userCcy}
         min={0}
         max={fixedExpensesCap}
@@ -431,24 +443,46 @@ export function WhatIfPanel({
         })()}
         disabled={fixedExpensesCap <= 0}
         extraControls={
+          surplusDelta > 0 ? (
           <>
-            <StartMonthPicker
-              value={surplusStartMonth}
-              onChange={setSurplusStartMonth}
-              disabled={fixedExpensesCap <= 0 || surplusDelta === 0}
-            />
-            <LockItInButton
-              disabled={surplusDelta <= 0 || surplusStartMonth !== 1}
-              reason={surplusDelta > 0 && surplusStartMonth !== 1 ? 'Future cuts are previews. Choose this month to save a change to your current spending.' : undefined}
-              label={`Lock in — trim ${fmtUser(surplusDelta || 0)}/mo from ${
-                Number(user.variable_expenses || 0) > 0
-                  ? 'discretionary spending'
-                  : 'fixed expenses'
-              }`}
-              shortLabel="DO IT · SAVE THE CUT"
-              onClick={commitSurplusCut}
-            />
+            <fieldset style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '8px 10px', margin: 0, fontSize: 11, lineHeight: 1.5 }}>
+              <legend style={{ fontWeight: 700, padding: '0 4px' }}>How long does this last?</legend>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', cursor: 'pointer' }}>
+                <input type="radio" name="spend-cadence" checked={!spendOnce} onChange={() => setSpendOnce(false)} style={{ marginTop: 4 }} />
+                <span><strong>Every month</strong> <span style={{ color: L_T.muted }}>· spending stays lower, and the plan uses the extra each month</span></span>
+              </label>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', cursor: 'pointer' }}>
+                <input type="radio" name="spend-cadence" checked={spendOnce} onChange={() => setSpendOnce(true)} style={{ marginTop: 4 }} />
+                <span><strong>Just this month</strong> <span style={{ color: L_T.muted }}>· one payment of {fmtUser(surplusDelta)} on the dearest loan, then spending is unchanged</span></span>
+              </label>
+            </fieldset>
+            {!spendOnce && (
+              <StartMonthPicker
+                value={surplusStartMonth}
+                onChange={setSurplusStartMonth}
+                disabled={fixedExpensesCap <= 0}
+              />
+            )}
+            {!spendOnce && (
+              <LockItInButton
+                disabled={surplusStartMonth !== 1}
+                reason={surplusStartMonth !== 1 ? 'Future cuts are previews. Choose this month to save a change to your current spending.' : undefined}
+                label={`Lock in — trim ${fmtUser(surplusDelta || 0)}/mo from ${
+                  Number(user.variable_expenses || 0) > 0
+                    ? 'discretionary spending'
+                    : 'fixed expenses'
+                }`}
+                shortLabel="DO IT · SAVE THE CUT"
+                onClick={commitSurplusCut}
+              />
+            )}
+            {spendOnce && (
+              <span style={{ color: L_T.muted, fontSize: 12 }}>
+                To record a payment you already made, use Pay a lump sum below.
+              </span>
+            )}
           </>
+          ) : undefined
         }
       />
 
@@ -492,7 +526,7 @@ export function WhatIfPanel({
         currency={lumpTargetCcy}
         min={0}
         max={lumpTargetCap}
-        step={lumpTargetCap > 0 && lumpTargetCap < 1000 ? Math.min(1, lumpTargetCap) : Math.max(lumpStep, 1_000)}
+        step={lumpStep}
         value={lumpAmount}
         onChange={setLumpAmount}
         formatValue={(v) => (v === 0 ? 'no payment' : fmtLump(v))}
@@ -500,6 +534,7 @@ export function WhatIfPanel({
         state={lump}
         disabled={lumpTargetCap <= 0}
         extraControls={
+          lumpAmount > 0 ? (
           <>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
               <span style={{ color: L_T.muted }}>Into</span>
@@ -508,7 +543,6 @@ export function WhatIfPanel({
                 onChange={(e) => {
                   const index = Number(e.target.value);
                   setLumpRef({loanIndex:index, loanId:user.loans[index]?.id});
-                  setLumpAmount(0);
                 }}
                 style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
               >
@@ -543,6 +577,7 @@ export function WhatIfPanel({
               onClick={commitLumpSum}
             />
           </>
+          ) : undefined
         }
       />
 
@@ -660,11 +695,6 @@ function prepayDetail(result: CompareResponse | null, fmt: (v: number) => string
       : `${pay} ${fmt(Math.round(Number(o.old_emi)))} → ${fmt(Math.round(Number(o.new_emi)))} a month, ending as planned${save}`;
   }
   return out;
-}
-
-function roundStep(value: number, base: number): number {
-  if (value <= base) return base;
-  return Math.max(base, Math.round(value / base) * base);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -848,7 +878,7 @@ function SliderRow({
         type="range"
         min={min}
         max={max}
-        step={inputMode === 'bps' ? step : 'any'}
+        step={step}
         value={value}
         onChange={(e) => onChange(Number(Number(e.target.value).toFixed(2)))}
         disabled={disabled}
@@ -909,9 +939,7 @@ function StartMonthPicker({
   function labelForOffset(offset: number): string {
     if (offset <= 0) return 'now';
     const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-    return d
-      .toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
-      .replace(' ', " '");
+    return formatMonthDate(d, 'short');
   }
 
   const options = [

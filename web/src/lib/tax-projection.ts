@@ -27,6 +27,7 @@ import type { CurrencyCode } from './currency';
 import { preConstructionInstalment, sec80eMonthsLeft, taxShare } from './india-tax-loans';
 import { letOutRoom } from './marginal-cost';
 import TAX from './tax-tables.json';
+import { yearlyInterest } from '@/lib/amortization';
 import { fullCap24, taxType } from '@/lib/loan-types';
 
 export interface LoanYear1Interest {
@@ -85,47 +86,10 @@ interface MultiYearArgs {
  * gets a multi-year series without changing the existing function's shape.
  */
 function amortizeYearlyInterest(loan: LoanPayload, years: number): Decimal[] {
-  const balance0 = new Decimal(loan.outstanding || 0);
-  const rateAnnual = new Decimal(loan.nominal_rate || 0);
-  const monthlyRate = rateAnnual.div(12);
-  const emi = new Decimal(loan.scheduled_emi || 0);
-
-  if (loan.loan_type === 'credit_card') {
-    // Cards revolve — assume roughly flat balance each year. Conservative.
-    // Stops emitting after balance drops below a token threshold to avoid
-    // perpetual non-zero series for unrealistic inputs.
-    const yearly = balance0.mul(rateAnnual);
-    return Array.from({ length: years }, () => yearly);
-  }
-
-  if (balance0.lte(0) || monthlyRate.lte(0) || emi.lte(0)) {
-    return Array.from({ length: years }, () => new Decimal(0));
-  }
-
-  let balance = balance0;
-  const out: Decimal[] = [];
-  for (let y = 0; y < years; y++) {
-    let interest = new Decimal(0);
-    for (let m = 0; m < 12; m++) {
-      if (balance.lte(0)) break;
-      const monthInterest = balance.mul(monthlyRate);
-      const monthPrincipal = emi.sub(monthInterest);
-      if (monthPrincipal.lte(0)) {
-        // Under-amortising EMI — interest accrues flat.
-        interest = interest.add(monthInterest);
-        continue;
-      }
-      interest = interest.add(monthInterest);
-      balance = balance.sub(monthPrincipal);
-    }
-    out.push(interest);
-    if (balance.lte(0)) {
-      // Zero-pad remaining years so the array length matches.
-      for (let k = y + 1; k < years; k++) out.push(new Decimal(0));
-      break;
-    }
-  }
-  return out;
+  // Shared walk: the last month pays only the balance plus that month's
+  // interest, so a small balance and a large EMI cannot drive the balance
+  // negative and invent a later month of interest.
+  return yearlyInterest(loan, years);
 }
 
 /**

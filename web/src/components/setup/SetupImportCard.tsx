@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Setup step "What you owe" (India): an optional "Fill from your credit report"
- * card above the loan blocks, with "Type my loans instead" as an equally
+ * Setup step "What you owe" (India): an optional credit-report PDF
+ * below the loan fields, with "Type my loans instead" as an equally
  * prominent way past it (UX50 D-04, NEW-22). It reuses the Profile importer:
  * the PDF is read on RightDue's server by fixed rules, never stored; every
  * account is ticked and checked by the user, and an account that matches a loan
@@ -48,7 +48,7 @@ export function SetupImportCard({
       aria-labelledby="setup-import-title"
       style={{ border: '1px solid currentColor', padding: 12, margin: '0 0 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
     >
-      <strong id="setup-import-title">Fill your loans in faster <span style={{ fontSize: 11, opacity: 0.7 }}>BETA</span></strong>
+      <strong id="setup-import-title">Credit report PDF, optional</strong>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
         Your free credit report lists every loan and card in your name, even ones you&apos;ve forgotten. Upload it
         and we&apos;ll fill in what it shows. You check each one. You&apos;ll need the PDF and its password (about 1

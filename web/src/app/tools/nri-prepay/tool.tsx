@@ -16,6 +16,7 @@ import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/l
 import { LFieldGrid, LNote, LStep, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import { Term } from '@/components/Term';
 import { loanLabel } from '@/lib/loan-types';
+import { formatIso } from '@/lib/today';
 import {
   api,
   formatCurrency,
@@ -28,6 +29,7 @@ import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { roundEmi } from '@/lib/amortization';
 import { addLoanBlocker, addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { residenceCurrency } from '@/lib/tax-setup';
@@ -199,9 +201,7 @@ export function NriPrepayTool() {
       const d = new Decimal(r.rate);
       if (!d.isFinite() || d.lte(0)) throw new Error('no rate');
       if (n !== ask.current) return;
-      const day = r.as_of
-        ? new Date(`${r.as_of}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        : null;
+      const day = r.as_of ? formatIso(r.as_of) : null;
       showRate(d, day ? `Today’s rate, as of ${day}` : 'Today’s rate', day ? `today’s rate, as of ${day}` : 'today’s rate');
     } catch {
       if (n !== ask.current) return;
@@ -502,17 +502,13 @@ export function NriPrepayTool() {
                   // Saved as a personal loan with a generic lender name
                   // (cross-border loans are often with lenders outside our
                   // lists); amounts stay in the loan's currency, tagged.
-                  const r = Number(loanRate) / 12;
-                  const n = Number(loanTenure);
-                  const p = Number(loanBalance);
-                  const emi = r === 0 ? p / n : (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
                   const saved = addLoanToProfile({
                     loan_type: 'personal_loan' as LoanType,
                     bank: `Foreign loan (${loanCurrency})`,
                     outstanding: loanBalance,
                     nominal_rate: loanRate,
                     tenure_months_remaining: Number(loanTenure),
-                    scheduled_emi: emi.toFixed(2),
+                    scheduled_emi: roundEmi(loanBalance, loanRate, Number(loanTenure), loanCurrency) ?? '0',
                     ...addInput,
                   });
                   if (saved != null) setAdded(true);

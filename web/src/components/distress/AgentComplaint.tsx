@@ -11,6 +11,7 @@ import { useState, type CSSProperties } from 'react';
 import { LSectionHeader, LField, L_T, LBracket } from '@/components/ledger/primitives';
 import { agentComplaintLetter, DRAFT_MARK, forSending } from '@/lib/distress-triage';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import { formatMonthDate, getCountryToday } from '@/lib/today';
 
 const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
@@ -34,7 +35,7 @@ export function AgentComplaintSection({
   const [said, setSaid] = useState('');
   const pick = lines.find((l) => l.key === key) ?? lines[0];
   const lender = lenderText ?? pick?.bank ?? '';
-  const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const today = formatMonthDate(getCountryToday('IN'), 'long', true);
   const letter = agentComplaintLetter({
     name: nameText.trim(),
     lender: lender.trim(),

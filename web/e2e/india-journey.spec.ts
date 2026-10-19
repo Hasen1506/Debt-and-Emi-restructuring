@@ -7,7 +7,7 @@
  * Every figure asserted here comes from the real engine on fixed inputs:
  * fixed FX (1 USD = ₹83.25), fixed day (7 Oct 2026), fixed OTP.
  */
-import { expect, fillLoan, isSetupPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection, continueToPlan } from './fixtures';
 
 const EMAIL = 'golden-india@rightdue.app';
 
@@ -50,7 +50,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   await test.step('save and open the plan (golden schedule)', async () => {
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
     // Read the plan inside #main: until React reveals a streamed Suspense
     // boundary, its content also sits in a hidden <div hidden id="S:n"> at
     // the end of <body> (React 19.2 batches reveals by up to ~300 ms), and

@@ -16,6 +16,7 @@
  *  - INCOME BY SEASON (item 4): a monthly take-home pattern and the opt-in
  *    seasonal reserve, with its interest cost against no reserve.
  */
+import { emi } from '@/lib/amortization';
 import { setupLoanName } from '@/lib/loan-gaps';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -362,10 +363,12 @@ export function SeasonalIncomeControl({ user, seasonal, currency, dateLabel }: {
 
 /** UX fix 21: "Saved: if the rate on HDFC home loan rises 0.25%, the EMI goes up about ₹778 a month (your choice)". */
 export function rateRiseEcho(l: LoanPayload, mode: RateRiseMode, name: string, country: 'IN' | 'US'): string {
-  const P = Number(l.outstanding) || 0, r = (Number(l.nominal_rate) || 0) / 12, n = l.tenure_months_remaining || 0, emi = Number(l.scheduled_emi) || 0;
-  const r2 = r + 0.0025 / 12;
-  const newEmi = n > 0 && P > 0 ? (P * r2) / (1 - Math.pow(1 + r2, -n)) : 0;
-  const up = Math.max(0, Math.round(newEmi - emi));
+  const P = Number(l.outstanding) || 0;
+  const annual = Number(l.nominal_rate) || 0;
+  const n = l.tenure_months_remaining || 0;
+  const emiNow = Number(l.scheduled_emi) || 0;
+  const newEmi = n > 0 && P > 0 ? emi(P, annual + 0.0025, n).toNumber() : 0;
+  const up = Math.max(0, Math.round(newEmi - emiNow));
   const ccy = (l.currency as 'INR' | 'USD' | undefined) ?? (country === 'US' ? 'USD' : 'INR');
   const what = mode === 'extend' ? 'the EMI stays and the tenure gets longer'
     : mode === 'raise_emi' ? (up > 0 ? `the EMI goes up about ${formatCurrencyWhole(String(up), ccy)} a month and the end date stays` : 'the EMI goes up and the end date stays')

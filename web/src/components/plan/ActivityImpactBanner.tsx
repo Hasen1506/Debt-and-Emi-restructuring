@@ -3,10 +3,14 @@
  * to the projection. Surfaces what the engine actually used so the
  * user can verify the trajectory reflects their reported history.
  *
- * Three variants mirror the Plan layouts; chrome is owned by PanelShell.
+ * The ledger variant is the same closeable note as the other confirmations.
+ * Inline and aside keep PanelShell.
  */
+'use client';
 
+import { useEffect, useState } from 'react';
 import { formatCurrency, type Country, type LoanPayload } from '@/lib/api';
+import { LBracket, lNotice } from '@/components/ledger/primitives';
 import { loanCurrency } from '@/lib/currency';
 import { LOAN_TYPE_SHORT } from '@/lib/loan-types';
 import { PanelShell } from '@/components/themed/PanelShell';
@@ -23,6 +27,11 @@ export function ActivityImpactBanner({
   country: Country;
   variant: 'ledger' | 'inline' | 'aside';
 }) {
+  const noticeKey = `rd_activity_notice:${impact.entryCount}:${impact.totalBump}`;
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    try { setDismissed(window.sessionStorage.getItem(noticeKey) === '1'); } catch { setDismissed(false); }
+  }, [noticeKey]);
   const headline =
     impact.entryCount === 1
       ? '1 logged payment is reflected in your plan'
@@ -67,13 +76,23 @@ export function ActivityImpactBanner({
     .join(' + ');
 
   if (variant === 'ledger') {
+    if (dismissed) return null;
     return (
-      <PanelShell
-        variant="ledger"
-        tone="negative"
-        border="dashed"
-        eyebrow={`FROM ACTIVITY · ${impact.entryCount} ENTR${impact.entryCount === 1 ? 'Y' : 'IES'} · ${totalBumpDisplay}`}
-      >
+      <section role="status" aria-label="Logged payments in this plan" data-testid="activity-impact" style={{ ...lNotice('accent'), flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, width: '100%' }}>
+          <strong>
+            {headline}. Balances moved {totalBumpDisplay}.
+          </strong>
+          <LBracket
+            onClick={() => {
+              try { window.sessionStorage.setItem(noticeKey, '1'); } catch { /* private mode */ }
+              setDismissed(true);
+            }}
+            label="Dismiss the logged-payments note"
+          >
+            DISMISS
+          </LBracket>
+        </div>
         <div style={{ marginBottom: 6 }}>
           <span style={{ color: 'var(--muted)' }}>
             The plan starts from your balances after what you&apos;ve logged: a
@@ -114,7 +133,7 @@ export function ActivityImpactBanner({
             ))}
           </tbody>
         </table>
-      </PanelShell>
+      </section>
     );
   }
 

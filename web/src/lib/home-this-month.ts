@@ -90,7 +90,7 @@ export function homeInterestLine(a: {
 }): { value: string; caption: string } {
   const money = (v: number) => a.money(Math.round(v));
   if (a.planInterest != null) {
-    return { value: `${money(a.planInterest)}/MO`, caption: `CHARGED IN ${a.monthLabel.toUpperCase()} · AS ON PLAN` };
+    return { value: `${money(a.planInterest)}/MO`, caption: `CHARGED IN ${a.monthLabel} · AS ON PLAN` };
   }
   return { value: `${money(a.fallback)}/MO`, caption: "AT TODAY'S BALANCES AND RATES" };
 }

@@ -41,7 +41,8 @@ export function AppliedChangeCard({ kinds, banner = false }: { kinds?: AppliedUn
     return (
       <p role="status" data-testid="applied-change-banner" data-print="hide" style={{ margin: 0, fontSize: 12, lineHeight: 1.6, borderLeft: `2px solid ${L_T.positive}`, padding: '4px 10px' }}>
         {c.undone ? <>Undone: {c.what}.</> : <>Saved to your plan: {c.what} · {dates}.</>}{' '}
-        <LBracket href={anchor}>{c.undone ? 'SEE' : 'SEE OR UNDO'} ↓</LBracket>
+        <LBracket href={anchor}>{c.undone ? 'SEE' : 'SEE OR UNDO'} ↓</LBracket>{' '}
+        <LBracket onClick={dismissAppliedChange} label="Dismiss this note">DISMISS</LBracket>
       </p>
     );
   }

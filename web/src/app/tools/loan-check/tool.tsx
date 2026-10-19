@@ -37,6 +37,7 @@ import {
 import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
+import { formatIso } from '@/lib/today';
 import { TOL, gapWords, parseSpreadChange } from '@/lib/loan-check';
 import { useFormErrors } from '@/lib/form-errors';
 
@@ -258,7 +259,7 @@ export function LoanCheckTool() {
   const picked = loanIdx !== null ? profile.user.loans[loanIdx] : null;
   const loanSummary = (
     <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
-      {formatCurrency(outstanding || '0', 'INR')} left at {currentRate || '—'}%, {months || '—'} months to go
+      {formatCurrency(outstanding || '0', 'INR')} left at {currentRate ? formatPct(new Decimal(currentRate).div(100)) : '—'}, {months || '—'} months to go
       {lender ? ` · ${lender}` : ''}.{' '}
       <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
     </p>
@@ -597,7 +598,7 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
                     return (
                       <tr key={c.date}>
                         <td style={td}>
-                          {new Date(c.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatIso(c.date)}
                         </td>
                         <td className="num" style={td}>{formatPct(c.old_rate, 2)}</td>
                         <td className="num" style={td}>{formatPct(c.new_rate, 2)}</td>

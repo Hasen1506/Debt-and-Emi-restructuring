@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrencyWhole } from '@/lib/api';
+import { formatMonthDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
 import {
@@ -458,7 +459,7 @@ export function LetterSection({
   const suggested = pick.covered === 'full' ? pick.required : pick.pay;
   const canPay = canPayText ?? (suggested > 0 ? groupIN(String(Math.round(suggested))) : '');
   const lender = lenderText ?? pick.bank;
-  const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const today = formatMonthDate(getCountryToday('IN'), 'long', true);
   const canPayNum = num(canPay);
   const draft = hardshipLetter({
     name: nameText.trim(),

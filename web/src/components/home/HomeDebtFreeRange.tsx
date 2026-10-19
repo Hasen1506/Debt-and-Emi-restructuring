@@ -18,9 +18,9 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 
 export function rangeWords(r: PayoffRange, label: (m: number) => string): string | null {
   if (r.exact == null || r.earliest == null) return null;
-  if (r.latest == null) return `LIKELY ${label(r.earliest).toUpperCase()} OR LATER`;
+  if (r.latest == null) return `LIKELY ${label(r.earliest)} OR LATER`;
   if (r.latest === r.earliest) return null;
-  return `LIKELY ${label(r.earliest).toUpperCase()} – ${label(r.latest).toUpperCase()}`;
+  return `LIKELY ${label(r.earliest)} – ${label(r.latest)}`;
 }
 
 export async function HomeDebtFreeRange() {

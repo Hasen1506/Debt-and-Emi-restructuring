@@ -5,6 +5,7 @@
  */
 import Decimal from 'decimal.js';
 import type { AgeBracket, Country, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from '@/lib/api';
+import { roundEmi } from '@/lib/amortization';
 import { computeAnnualTax } from '@/lib/tax-brackets';
 import { deriveMarginalRate } from '@/lib/deductions';
 import { abroadIndiaRate, type TaxBasics } from '@/lib/tax-setup';
@@ -22,13 +23,7 @@ export function emiFromMonths(
 ): string | null {
   if (!/^\d*\.?\d+$/.test(outstanding.trim()) || !/^\d*\.?\d+$/.test(annualRate.trim())) return null;
   if (!Number.isInteger(months) || months <= 0 || months > 600) return null;
-  const P = new Decimal(outstanding);
-  if (P.lte(0)) return null;
-  const r = new Decimal(annualRate).div(12);
-  const emi = r.isZero()
-    ? P.div(months)
-    : P.mul(r).mul(r.add(1).pow(months)).div(r.add(1).pow(months).sub(1));
-  return emi.toDecimalPlaces(currency === 'INR' ? 0 : 2, Decimal.ROUND_CEIL).toString();
+  return roundEmi(outstanding, annualRate, months, currency);
 }
 
 /**

@@ -13,7 +13,7 @@ import { loanCurrency } from './currency';
 import { LOAN_TYPE_NAME } from './loan-types';
 import { explainMinPayment } from './min-payment';
 import { likelyRateType } from './rate-type';
-import { MONTH_NAMES, MONTH_NAMES_SHORT } from './today';
+import { formatIso, MONTH_NAMES } from './today';
 
 export type GivenSource = 'YOU SAID' | 'ASSUMED' | 'CHECK';
 
@@ -32,8 +32,7 @@ const loanName = (l: LoanPayload) => {
 };
 
 function dayLabel(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
-  return `${d} ${MONTH_NAMES_SHORT[m - 1]} ${y}`;
+  return formatIso(iso.slice(0, 10));
 }
 
 function daysBetween(a: string, b: string): number {

@@ -17,7 +17,7 @@
  * Three layout variants mirror the Plan themes; chrome lives in PanelShell.
  * Editorial/aside variant is intentionally read-only.
  */
-import { localIsoDate } from '@/lib/today';
+import { formatMonthDate, localIsoDate } from '@/lib/today';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, type Country } from '@/lib/api';
@@ -71,9 +71,7 @@ export function AdvanceTaxPanel({
     const shortfall = Math.max(0, due - paid);
     return {
       ordinal: inst.ordinal,
-      dueLabel: dueDate.toLocaleDateString(country === 'IN' ? 'en-IN' : 'en-US', {
-        day: 'numeric', month: 'short', year: 'numeric',
-      }),
+      dueLabel: formatMonthDate(dueDate, 'short', true),
       isPast,
       isPaid,
       isMissed,
@@ -280,7 +278,7 @@ function RowLedger({
     >
       <span style={{ color: L_T.muted }}>Q{row.ordinal}</span>
       <span>
-        <strong>{row.dueLabel.toUpperCase()}</strong>
+        <strong>{row.dueLabel}</strong>
         {row.isPaid && <span style={{ color: L_T.positive, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}> · PAID</span>}
         {row.isMissed && !row.isPaid && (
           <span style={{ color: L_T.negative, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}>

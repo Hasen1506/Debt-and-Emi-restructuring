@@ -10,12 +10,13 @@
  */
 import { useMemo } from 'react';
 import type { PlanData } from './PlanData';
-import { formatCurrencyCompact, formatCurrencyWhole } from '@/lib/api';
-import { getCountryToday, monthIndexToCountryLabel, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
+import { formatCurrencyWhole } from '@/lib/api';
+import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate } from '@/lib/today';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
-import { loanClears, owedNowAtStart } from './plan-milestones';
+import { loanClears } from './plan-milestones';
+import { chartBalances } from '@/lib/schedule-chart';
 import { chartEndMonth, linesCoincide } from '@/lib/plan-gap';
 import { minimumsClearMonth } from '@/lib/trajectory';
 
@@ -42,22 +43,11 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   const view = useMemo(() => {
     if (traj.length === 0) return null;
     const today = getCountryToday(country);
-    const shortDate = (month: number) => {
-      const d = monthIndexToDate(month, today);
-      // "OCT ’26", not "OCT 26", which reads as a day.
-      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`;
-    };
-    // The line starts at what's owed now (Home's OUTSTANDING, after what's
-    // already paid this month; owed-fix), not after this month's payments.
-    const start = traj[0].month === 1 ? owedNowAtStart(plan) : 0;
-    // Total debt includes gap borrowing (grill #38): a short month goes on
-    // a card, and that card balance is debt too.
-    const withGap = traj.map((p) =>
-      p.gapDebt || p.minimumsGapDebt
-        ? { ...p, avalanche: p.avalanche + (p.gapDebt ?? 0), minimums: p.minimums + (p.minimumsGapDebt ?? 0) }
-        : p,
-    );
-    const series = start > 0 ? [{ month: 0, avalanche: start, minimums: start }, ...withGap] : withGap;
+    const shortDate = (month: number) => formatMonthDate(monthIndexToDate(month, today), 'short');
+    // The same balances as the table's BALANCE column, including the start
+    // row (owed now). Gap borrowing stays in the table's GAP OWED column.
+    const series = chartBalances(plan).map((p) => ({ month: p.month, avalanche: p.balance, minimums: p.minimums }));
+    const start = series[0]?.month === 0 ? series[0].avalanche : 0;
     const first = series[0].month;
     const lastAll = traj[traj.length - 1].month;
     // The engine's date, short or not (live test #17): when short it is the
@@ -85,7 +75,13 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const tOf = (m: number) => (m - first) / span;
     const maxBal = shown.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
     const norm = (v: number) => (maxBal > 0 ? v / maxBal : 0);
-    const points: LTrajPoint[] = shown.map((p) => ({ t: tOf(p.month), av: norm(p.avalanche), min: norm(p.minimums) }));
+    const money = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
+    const points: LTrajPoint[] = shown.map((p) => ({
+      t: tOf(p.month),
+      av: norm(p.avalanche),
+      min: norm(p.minimums),
+      tip: `${p.month === 0 ? 'Now' : shortDate(p.month)} · ${money(p.avalanche)}`,
+    }));
     const avAt = (m: number) => shown.find((p) => p.month === m)?.avalanche ?? 0;
 
     // One marker per month a loan is paid off; the last is the debt-free month.
@@ -136,10 +132,10 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       const m = first + Math.round(f * span);
       return { t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) };
     });
-    // Compact (₹35.7L): the full figure didn't fit beside the axis on a phone.
+    // The same whole-rupee figures as the BALANCE cells, not a compact scale.
     const yLabels = [
-      { y: 1, l: formatCurrencyCompact(maxBal, ccy) },
-      { y: 0.5, l: formatCurrencyCompact(maxBal / 2, ccy) },
+      { y: 1, l: formatCurrencyWhole(Math.round(maxBal), ccy) },
+      { y: 0.5, l: formatCurrencyWhole(Math.round(maxBal / 2), ccy) },
       { y: 0, l: formatCurrencyWhole(0, ccy) },
     ];
 
@@ -208,7 +204,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
                 )}
               </>
             )}
-            {plan.gap?.firstBorrowMonth != null && <span>{linesCoincide(view.points) ? 'THE LINE INCLUDES GAP BORROWING' : 'BOTH LINES INCLUDE GAP BORROWING'}</span>}
+            {plan.gap?.firstBorrowMonth != null && <span>GAP BORROWING IS IN THE TABLE, NOT ON THESE LINES</span>}
             {view.milestones.length > 0 &&
               key(
                 <span style={{ display: 'inline-block', width: 8, height: 8, background: L_T.accent, verticalAlign: 'middle', marginRight: 6 }} />,

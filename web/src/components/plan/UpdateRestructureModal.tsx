@@ -30,6 +30,8 @@
  */
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { roundEmi } from '@/lib/amortization';
+import { loanCurrency } from '@/lib/currency';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
 import type {
@@ -171,6 +173,7 @@ export function UpdateRestructureModal({
           consolidation.totalOutstanding,
           Number(rateDecimal),
           tenure,
+          primary ? loanCurrency(primary, profile.user.country) : profile.user.country === 'US' ? 'USD' : 'INR',
         ),
         processing_fee_amortised: procFee,
         prepayment_penalty_pct: penaltyDecimal,
@@ -192,6 +195,7 @@ export function UpdateRestructureModal({
           Number(loans[i].outstanding || 0),
           Number(rateDecimal),
           tenure,
+          loanCurrency(loans[i], profile.user.country),
         ),
         processing_fee_amortised: procFee,
         prepayment_penalty_pct: penaltyDecimal,
@@ -461,11 +465,7 @@ function FormField({
   );
 }
 
-/** Standard amortising EMI. Returns 0 when inputs are degenerate. */
-function estimateEmi(principal: number, annualRate: number, months: number): string {
-  if (principal <= 0 || months <= 0) return '0';
-  if (annualRate <= 0) return (principal / months).toFixed(2);
-  const r = annualRate / 12;
-  const emi = (principal * r) / (1 - Math.pow(1 + r, -months));
-  return emi.toFixed(2);
+/** Standard amortising EMI, rounded the same way Setup quotes one. */
+function estimateEmi(principal: number, annualRate: number, months: number, currency: string): string {
+  return roundEmi(principal, annualRate, months, currency) ?? '0';
 }

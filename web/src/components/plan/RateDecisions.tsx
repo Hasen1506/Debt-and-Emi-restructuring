@@ -10,7 +10,7 @@
 import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
-import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
+import { api, formatCurrencyWhole, formatPct, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
 import { formatAsOf } from '@/lib/as-of';
 import { loanCurrency, loanMarket } from '@/lib/currency';
 import { loanLabel, loanName } from '@/lib/loan-types';
@@ -20,7 +20,7 @@ import { monthsSpan } from '@/lib/today';
 import { L_T } from '@/components/ledger/primitives';
 import { isAbortError } from '@/lib/engine-requests';
 
-const STEP = `${(RATE_STEP * 100).toFixed(2)}%`;
+const STEP = formatPct(RATE_STEP);
 
 export function RateDecisions({ plan }: { plan: PlanData }) {
   const country = plan.user.country;
@@ -69,8 +69,8 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
       <div id={`rate-decisions-${country}-h`} style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
         IF {bank} MOVES RATES
         <span style={{ fontWeight: 400, color: L_T.muted }}>
-          {slice && ` · ${rateName} ${(Number(slice.current_rate) * 100).toFixed(2)}% (AS OF ${formatAsOf(slice.as_of).toUpperCase()})`}
-          {decision && ` · NEXT DECISION ${dayLabel(decision).toUpperCase()}`}
+          {slice && ` · ${rateName} ${formatPct(slice.current_rate)} (AS OF ${formatAsOf(slice.as_of)})`}
+          {decision && ` · NEXT DECISION ${dayLabel(decision)}`}
           {days != null && days >= 0 && days <= 14 && (
             <span style={{ color: L_T.ink, fontWeight: 700 }}> · IN {days} DAY{days === 1 ? '' : 'S'}</span>
           )}
@@ -119,8 +119,8 @@ function moveWords(m: RateMove, fc: (v: number, l: LoanPayload) => string, count
   const { months, emi } = m;
   const more = months?.now != null && months.up != null ? months.up - months.now : null;
   const fewer = months?.now != null && months.down != null ? months.now - months.down : null;
-  const emiUp = emi ? fc(emi.up - emi.now, l) : null;
-  const emiDown = emi ? fc(emi.now - emi.down, l) : null;
+  const emiUp = emi && emi.up > emi.now ? fc(emi.up - emi.now, l) : null;
+  const emiDown = emi && emi.now > emi.down ? fc(emi.now - emi.down, l) : null;
   const rise =
     more != null && more > 0
       ? `A ${STEP} rise: ${monthsSpan(more)} more at the same ${fc(Number(l.scheduled_emi), l)} EMI (what banks usually do)${emiUp ? `, or ${emiUp} more a month if you ask to keep the months` : ''}.`

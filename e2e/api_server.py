@@ -42,7 +42,20 @@ def configure_env(tmp: Path) -> None:
     os.environ["RATES_STORE_PATH"] = str(tmp / "rates.json")
     os.environ["RATES_FEED"] = "off"
     os.environ["RATE_LIMITS"] = "off"
-    os.environ.setdefault("CORS_ORIGINS", "http://localhost:3100,http://127.0.0.1:3100")
+    # Playwright starts the app on 3100. The every-section step starts it
+    # again on 3210 after that server has exited. The page asks the API
+    # from the browser, so both origins have to be allowed or the RBI
+    # decision (and any other client fetch) never arrives.
+    origins = [
+        "http://localhost:3100",
+        "http://127.0.0.1:3100",
+        "http://localhost:3210",
+        "http://127.0.0.1:3210",
+    ]
+    web = os.environ.get("WEB_ORIGIN", "").strip().rstrip("/")
+    if web and web not in origins:
+        origins.append(web)
+    os.environ.setdefault("CORS_ORIGINS", ",".join(origins))
     os.environ.pop("RESEND_API_KEY", None)
 
 

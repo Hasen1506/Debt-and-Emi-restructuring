@@ -6,7 +6,7 @@
  * is how the Windfall hydration bug went unnoticed.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
 import { isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
@@ -73,7 +73,7 @@ test('signed in: every tab and tool passes axe with no hydration errors', async 
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   for (const path of [
     '/',
     '/plan',
@@ -106,7 +106,7 @@ test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', asy
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await page.waitForTimeout(2500);
   const whatIf = page.getByRole('button', { name: /WHAT IF/i }).first();
   if (await whatIf.isVisible().catch(() => false)) await whatIf.click();

@@ -5,6 +5,7 @@
  * both when they differ, with the reason, so they never read as two totals.
  */
 import type { SimulateResponse } from './api';
+import { formatMonth } from './today';
 
 export interface OwedTodayFigures {
   today: number;
@@ -30,12 +31,11 @@ export function owedTodayOf(r: Pick<SimulateResponse, 'owed_today' | 'owed_start
   return { today: Number(r.owed_today), startOfMonth: Number(r.owed_start_of_month), interestInPaid: Number(r.owed_today_interest_in_paid ?? 0), paidOff: Number(r.owed_today_paid_off ?? 0) };
 }
 
-/** "9 Oct" from '2026-10-09'. */
+/** "9 Oct 2026" from '2026-10-09'. Short form, with the day. */
 export function shortDay(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (!m) return '';
-  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${Number(m[3])} ${names[Number(m[2]) - 1]}`;
+  return formatMonth(Number(m[1]), Number(m[2]) - 1, 'short', Number(m[3]));
 }
 
 /** "₹49,01,430 at the start of October, before the EMIs you've already

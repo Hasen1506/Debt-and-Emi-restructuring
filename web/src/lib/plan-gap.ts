@@ -114,7 +114,7 @@ export function shortHeadline(args: ShortStoryArgs): { value: string; sub: strin
   if (line && shortfall > 0) {
     // Audit 80+ A5: short this month, the big figure is the gap, not the
     // date it would take to close it (that date is demoted to the line).
-    return { value: shortValue(shortfall, money), sub: line.toUpperCase() };
+    return { value: shortValue(shortfall, money), sub: line };
   }
   // W1b / audit 80+ C11: a later month is short and can't be borrowed within
   // the gap credit limit, so the engine's date pays with money that can't be
@@ -122,7 +122,7 @@ export function shortHeadline(args: ShortStoryArgs): { value: string; sub: strin
   if (infeasibleFrom != null && laterGap && laterGap.amount > 0) {
     return {
       value: shortValue(laterGap.amount, money),
-      sub: `FROM ${label(laterGap.month)} · ${notFundable(infeasibleFrom, label)}`.toUpperCase(),
+      sub: `From ${label(laterGap.month)} · ${notFundable(infeasibleFrom, label)}`,
     };
   }
   // Only a later month is short: the engine's date already borrows for it.
@@ -228,7 +228,7 @@ export const AS_IS_NEVER = 'not in 30 years';
  * from the headline into this line, "if the ₹X/mo gap closes: <date> · ...".
  * and with no gap-closed date either:
  *   "short ₹X/mo · as things stand: <date>"
- * Sentence case; Plan and Home set it in capitals. Null when not short.
+ * Sentence case. The month inside it is the short date. Null when not short.
  */
 /** Audit 80+ A5: the headline figure when this month is short ("₹5,500/MO SHORT"). */
 export function shortValue(shortfall: number, money: (v: number) => string): string {

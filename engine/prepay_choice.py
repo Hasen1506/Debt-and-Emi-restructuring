@@ -36,7 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
-from engine.formulas import emi
+from engine.formulas import emi, schedule_interest
 
 D = Decimal
 _CENT = D("0.01")
@@ -79,16 +79,8 @@ def months_to_clear(balance: Decimal, annual_rate: Decimal, payment: Decimal, ca
 
 
 def _interest(balance: Decimal, annual_rate: Decimal, payment: Decimal, months: int) -> Decimal:
-    """Interest paid clearing `balance` with `payment` a month (last month short)."""
-    r = annual_rate / D("12")
-    b, total = balance, D("0")
-    for _ in range(max(0, months)):
-        if b <= 0:
-            break
-        i = b * r
-        total += i
-        b = b + i - min(payment, b + i)
-    return total
+    """Interest over `months` at `payment` a month (last month short)."""
+    return schedule_interest(balance, annual_rate, payment, months)
 
 
 def prepay_effect(
@@ -111,6 +103,10 @@ def prepay_effect(
     new_balance = max(D("0"), outstanding - principal_paid)
     old_months = months_to_clear(outstanding, annual_rate, scheduled_emi)
     if old_months is None:
+        # The EMI never clears the loan. Compare interest over the months
+        # still on the contract; those month counts are that window, not a
+        # payoff date. (A prepayment that makes the EMI cover the interest
+        # still gets a real new payoff month below.)
         old_months = months_left
     before = _interest(outstanding, annual_rate, scheduled_emi, old_months)
     if new_balance <= 0:

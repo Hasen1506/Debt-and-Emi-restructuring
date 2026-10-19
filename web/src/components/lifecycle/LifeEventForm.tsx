@@ -17,7 +17,7 @@ import { isOpenCurrentLoan, rateChangeLoanIndex, currentLoanIndex } from '@/lib/
 import { loadProfileClient } from '@/lib/user-store';
 import { rateOutOfRange } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { getCountryToday, localIsoDate, MONTH_NAMES } from '@/lib/today';
+import { formatIso, getCountryToday, localIsoDate } from '@/lib/today';
 import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, L_T } from '@/components/ledger/primitives';
 
@@ -52,10 +52,9 @@ export function lifeLoanName(l: Pick<LoanPayload, 'bank' | 'loan_type'>): string
   return bank ? `${bank} ${t}` : cap(t);
 }
 
-/** "15 NOV 2026" */
+/** "15 Nov 2026" */
 export function dayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3).toUpperCase()} ${y}`;
+  return formatIso(iso);
 }
 
 /** "Gross ₹18,00,000 a year", "Home loan → 9.10%", "Car loan · ₹8,00,000 at 9.00% · …". */

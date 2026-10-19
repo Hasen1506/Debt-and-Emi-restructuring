@@ -9,7 +9,7 @@
  * cookies from before the rename.
  */
 import type { BrowserContext, Page } from '@playwright/test';
-import { confirmAgeAndSend, expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices, openProfileSection } from './fixtures';
+import { confirmAgeAndSend, expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices, openProfileSection, continueToPlan } from './fixtures';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
 const notice = (page: Page) => page.locator('[data-sync-state]');
@@ -24,7 +24,7 @@ async function setUp(page: Page, email: string) {
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 }
 
 async function setTakeHome(page: Page, amount: string) {

@@ -6,7 +6,7 @@
  * the form opened). Overwrite saves this form; a form opened afterwards
  * does not ask.
  */
-import { expect, fillLoan, landedOnOnboarding, makeSetupChoices, openProfileSection, signIn, test } from './fixtures';
+import { expect, fillLoan, landedOnOnboarding, makeSetupChoices, openProfileSection, signIn, test, continueToPlan } from './fixtures';
 
 test('two tabs: banner in the other tab, reload-or-overwrite in the open form', async ({ page, context }) => {
   await signIn(page, 'r3d-two-tabs@rightdue.app');
@@ -18,7 +18,7 @@ test('two tabs: banner in the other tab, reload-or-overwrite in the open form', 
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
   }
   await page.goto('/profile');
   await openProfileSection(page, 'Income and spending');

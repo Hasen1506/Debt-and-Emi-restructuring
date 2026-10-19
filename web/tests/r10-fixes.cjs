@@ -271,7 +271,7 @@ test('Home interest: the tile reads the plan’s month-1 interest (as Plan and i
   // Persona G: ₹1,80,000 card at 39% and ₹60,000 at 13%. Balance × rate ÷ 12
   // is ₹6,500; the plan's October (card interest on the average daily
   // balance, 18% GST on it) is ₹6,929, the CSV's figure.
-  assert.deepEqual(homeInterestLine({ planInterest: 6929.4, monthLabel: 'Oct 2026', fallback: 6500, money }), { value: '₹6,929/MO', caption: 'CHARGED IN OCT 2026 · AS ON PLAN' });
+  assert.deepEqual(homeInterestLine({ planInterest: 6929.4, monthLabel: 'Oct 2026', fallback: 6500, money }), { value: '₹6,929/MO', caption: 'CHARGED IN Oct 2026 · AS ON PLAN' });
   assert.deepEqual(homeInterestLine({ planInterest: null, monthLabel: '', fallback: 6500, money }), { value: '₹6,500/MO', caption: "AT TODAY'S BALANCES AND RATES" });
   const h = src('components/home/HomeDebtFree.tsx');
   assert.match(h, /plan\.trajectory\.find\(\(p\) => p\.month === 1\)/);

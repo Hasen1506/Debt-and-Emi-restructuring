@@ -24,7 +24,7 @@ const crosses = (x: number, ya: number, yb: number, b: Box) =>
  * sit on the dashed line at 390 px). Each milestone label then avoids both
  * lines, every placed label and the note, every marker's dotted drop line,
  * and every raised leader; its own raised leader must not run through a
- * placed label either (the personal-loan leader crossed "CARD · JAN '27").
+ * placed label either (the personal-loan leader crossed "CARD · Jan 2027").
  * Pure, so web/tests can check it at any width.
  */
 export function layoutTrajectoryLabels(args: {
@@ -88,8 +88,11 @@ export function layoutTrajectoryLabels(args: {
     const markY = toY(m.v);
     const width = m.label.length * CHAR_W;
     const natural: 'start' | 'end' | 'middle' = x - width / 2 < left ? 'start' : x + width / 2 > w - right ? 'end' : 'middle';
+    // The box is the glyphs getBBox will report: text starts at x, ends at
+    // x, or is centred on x. A 4px inset here let a start-anchored label's
+    // real right edge land on the minimums note.
     const span = (a: 'start' | 'end' | 'middle') => {
-      const x0 = a === 'start' ? x - 4 : a === 'end' ? x - width + 4 : x - width / 2;
+      const x0 = a === 'start' ? x : a === 'end' ? x - width : x - width / 2;
       return { x0, x1: x0 + width };
     };
     // The natural anchor first; then hang the label right or left of its
@@ -119,7 +122,22 @@ export function layoutTrajectoryLabels(args: {
       for (const a of anchors) for (const c of candidates) if (ok(a, c, strict)) return { a, y: c };
       return null;
     };
-    const chosen = pick(true) ?? pick(false) ?? { a: natural, y: above[0] ?? 12 };
+    let chosen = pick(true) ?? pick(false);
+    if (!chosen) {
+      // Every preferred row is taken. Keep looking before dropping the label
+      // on top of one already placed (the phone chart's last resort did).
+      for (const a of anchors) {
+        for (let y = 12; y <= axisY - 6; y += 8) {
+          const { x0, x1 } = span(a);
+          if (!boxes.some((o) => overlaps(o, boxAt(x0, x1, y), 2))) {
+            chosen = { a, y };
+            break;
+          }
+        }
+        if (chosen) break;
+      }
+    }
+    if (!chosen) chosen = { a: natural, y: above[0] ?? 12 };
     const anchor = chosen.a;
     const y = chosen.y;
     const { x0, x1 } = span(anchor);
@@ -140,6 +158,8 @@ export interface LTrajPoint {
   t: number;
   av: number;
   min: number;
+  /** Exact balance at this point, same words as the schedule cell. */
+  tip?: string;
 }
 
 export interface LTrajMilestone {
@@ -152,8 +172,10 @@ export interface LTrajMilestone {
 /** A paper-coloured outline, so a label stays legible over a line. */
 const HALO = { stroke: L_T.paper, strokeWidth: 3, paintOrder: 'stroke' } as const;
 
-/** Monospace glyph width at the label size, for keeping labels apart. */
-const CHAR_W = 5.9;
+/** Collision width at 9.5px IBM Plex Mono. The face advances 5.7px; the
+ *  extra room is so a box covers the browser's getBBox, which is a hair
+ *  wider than the advance, and still clears the label beside it. */
+const CHAR_W = 6.6;
 
 /**
  * Plan vs minimums, drawn at the container's real pixel width so the
@@ -184,7 +206,9 @@ export function LTrajectory({
   const [w, ref] = useWidth(800);
   const narrow = w < 480;
   const h = narrow ? 220 : 260;
-  const left = narrow ? 58 : 76;
+  // Whole-rupee axis labels ("₹35,80,000") need more room than a compact scale.
+  const yWidth = Math.max(0, ...(yLabels ?? []).map((g) => g.l.length));
+  const left = Math.max(narrow ? 64 : 84, Math.ceil(yWidth * 6.2) + 12);
   const right = 14;
   const top = 34;
   const bottom = 26;
@@ -248,6 +272,13 @@ export function LTrajectory({
         {area && <path d={area} fill={L_T.highlight} opacity="0.55" />}
         <path d={path('min')} stroke={L_T.muted} strokeWidth="1.4" fill="none" strokeDasharray="5 4" />
         <path d={path('av')} stroke={L_T.ink} strokeWidth="2.2" fill="none" />
+        {points.map((p, i) =>
+          p.tip ? (
+            <circle key={`tip-${i}`} cx={toX(p.t)} cy={toY(p.av)} r={7} fill="transparent">
+              <title>{p.tip}</title>
+            </circle>
+          ) : null,
+        )}
         <line x1={left} x2={w - right} y1={toY(0)} y2={toY(0)} stroke={L_T.ink} strokeWidth={1.2} />
         {minimumsNote && note && (
           <text

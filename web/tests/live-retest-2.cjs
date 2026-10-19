@@ -90,18 +90,20 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
     return { t: m / N, av, min: 1 - m * 0.0045 };
   });
   const ms = [
-    { t: 4 / N, v: pts[4].av, label: "CARD · JAN '27" },
-    { t: 11 / N, v: pts[11].av, label: "PERSONAL LOAN · AUG '27" },
-    { t: 1, v: 0, label: "HOME LOAN · JUL '30" },
+    { t: 4 / N, v: pts[4].av, label: 'CARD · Jan 2027' },
+    { t: 11 / N, v: pts[11].av, label: 'PERSONAL LOAN · Aug 2027' },
+    { t: 1, v: 0, label: 'HOME LOAN · Jul 2030' },
   ];
-  const note = "MINIMUMS: CLEAR MAR '62 →";
+  const note = 'MINIMUMS: CLEAR Mar 2062 →';
   for (const w of [340, 358, 390, 480, 768, 1232, 1880]) {
     const narrow = w < 480;
     const h = narrow ? 220 : 260, left = narrow ? 58 : 76, right = 14, top = 34, bottom = 26;
     const toX = (t) => left + t * (w - left - right);
     const toY = (v) => h - bottom - v * (h - top - bottom);
     const { note: n, labels } = layoutTrajectoryLabels({ points: pts, milestones: ms, minimumsNote: note, w, left, right, top, toX, toY });
-    // Original look (4bc3dc8): labels are 9-10px mono (≈5.9px a glyph).
+    // The placed boxes come from the layout. This check uses the real
+    // 9.5px advance (5.7px, called 5.9 here) so a box the layout made
+    // wider still has to clear the ink.
     const CW = 5.9;
     const box = (x0, x1, y) => ({ x0, x1, y0: y - 9, y1: y + 2 });
     const lineAt = (key, x) => {

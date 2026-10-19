@@ -5,10 +5,10 @@ review: what the repo's lines are, the budgets CI enforces, where app state
 lives, which TypeScript files duplicate the engine, which tests are due to
 retire, how cold starts are measured, and what is left of the old name.
 
-## 1. What the lines are (E14)
+## 1. What the lines were (E14)
 
-`python scripts/size_report.py` prints tracked lines by kind (newline count,
-same as `wc -l`). On 14 Oct 2026, after the W9 cleanup:
+On 14 Oct 2026, after the W9 cleanup, tracked lines by kind (newline count,
+same as `wc -l`) were:
 
 | Kind | Files | Lines |
 |---|---:|---:|
@@ -34,10 +34,10 @@ round logs, audit scripts and mock-ups are listed in [ARCHIVE.md](ARCHIVE.md).
 
 ## 2. Budgets CI enforces (E12, E16, E17, E21)
 
+The line-count gate (per-file caps and `prod_lines_baseline`) was removed on 19 Oct 2026. It was blocking useful code. CI no longer runs it. The first-load JavaScript budget below is a performance guard and stays.
+
 | Check | Where | Rule | Re-baseline |
 |---|---|---|---|
-| File size | `scripts/size_report.py --check` (job `health`) | No production file over 1,500 lines. Five grandfathered files (`ProfileClient.tsx` 2,804, `api.ts` 2,035, `asset_liquidation.py` 1,617, `QuickSetup.tsx` 1,580, `schemas.py` 1,558) may only shrink. | Lower a cap in `scripts/size_budget.json` when a file shrinks. |
-| Production total | same | May grow 1% over `prod_lines_baseline` (91,678). | Raise the baseline in the PR that needs the lines, with the reason. |
 | Route JS | `web/scripts/route-size-budget.mjs` after `next build` (job `web`) | First-load JS per route may grow 10 kB over its baseline; nothing over 300 kB. Today: `/profile` 247.8 kB, `/plan` 245.4 kB, `/` 210.6 kB. | `node scripts/route-size-budget.mjs --write`, say why. |
 | Dead code | `web/scripts/unused-exports.cjs` (job `web`) | No new export used nowhere, no new never-imported file. 2 known exports and 1 orphan (`HomeDebtFreeRange.tsx`) allowed, shrink-only. | Remove the line from `unused-exports.allow.json` when fixed. |
 | Number formatting | `web/tests/formatter-guard.cjs` (`npm test`) | Raw `toFixed` / `toLocaleString` / `Intl.NumberFormat` per UI file may only go down (234 in 48 files today). New components start at zero. | `UPDATE_FORMATTER_BASELINE=1 node --test tests/formatter-guard.cjs` after removing some. |

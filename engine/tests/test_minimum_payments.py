@@ -53,6 +53,24 @@ def test_icici_three_way_picks_interest_arm():
     assert mp.quantize(D("0.01")) == D("7500.00")
 
 
+def test_hdfc_this_month_minimum_matches_the_charged_cycle():
+    """₹80,000 at 42% on HDFC. A full month of interest gives ₹7,304.
+    The plan charges the cycle's average daily balance and asks for ₹7,205.
+    Home, Profile and Can't pay must show that same rupee."""
+    from engine.simulation import card_minimum_at_charged_interest
+    card = Loan(
+        loan_type=LoanType.CREDIT_CARD,
+        bank="HDFC Bank",
+        outstanding=D("80000"),
+        nominal_rate=D("0.42"),
+        rate_type="fixed",
+        tenure_months_remaining=0,
+        scheduled_emi=D("4000"),
+    )
+    due = card_minimum_at_charged_interest(card, Country.IN, D("80000"), D("0"))
+    assert due.quantize(D("1")) == D("7205")
+
+
 def test_hdfc_compound_includes_emi_overlimit_pastdue():
     """HDFC: max(5% TAD, ₹200) + current_emi + over_limit + past_due."""
     card = _card("HDFC Bank", D("50000"))

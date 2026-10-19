@@ -6,7 +6,7 @@
  *    on Plan send one compare per settled choice.
  *  - R4-1: Invest or prepay names the field that stops the answer.
  */
-import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test, continueToPlan } from './fixtures';
 import type { Page, Request } from '@playwright/test';
 
 const shots = process.env.FIX4_SHOTS;
@@ -80,7 +80,7 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   if (shots) await page.screenshot({ path: `${shots}/after-new19-setup-1366.png`, fullPage: false });
 
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   // Plan's tenure what-if: three quick clicks, one compare for the last.
   // UI revert 2: the longer-tenure card is open under the table again (4bc3dc8).
   const plus5 = page.getByRole('button', { name: '+5 YRS' });
@@ -101,7 +101,7 @@ test('R4-1: Invest or prepay names the invalid field in the answer box', async (
   await onboard(page, 'golden-retest4-ivp@rightdue.app');
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await page.goto('/tools/invest-vs-prepay');
   await expect(page).toHaveURL(/\/tools\/invest-vs-prepay/);
   const loanRate = page.getByLabel("The loan's rate, a year (%)");

@@ -14,8 +14,8 @@ import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
 import { taxRateLabel } from '@/lib/tax-profile';
 import type { PlanData } from './PlanData';
-import { formatCurrencyWhole } from '@/lib/api';
-import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
+import { formatCurrencyWhole, formatPct } from '@/lib/api';
+import { MONTH_NAMES, MONTH_NAMES_SHORT, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
@@ -55,13 +55,13 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   const u = plan.user;
   const configured = plan.configuredUser;
   const ccy = plan.displayCurrency;
-  const pct = (v: number, dp = 0) => `${(v * 100).toFixed(dp)}%`;
-
   const hikeRate = Number(configured.annual_hike_rate ?? '0');
-  const hikeMonth = MONTH_NAMES[Math.max(0, Math.min(11, (configured.hike_effective_month ?? FY_ANCHOR_MONTH[u.country]) - 1))];
+  const hikeIdx = Math.max(0, Math.min(11, (configured.hike_effective_month ?? FY_ANCHOR_MONTH[u.country]) - 1));
+  const hikeMonth = MONTH_NAMES[hikeIdx];
+  const hikeMonthShort = MONTH_NAMES_SHORT[hikeIdx];
   const phased = (configured.hike_schedule ?? []).some(([f, t, r]) => f > 0 && t > f && Number(r) > 0);
   const hasHike = hikeRate > 0 || phased;
-  const hikePct = pct(hikeRate, hikeRate > 0 && hikeRate < 0.01 ? 2 : 0);
+  const hikePct = formatPct(hikeRate);
   const inflRate = Number(u.inflation_rate ?? '0');
   const taxSaving = plan.taxReinvestProjection.reduce((s, e) => s + Number(e.amount), 0);
   const efGap = Number(u.efund_target || 0) > 0 && Number(u.efund_balance || 0) < Number(u.efund_target || 0);
@@ -114,8 +114,8 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
           ? 'NONE SET'
           : plan.hikeModeling === 'on'
             ? phased
-              ? `PHASED · ${hikeMonth.slice(0, 3).toUpperCase()}`
-              : `+${hikePct} A YEAR · ${hikeMonth.slice(0, 3).toUpperCase()}`
+              ? `PHASED · ${hikeMonthShort}`
+              : `+${hikePct} A YEAR · ${hikeMonthShort}`
             : 'IGNORED',
       about:
         !hasHike
@@ -142,14 +142,14 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'inflation',
       label: 'RISING COSTS',
-      value: plan.inflationModeling === 'on' ? `+${pct(inflRate, 1)} A YEAR` : 'IGNORED',
+      value: plan.inflationModeling === 'on' ? `+${formatPct(inflRate)} A YEAR` : 'IGNORED',
       about:
         'Whether your monthly spending grows with prices each year. Rising costs leave less for debt later on.',
       // The rate is the central bank's latest forecast unless the user sets
       // their own; both are said with where they come from.
       control: (
         <>
-          <InflationToggle active={plan.inflationModeling} inflationRatePct={pct(inflRate, 1)} variant="ledger" />
+          <InflationToggle active={plan.inflationModeling} inflationRatePct={formatPct(inflRate)} variant="ledger" />
           <InflationRateControl country={u.country} own={plan.ownInflationRate} active={plan.inflationModeling} />
         </>
       ),
@@ -170,7 +170,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   chips.push({
     key: 'return',
     label: 'YOUR RETURN AFTER TAX',
-    value: `${pct(ret.value, 1)}${ret.assumed ? ' (OUR GUESS)' : ''}`,
+    value: `${formatPct(ret.value)}${ret.assumed ? ' (OUR GUESS)' : ''}`,
     about: 'Decides when the plan asks whether to prepay a cheap loan, keep the money, or split it.',
     control: <AssumedReturnControl user={configured} />,
   });
@@ -237,7 +237,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
 
   const gross = Number(u.income_type === 'salaried' ? u.annual_gross_salary : u.annual_business_income);
   const facts = [
-    `PLAN FROM ${monthIndexToCountryLabel(1, u.country).toUpperCase()}`,
+    `PLAN FROM ${monthIndexToCountryLabel(1, u.country)}`,
     u.country === 'IN'
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,

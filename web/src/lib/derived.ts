@@ -19,7 +19,14 @@ import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
 import { countryMonthKey } from './today';
 import { HORIZON_MONTHS } from './horizon';
+import { monthsToClear } from './amortization';
 import { emiOffTakeHome } from './loan-status-core';
+
+/** Spending a month, without EMIs: fixed plus flexible. One figure everywhere
+ *  the word spending or expenses means household costs. */
+export function monthlySpending(user: { fixed_expenses?: string | number | null; variable_expenses?: string | number | null }): number {
+  return Number(user.fixed_expenses || 0) + Number(user.variable_expenses || 0);
+}
 
 export interface LoanWithEffective {
   loan: LoanPayload;
@@ -208,18 +215,8 @@ export function deriveTenureMonths(
     const months = P.div(E).toNumber();
     return Math.max(1, Math.ceil(months));
   }
-  const r = annualR.div(12);
-  const monthlyInterest = P.mul(r);
-  if (E.lte(monthlyInterest)) {
-    // EMI < interest accrued each month → balance grows forever.
-    return null;
-  }
-  // ln(1 - rP/E) is negative; dividing by ln(1+r) (positive) gives a negative;
-  // negate to get months. Use plain JS Math.log on .toNumber() — Decimal has
-  // no log.
-  const ratio = new Decimal(1).sub(r.mul(P).div(E));
-  const n = -Math.log(ratio.toNumber()) / Math.log(1 + r.toNumber());
-  if (!Number.isFinite(n) || n <= 0 || n > HORIZON_MONTHS) return null;
-  return Math.ceil(n);
+  const n = monthsToClear(P, annualR, E);
+  if (n == null || n > HORIZON_MONTHS) return null;
+  return n;
 }
 

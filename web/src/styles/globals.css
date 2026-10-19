@@ -1,6 +1,9 @@
 /* UX50 A-12: IBM Plex Mono self-hosted (public/fonts, SIL OFL 1.1): no
    render-blocking third-party CSS. Three weights (was four: 500 now uses
-   400), Latin plus Latin Extended, which carries the ₹ sign. */
+   400), Latin plus Latin Extended, which carries the ₹ sign.
+   Faces point at public/fonts. The stylesheet is inlined into the
+   document (experimental.inlineCss) so the first paint is not blocked
+   on a second request for the CSS file. */
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;

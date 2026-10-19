@@ -107,7 +107,7 @@ test('A5: Plan, Setup and Home put the gap in the big figure, the date in the li
     const hd = g.shortHeadline({ shortfall, asIsMonth: asIs, closedMonth: closed, label, money });
     assert.equal(hd.value, `${money(shortfall)}/MO SHORT`);
     assert.doesNotMatch(hd.value, /M\d/);                          // never a date in the big figure
-    if (closed) assert.match(hd.sub, new RegExp(`GAP CLOSES: M${closed} · AS THINGS STAND`));
+    if (closed) assert.match(hd.sub, new RegExp(`gap closes: M${closed} · as things stand`));
   }
   assert.match(src('components/home/HomeDebtFree.tsx'), /shortValue\(plan\.shortfall/);
   assert.match(src('components/setup/QuickSetup.tsx'), /\$\{money\(shortfall\)\}\/mo short/);

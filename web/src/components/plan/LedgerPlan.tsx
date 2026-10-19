@@ -70,7 +70,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // Short of cash this month: the schedule below pays minimums the user
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
-  const label = (m: number) => monthIndexToCountryLabel(m, plan.user.country).toUpperCase();
+  const label = (m: number) => monthIndexToCountryLabel(m, plan.user.country);
   // Live test #16: one story, each date named. Audit 80+ A5: short, the
   // headline is the gap; the date if it closes and the date as things stand
   // (gap borrowed, the schedule's date) are in the line under it.
@@ -100,7 +100,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const clearLabel = shortStory
     ? shortStory.value
     : plan.debtFreeMonth
-      ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
+      ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
       : 'NOT IN LIFETIME';
   // What the plan pays the banks this month (EMIs, card minimums and the
   // extra), in the user's currency. Summing scheduled EMIs mixed ₹ and $,
@@ -275,7 +275,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             the table (a longer tenure costs more for someone who isn't short). */}
         {short && tenureWhatIf}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
-          FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
+          FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country)}.
           {plan.gap
             ? ` The forecast pays that gap from your emergency fund, then borrows the rest on a card at ${gapRateWords(plan.gap.rate)} a year and pays it back first. Revise the planned loan, income or expenses before relying on a payoff date.`
             : ' Revise the planned loan, income or expenses before relying on a payoff date.'}

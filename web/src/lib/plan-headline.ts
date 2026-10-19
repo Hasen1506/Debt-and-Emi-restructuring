@@ -5,7 +5,7 @@
  * one run, and some voices spell "YRS" letter by letter.
  */
 import type { Country } from './api';
-import { getCountryToday, monthIndexToDate } from './today';
+import { formatMonthDate, getCountryToday, monthIndexToDate } from './today';
 
 /** "2 years 1 month", "11 months", "1 year". */
 export function monthsInWords(n: number): string {
@@ -19,8 +19,7 @@ export function monthsInWords(n: number): string {
 
 /** "November 2028" for a plan month (1 = this month). */
 export function longMonth(monthIndex: number, country: Country, today: Date = getCountryToday(country)): string {
-  const d = monthIndexToDate(monthIndex, today);
-  return d.toLocaleDateString(country === 'IN' ? 'en-IN' : 'en-US', { month: 'long', year: 'numeric' });
+  return formatMonthDate(monthIndexToDate(monthIndex, today), 'long');
 }
 
 export function planHeadline(

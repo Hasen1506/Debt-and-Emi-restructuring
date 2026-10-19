@@ -117,6 +117,18 @@ function readRawClientCookie(name: string): string | null {
   return match ? match[1] : null;
 }
 
+/** The profile a summary should paint. The server uses the one it already
+ *  read. The browser uses the saved cookie when this browser has one. A
+ *  request that carried the cookie only as a header leaves document.cookie
+ *  empty; keep the server profile so the painted figures are not replaced
+ *  by an empty form once the scripts run. */
+export function summaryProfile(initial: StoredProfile): StoredProfile {
+  if (typeof document === 'undefined') return initial;
+  const client = loadProfileClient();
+  if (client.isLive || !initial.isLive) return client;
+  return initial;
+}
+
 export function loadProfileClient(): StoredProfile {
   const raw = decodeProfileCookies(readClientCookie);
   if (!raw) {

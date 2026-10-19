@@ -8,7 +8,7 @@
  * this month's payments are still to make.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -35,7 +35,7 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 
   await page.goto('/');
   // A click sent before the footer button hydrates is lost (WebKit in CI, run
@@ -79,7 +79,7 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await page.goto('/cant-pay');
   await expect(page).toHaveTitle(/Can.t pay this month · RightDue/);
   const tb = (n: string | RegExp) => page.getByRole('textbox', { name: n, exact: typeof n === 'string' });

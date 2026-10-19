@@ -11,7 +11,7 @@ import { paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, formatPct, type LoanPayload } from '@/lib/api';
-import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
+import { formatMonth, formatMonthDate, getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { owedTodayLine, shortDay } from '@/lib/owed-today';
 import { localTerms } from '@/lib/terms';
 import { loanCurrency } from '@/lib/currency';
@@ -19,6 +19,7 @@ import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type Schedule
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears, owedAtStart, owedNowAtStart, owedNowByLoan } from './plan-milestones';
+import { balanceByMonth } from '@/lib/schedule-chart';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -92,7 +93,7 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
   });
   for (const e of plan.runArgs?.lifecycle_events ?? []) {
     if (e.kind === 'floating_rate_reset' && e.loan_index != null && loans[e.loan_index] && e.new_rate) {
-      add(e.effective_month, `⊕ ${loanName(loans[e.loan_index]).toUpperCase()} RATE → ${(Number(e.new_rate) * 100).toFixed(2)}%`);
+      add(e.effective_month, `⊕ ${loanName(loans[e.loan_index]).toUpperCase()} RATE → ${formatPct(e.new_rate)}`);
     } else if (e.kind === 'salary_reset') {
       add(e.effective_month, '⊙ PAY CHANGES');
     }
@@ -123,12 +124,12 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const events = scheduleEvents(plan, short);
 
-  const trajByMonth = new Map<number, number>(plan.trajectory.map((p) => [p.month, p.avalanche]));
+  const trajByMonth = balanceByMonth(plan);
   const interestByMonth = new Map<number, number | undefined>(plan.trajectory.map((p) => [p.month, p.interest]));
 
   const allRows: ScheduleCsvRow[] = plan.monthlyPayments.map((row) => {
     const d = monthIndexToDate(row.month, today);
-    const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+    const date = formatMonthDate(d, 'short');
     const bal = trajByMonth.get(row.month) ?? 0;
     // The engine's totals, in the user's currency: summing perLoan mixed
     // ₹ and $, and "extra" was the total less every scheduled EMI, so a
@@ -174,7 +175,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     const notes = plan.paidNow ?? [];
     const money = (v: number) => fc(Math.round(v));
     if (notes.length === 1 && Math.abs(owedToday - owedNow - notes[0].amount) < 1)
-      return `${money(owedToday)} LESS ${money(notes[0].amount)} PAID ${shortDay(notes[0].date).toUpperCase()}`;
+      return `${money(owedToday)} LESS ${money(notes[0].amount)} PAID ${shortDay(notes[0].date)}`;
     return `${money(owedToday)} AT THE START OF THE MONTH LESS ${money(owedToday - owedNow)} ALREADY PAID`;
   })();
   // The month each loan's last payment goes out: its cell says FINAL, so a
@@ -182,7 +183,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const finalMonth = new Map<number, number>(loanClears(plan).map((c) => [c.index, c.month]));
   const startLabel = (() => {
     const d = monthIndexToDate(1, today);
-    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+    return formatMonthDate(d, 'short');
   })();
   const totals = reconcileSchedule(allRows, owedToday);
   const gstApplies = plan.user.country === 'IN' && plan.user.loans.some((l) => l.loan_type === 'credit_card');
@@ -216,7 +217,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const nfLabel = (() => {
     if (notFundableFrom == null) return null;
     const d = monthIndexToDate(notFundableFrom, today);
-    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+    return formatMonthDate(d, 'short');
   })();
   const money = (v: number) => fc(v.toFixed(0));
   const cell = (v: number) => boundedMoney(v, cap, money);
@@ -483,7 +484,7 @@ export function scheduleGapReason(drift: Record<string, string> | undefined | nu
   if (slide.length === 0) return "loans that start later, or a balance the plan doesn't clear";
   const [ccy, r] = slide[0];
   const name = ccy === 'INR' ? 'rupee' : ccy;
-  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${formatPct(r, 1).replace(/\.0%$/, '%')} a year`;
+  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${formatPct(r)} a year`;
 }
 
 function ScheduleFooter({ totals, fc, gstApplies, owedLine, gapReason = "loans that start later, or a balance the plan doesn't clear" }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean; owedLine?: string | null; gapReason?: string }) {
@@ -523,7 +524,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
     .sort((a, b) => a.days - b.days)[0];
   if (!next) return null;
   const [y, m, d] = next.on.split('-').map(Number);
-  const when = `${d} ${MONTH_NAMES[m - 1].slice(0, 3).toUpperCase()} ${y}`;
+  const when = formatMonth(y, m - 1, 'short', d);
   const benchmark = plan.user.country === 'IN' ? 'the RBI repo rate' : 'its index (usually SOFR)';
   return (
     <div
@@ -544,7 +545,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
     >
       <span>
         <strong style={{ letterSpacing: '0.06em' }}>
-          ⏰ {loanName(next.loan).toUpperCase()} RATE RESETS{' '}
+          {loanName(next.loan).toUpperCase()} RATE RESETS{' '}
           {next.days === 0 ? 'TODAY' : `IN ${next.days} DAY${next.days === 1 ? '' : 'S'}`} · {when}
         </strong>
         {' '}· The bank sets the new rate from {benchmark}; the plan keeps today&apos;s rate until you add the new one.

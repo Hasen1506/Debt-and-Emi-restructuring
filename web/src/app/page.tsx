@@ -6,7 +6,6 @@ import { loadStrategyServer } from '@/lib/strategy';
 import { CashFlow, LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
 import { HomeDebtHelp } from '@/components/home/HomeDebtHelp';
-import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
@@ -16,6 +15,7 @@ import {
   HomeInterestValue,
   HomeMoveOneStep,
   HomePayThisMonth,
+  HomeProgressSection,
   HomeThisMonthStrip,
   HomeCashFlow,
   HomeDuesTotal,
@@ -26,7 +26,9 @@ export const metadata: Metadata = { title: 'Home · RightDue' };
 
 // Home streams the plan's date and this month's payments: the page paints
 // at once and the engine's answer (~10–40 ms) fills in.
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const first = (await searchParams)?.first;
+  const firstSession = first === '1' || (Array.isArray(first) && first.includes('1'));
   const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
   const openLoans = profile.user.loans.filter((l) => Number(l.outstanding) > 0).length;
@@ -75,12 +77,10 @@ export default async function HomePage() {
           </Suspense>
         }
         thisMonth={
-          // Audit 80+ E10: the strip's place is held while the plan streams
-          // in (it shows whenever there's a loan to pay), so the sections
-          // under it don't jump down.
-          <Suspense fallback={hasOpenLoans ? <HomeThisMonthPlaceholder /> : null}>
-            <HomeThisMonthStrip />
-          </Suspense>
+          // The sentence is the largest thing on the first screen. It is
+          // rendered with the page, not streamed in afterwards, so the first
+          // paint already has the figure.
+          <HomeThisMonthStrip />
         }
         cheaper={
           <Suspense fallback={null}>
@@ -102,6 +102,12 @@ export default async function HomePage() {
             <HomeInsights />
           </Suspense>
         }
+        progress={
+          <Suspense fallback={null}>
+            <HomeProgressSection />
+          </Suspense>
+        }
+        firstSession={firstSession}
         oneStep={
           // Live re-test 2 R2-9: no "……" while the step loads; the empty
           // busy span lets the soft view show its own line meanwhile.

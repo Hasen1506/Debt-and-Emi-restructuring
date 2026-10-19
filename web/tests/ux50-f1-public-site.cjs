@@ -22,7 +22,10 @@ const WELCOME = fs.readFileSync(path.resolve(__dirname, '../public/welcome.html'
 
 test('E-13: every app page folder is gated; public pages and unknown paths are not', () => {
   const { isGatedAppPath, GATED_ROOTS } = require(path.join(root, 'lib/app-routes.ts'));
-  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api', 'rbi-decision', 'cant-pay']);  // audit 80+ A19 MPC page; A17 public Can't pay
+  // rd-hold is the empty script that keeps the load event open until the
+  // first paint is measured. It is not a page, and a signed-out screen
+  // requests it too, so it stays outside the sign-in gate.
+  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api', 'rbi-decision', 'cant-pay', 'rd-hold']);  // audit 80+ A19 MPC page; A17 public Can't pay
   const dirs = fs.readdirSync(path.join(root, 'app'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   for (const d of dirs) if (!PUBLIC.has(d)) assert.ok(GATED_ROOTS.includes(d), `app/${d} is a page folder but isn't in GATED_ROOTS`);
   for (const p of ['/', '/plan', '/plan/x', '/profile/assets', '/tools/windfall', '/onboarding', '/tax']) assert.ok(isGatedAppPath(p), p);

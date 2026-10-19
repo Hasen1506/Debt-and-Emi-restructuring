@@ -119,8 +119,8 @@ test('B-11: Home says what to do this month in one line', () => {
   assert.equal(homeThisMonthLine(null, 0, money), null);
   assert.equal(lowerName('HDFC Bank credit card'), 'HDFC Bank credit card');
   assert.equal(lowerName('Car loan'), 'car loan');
-  // UI revert 2: the one line stays first; the pay list follows the figures (4bc3dc8 order).
-  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]*?id="home-status"[\s\S]*?\{register\}/);
+  // Owner, 19 Oct 2026: the pay list follows the one line and comes before where you stand.
+  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]*?\{register\}[\s\S]*?id="home-status"/);
 });
 
 test('B-01: the extra row is tagged in words, stays after paid, and both Home lists share one order', () => {

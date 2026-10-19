@@ -5,6 +5,7 @@
  * number. Nothing here is a default the plan uses silently.
  */
 import Decimal from 'decimal.js';
+import { remainingBalance } from './amortization';
 import raw from './rate-cards.json';
 import type { Country, LoanType } from './api';
 
@@ -53,12 +54,7 @@ export function estimateBalance(amount: string | number, annualRate: string | nu
   const k = Math.round(paidMonths);
   if (!(P.gt(0) && n > 0 && k >= 0)) return null;
   if (k >= n) return '0';
-  const r = new Decimal(annualRate || 0).div(12);
-  if (r.lte(0)) return P.mul(n - k).div(n).toFixed(0);
-  const g = r.add(1);
-  // B_k = P·(g^n − g^k) / (g^n − 1)
-  const gn = g.pow(n);
-  return P.mul(gn.sub(g.pow(k))).div(gn.sub(1)).toFixed(0);
+  return remainingBalance(P, annualRate || 0, n, k).toFixed(0);
 }
 
 /** Months between a start month ('YYYY-MM') and this month ('YYYY-MM'). */

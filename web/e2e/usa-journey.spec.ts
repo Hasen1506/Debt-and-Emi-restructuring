@@ -4,7 +4,7 @@
  * reads the plan, checks /tax, signs out; then signs in again on a clean
  * browser and gets the saved plan back from the account.
  */
-import { chooseAllSpareCash, expect, fillLoan, isSetupPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
+import { chooseAllSpareCash, expect, fillLoan, isSetupPlanCall, planSummary, planText, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
 
 const EMAIL = 'golden-usa@rightdue.app';
 
@@ -38,7 +38,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
   await test.step('saved plan (golden schedule)', async () => {
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
     await expect(page.locator('#main').getByText('FILING SINGLE', { exact: false })).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
@@ -70,7 +70,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     // Whitespace dropped: innerText's line breaks depend on whether the
     // stylesheet has applied yet, which made a cold first run differ.
     debtFree = (await page.getByText(/^DEBT-FREE$/).first().locator('xpath=..').innerText()).replace(/\s+/g, '');
-    expect(debtFree).toMatch(/^DEBT-FREE[A-Z]{3}\d{4}/);
+    expect(debtFree).toMatch(/^DEBT-FREE[A-Z][a-z]{2}\d{4}/);
     await page.getByRole('button', { name: /SIGN OUT/ }).click();
     await page.waitForURL('**/login');
     await expect.poll(async () => (await context.cookies()).length).toBe(0);

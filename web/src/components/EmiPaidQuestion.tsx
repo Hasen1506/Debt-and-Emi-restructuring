@@ -47,7 +47,7 @@ export function EmiPaidQuestion({
           NOT YET
         </LChip>
         <LChip on={value === 'first'} onClick={() => onChange('first')}>
-          NEW LOAN · FIRST {word.toUpperCase()} IN {nextMonthName.slice(0, 3).toUpperCase()}
+          NEW LOAN · FIRST {word.toUpperCase()} IN {nextMonthName.slice(0, 3)}
         </LChip>
       </LChipRow>
       <p

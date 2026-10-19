@@ -53,9 +53,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* UX2 #23: a chosen light/dark theme applies before the first paint. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* One family: the ledger look is IBM Plex Mono throughout, self-hosted
-            (UX50 A-12; @font-face in styles/globals.css). */}
-        <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
-        <link rel="preload" href="/fonts/ibm-plex-mono-700-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+            (UX50 A-12; @font-face in styles/globals.css). The stylesheet is
+            inlined into this document, so the first paint is not blocked on
+            a second request for the CSS file. */}
         {/* R12-1: note a leave that starts before the app's scripts have
             loaded (lib/page-abort.ts reads it), so the half-hydrated page
             doesn't start requests the navigation then cuts off. */}

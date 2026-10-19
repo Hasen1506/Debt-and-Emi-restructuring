@@ -6,6 +6,7 @@
  * reminder). Nothing here is sent anywhere.
  */
 import type { PendingUpi } from './upi-confirm';
+import { MONTH_NAMES } from './today';
 
 export type PromptKey = 'log_last_month' | 'upi_check' | 'regime_check' | 'ask_assistant' | 'debt_free_moved';
 
@@ -60,7 +61,7 @@ export function monthlyPrompts(i: PromptInput): Prompt[] {
   // Not in the plan's first month: there is no "last month" yet (fix 13).
   const newPlan = !!i.firstBalanceYm && i.firstBalanceYm >= thisYm;
   if (!newPlan && i.today.getDate() <= 10 && i.loansWithPayments > 0 && !i.activityDates.some((d) => d.startsWith(last))) {
-    const lastName = new Date(i.today.getFullYear(), i.today.getMonth() - 1, 1).toLocaleString('en-GB', { month: 'long' });
+    const lastName = MONTH_NAMES[(i.today.getMonth() + 11) % 12];
     add({ key: 'log_last_month', text: `Did ${lastName}’s payments go out as planned? Tick them in Activity so this month starts from the right balances.`, href: '/activity#activity-ledger' });
   }
   if (i.debtFreeMoved) {

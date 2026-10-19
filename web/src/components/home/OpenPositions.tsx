@@ -24,7 +24,7 @@ import { StaleCardNudge } from './StaleCardNudge';
 import { FxRateLine } from '@/components/fx/FxRateLine';
 import { useOwedNow } from '@/lib/owed-now';
 import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
-import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
+import { formatMonth, getCountryToday } from '@/lib/today';
 
 export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m: DerivedMetrics; dues?: ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -42,9 +42,10 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
   // What's owed now: a loan whose EMI has gone out this month shows the
   // balance after it (lib/owed-now).
   const now = useOwedNow(user.loans, country);
-  const monthIdx = Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1;
-  const mon = MONTH_NAMES_SHORT[monthIdx].toUpperCase();
-  const nextMon = MONTH_NAMES_SHORT[(monthIdx + 1) % 12].toUpperCase();
+  const today = getCountryToday(country);
+  const mon = formatMonth(today.getFullYear(), today.getMonth(), 'short');
+  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMon = formatMonth(next.getFullYear(), next.getMonth(), 'short');
   const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(now.rows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
   return (

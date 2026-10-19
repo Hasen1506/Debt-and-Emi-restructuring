@@ -3,7 +3,7 @@
  * setup no longer makes silently, Portfolio as its own tab, and Sell to
  * repay as a plain calculator (no ranking, no verdict).
  */
-import { expect, fillLoan, signIn, test } from './fixtures';
+import { expect, fillLoan, signIn, test, continueToPlan } from './fixtures';
 
 test.describe('landing: senses the country and lets the visitor switch', () => {
   test.use({ locale: 'en-US', extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' } });
@@ -56,7 +56,7 @@ test('setup asks the choices, Portfolio has its own tab, Sell to repay is a calc
     const cheapest = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
     if (await cheapest.isVisible()) await expect(cheapest).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
     // A plan shows after one loan, with a way to add the next.
     await expect(page.getByRole('link', { name: /^\+ Loan: add another loan to the plan$/ }).first()).toBeVisible();
   });

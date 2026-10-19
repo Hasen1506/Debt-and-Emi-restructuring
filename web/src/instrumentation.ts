@@ -3,7 +3,11 @@
  * throws on the server. With SENTRY_DSN set, a scrubbed report goes to
  * Sentry (lib/error-report, grill #64); otherwise nothing happens.
  */
-export function register() {}
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { installDeferredChunks } = await import('./lib/defer-chunks');
+  installDeferredChunks();
+}
 
 export async function onRequestError(
   error: unknown,

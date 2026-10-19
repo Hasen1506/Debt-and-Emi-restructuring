@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { goalBuffer } from '@/lib/assumptions';
 import { loadProfileClient } from '@/lib/user-store';
 import { fundingRuleError, fundingRuleLabel, highInterestLoans, ruleOf } from '@/lib/goal-funding';
-import { formatCurrencyWhole } from '@/lib/api';
+import { formatCurrencyWhole, formatPct } from '@/lib/api';
 import {
   GOAL_PRESETS,
   KEPT_IN_LABEL,
@@ -421,7 +421,7 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
           Which loan
           <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ ...rule, kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
             {open.map(({ l, i }) => (
-              <option key={i} value={i}>{l.bank ? `${l.bank} ` : ''}{l.loan_type.replace('_', ' ')} · {(Number(l.nominal_rate) * 100).toFixed(1)}%</option>
+              <option key={i} value={i}>{l.bank ? `${l.bank} ` : ''}{l.loan_type.replace('_', ' ')} · {formatPct(l.nominal_rate)}</option>
             ))}
           </select>
         </label>

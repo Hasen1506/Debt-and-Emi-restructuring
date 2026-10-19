@@ -68,7 +68,7 @@ test('owed-fix: card ₹2,00,000 less ₹79,919 logged this month is ₹1,20,081
   const f = o.owedTodayOf({ owed_today: '120081', owed_start_of_month: '200000', owed_today_interest_in_paid: '0', owed_today_paid_off: '79919' });
   const line = o.owedTodayLine(f, 'October', inr);
   assert.match(line, /₹2,00,000 at the start of October; less ₹79,919 paid this month, you owe ₹1,20,081 now/);
-  assert.equal(o.shortDay('2026-10-09'), '9 Oct');
+  assert.equal(o.shortDay('2026-10-09'), '9 Oct 2026');
   // October's row: the plan's ₹98,646 is ₹79,919 paid and ₹18,727 to go.
   assert.equal(98646 - p.off[0].paid, 18727);
 });
@@ -88,7 +88,9 @@ test('owed-fix: every screen reads the one helper', () => {
   assert.match(src('components/WhatIfPanel.tsx'), /owedNowLoans\(user\.loans, \{/);
   assert.match(src('components/plan/load-plan.ts'), /loadPaidOffServer\(adjustedUser\.loans/);
   assert.match(src('components/plan/load-plan.ts'), /paid_off_this_month:/);
-  assert.match(src('components/plan/PlanTrajectory.tsx'), /owedNowAtStart\(plan\)/);
+  assert.match(src('lib/schedule-chart.ts'), /owedNowAtStart\(plan\)/);
+  assert.match(src('components/plan/PlanTrajectory.tsx'), /chartBalances\(plan\)/);
+  assert.match(src('components/plan/PlanSchedule.tsx'), /balanceByMonth\(plan\)/);
   assert.match(src('components/plan/PlanSchedule.tsx'), /owedNowAtStart\(plan\)/);
   assert.match(src('lib/use-profile.tsx'), /owedNowLoans\(current\.user\.loans/);
   assert.match(src('app/tools/loan-check/tool.tsx'), /useOwedTodayProfile as useStoredProfile/);
@@ -169,4 +171,41 @@ test('debt budget: the prompt asks, with three choices, and labels the plan unti
   assert.match(src('components/plan/LedgerPlan.tsx'), /debtBudgetChoice === 'unset'/);
   assert.match(src('components/home/HomeDebtFree.tsx'), /debtBudgetChoice === 'unset'/);
   assert.match(src('components/plan/PlanAssumptions.tsx'), /EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
+});
+
+test('chart balances equal the schedule BALANCE column, including the start and the debt-free month', () => {
+  const { chartBalances, balanceByMonth } = lib('schedule-chart.ts');
+  const { owedNowAtStart } = comp('plan/plan-milestones.ts');
+  const trajectory = [
+    { month: 1, avalanche: 3_000_000, minimums: 3_200_000, gapDebt: 5_000, minimumsGapDebt: 8_000 },
+    { month: 2, avalanche: 2_000_000, minimums: 3_100_000, gapDebt: 4_000 },
+    { month: 3, avalanche: 0, minimums: 2_900_000, gapDebt: 0 },
+  ];
+  const plan = {
+    trajectory,
+    debtFreeMonth: 3,
+    user: {
+      country: 'IN', monthly_income: '100000', fixed_expenses: '20000',
+      loans: [{ loan_type: 'home_loan', outstanding: '3000000', nominal_rate: '0.085', scheduled_emi: '25000' }],
+    },
+    marginalRate: '0.3',
+    displayCurrency: 'INR',
+  };
+  const chart = chartBalances(plan);
+  const table = balanceByMonth(plan);
+  assert.equal(chart[0].month, 0);
+  assert.equal(chart[0].balance, owedNowAtStart(plan));
+  for (const [month, balance] of table) {
+    const point = chart.find((p) => p.month === month);
+    assert.equal(point.balance, balance, `month ${month}`);
+    // Gap borrowing is a table column, not part of the plotted plan line.
+    assert.equal(point.balance, trajectory.find((t) => t.month === month).avalanche);
+  }
+  const free = chart.find((p) => p.month === plan.debtFreeMonth);
+  assert.equal(free.balance, table.get(plan.debtFreeMonth));
+  assert.equal(free.balance, 0);
+  assert.doesNotMatch(src('components/plan/PlanTrajectory.tsx'), /gapDebt \?\? 0/);
+  assert.match(src('components/plan/PlanTrajectory.tsx'), /chartBalances\(plan\)/);
+  assert.match(src('components/plan/PlanSchedule.tsx'), /balanceByMonth\(plan\)/);
+  assert.match(src('components/ledger/LTrajectory.tsx'), /<title>\{p\.tip\}<\/title>/);
 });

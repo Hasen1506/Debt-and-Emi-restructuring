@@ -10,6 +10,7 @@
  */
 import { formatCurrency, formatCurrencyWhole, type Country, type LoanPayload } from './api';
 import type { MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
+import { interestFromPayments } from './amortization';
 import Decimal from 'decimal.js';
 
 export type CurrencyCode = 'INR' | 'USD';
@@ -128,12 +129,10 @@ export interface PerCurrencyMetrics {
  * any engine change — the engine returns per-loan amounts, we just
  * group them.
  *
- * Interest is derived as (total paid − principal reduction). Principal
- * reduction is (initial outstanding − final outstanding); we treat
- * `min(initial, totalPaid)` as the principal-reduction floor when a
- * loan clears inside the horizon (every excess payment over the
- * initial balance is interest). This is an approximation accurate to
- * the last fractional month's interest — good enough for headline KPIs.
+ * Interest is what each loan was paid beyond its own opening balance,
+ * then summed. Capping the whole currency at once (min of every loan's
+ * payments against every loan's principal) hid interest whenever one
+ * loan was overpaid and another was not.
  */
 export function derivePerCurrencyMetrics(
   loans: LoanPayload[],
@@ -159,7 +158,9 @@ export function derivePerCurrencyMetrics(
     bucket.totalOutstanding += Number(loan.outstanding) || 0;
   });
 
-  // Walk months in order to track last-paying-month per currency.
+  // Walk months in order to track last-paying-month per currency, and
+  // what each loan itself was paid (interest is per loan, then summed).
+  const paidByLoan = new Map<number, number>();
   for (const point of monthlyPayments) {
     for (const [idxStr, amountStr] of Object.entries(point.perLoan)) {
       const idx = Number(idxStr);
@@ -171,19 +172,18 @@ export function derivePerCurrencyMetrics(
       const bucket = out[ccy]!;
       bucket.totalPaidScenario += amount;
       bucket.debtFreeMonth = point.month;
+      paidByLoan.set(idx, (paidByLoan.get(idx) ?? 0) + amount);
     }
   }
 
-  // Now back out interest: (total paid − principal reduction).
-  // Principal reduction is bounded by the initial outstanding — anything
-  // paid beyond that is interest.
   for (const ccy of Object.keys(out) as CurrencyCode[]) {
     const bucket = out[ccy]!;
-    const principalCleared = Math.min(bucket.totalPaidScenario, bucket.totalOutstanding);
-    bucket.totalInterestScenario = Math.max(
-      0,
-      bucket.totalPaidScenario - principalCleared,
-    );
+    const subset = bucket.loanIndices.map((i) => loans[i]);
+    const paidSubset: Record<number, number> = {};
+    bucket.loanIndices.forEach((loanIdx, i) => {
+      paidSubset[i] = paidByLoan.get(loanIdx) ?? 0;
+    });
+    bucket.totalInterestScenario = interestFromPayments(subset, paidSubset);
   }
 
   return out as Record<CurrencyCode, PerCurrencyMetrics>;

@@ -16,7 +16,8 @@
  * itself. Waiting on a decision matters for a new loan or a switch.
  */
 import type { Country, LoanPayload } from './api';
-import { MONTH_NAMES_SHORT } from './today';
+import { emiNumber, monthsToClear } from './amortization';
+import { formatIso } from './today';
 import { loanMarket } from './currency';
 
 /** One step of a central bank move: a quarter point. */
@@ -24,21 +25,14 @@ export const RATE_STEP = 0.0025;
 
 /** The EMI that clears `principal` at `annualRate` in `months`. */
 export function emiFor(principal: number, annualRate: number, months: number): number {
-  if (!(months > 0) || !(principal > 0)) return 0;
-  const r = annualRate / 12;
-  if (r === 0) return principal / months;
-  const f = Math.pow(1 + r, months);
-  return (principal * r * f) / (f - 1);
+  return emiNumber(principal, annualRate, months);
 }
 
 /** Months for `emi` to clear `principal` at `annualRate`; null when the
  *  EMI doesn't cover the interest. */
-export function monthsFor(principal: number, annualRate: number, emi: number): number | null {
+export function monthsFor(principal: number, annualRate: number, payment: number): number | null {
   if (!(principal > 0)) return 0;
-  const r = annualRate / 12;
-  if (r === 0) return emi > 0 ? Math.ceil(principal / emi) : null;
-  if (emi <= principal * r) return null;
-  return Math.ceil(-Math.log(1 - (principal * r) / emi) / Math.log(1 + r));
+  return monthsToClear(principal, annualRate, payment);
 }
 
 export type RateFollow = 'floating' | 'card';
@@ -72,13 +66,17 @@ export function rateMove(loan: LoanPayload, country: Country, step = RATE_STEP):
   if (!(rate >= 0)) return null;
   if (follows === 'card') return { loan, follows, interestUp: (p * step) / 12 };
   const n = Number(loan.tenure_months_remaining) || 0;
-  const emi = Number(loan.scheduled_emi);
+  const scheduled = Number(loan.scheduled_emi);
   const down = Math.max(0, rate - step);
+  // "More a month" is against the EMI the person pays, not a freshly
+  // computed one. A borrower who already pays above the formula EMI was
+  // shown a step off that formula instead of off their payment.
+  const now = scheduled > 0 ? scheduled : emiFor(p, rate, n);
   return {
     loan,
     follows,
-    ...(n > 0 ? { emi: { now: emiFor(p, rate, n), up: emiFor(p, rate + step, n), down: emiFor(p, down, n) } } : {}),
-    months: { now: monthsFor(p, rate, emi), up: monthsFor(p, rate + step, emi), down: monthsFor(p, down, emi) },
+    ...(n > 0 ? { emi: { now, up: emiFor(p, rate + step, n), down: emiFor(p, down, n) } } : {}),
+    months: { now: monthsFor(p, rate, scheduled), up: monthsFor(p, rate + step, scheduled), down: monthsFor(p, down, scheduled) },
   };
 }
 
@@ -90,8 +88,7 @@ function addMonths(iso: string, k: number): string {
 }
 
 export function dayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${d} ${MONTH_NAMES_SHORT[m - 1]} ${y}`;
+  return formatIso(iso);
 }
 
 /** The next reset on file as 'YYYY-MM-DD' (an older 'YYYY-MM' is the

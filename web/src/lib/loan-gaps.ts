@@ -13,6 +13,7 @@ import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
 import { paymentWords } from './r7-inputs';
 import { amountInWords, formatAmount } from './amount';
+import { formatIso } from './today';
 import { deriveTenureMonths } from './derived';
 import Decimal from 'decimal.js';
 
@@ -250,14 +251,9 @@ export function describeGap(
 /** Live re-test 2 R2-2: Setup's line above Continue, naming what's wrong.
  *  Live re-test 3 R3-4: a rate that can't be read ("8.5x") or is out of
  *  range is `invalid`, never "missing a number"; `missing` is blank fields. */
-/** "2026-10-10" → "10 Oct 2026", as the rest of the app writes dates (UX50 B-36). */
+/** "2026-10-10" → "10 Oct 2026", the shared short date (UX50 B-36). */
 export function formatAsOfDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
-  if (!m) return iso;
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const mi = Number(m[2]) - 1;
-  if (mi < 0 || mi > 11) return iso;
-  return `${Number(m[3])} ${months[mi]} ${m[1]}`;
+  return formatIso(iso ?? '');
 }
 
 export function setupSummaryLine(f: {

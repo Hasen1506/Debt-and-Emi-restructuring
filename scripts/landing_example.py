@@ -188,8 +188,8 @@ def short_owed(c: str, v) -> str:
 
 
 def mon(label: str | None) -> str:
-    """'May 2032' → "MAY ’32"."""
-    return f"{label[:3].upper()} ’{label[-2:]}" if label else "—"
+    """Short month, unchanged: 'May 2032'. Never 'MAY ’32'."""
+    return label if label else "—"
 
 
 def gen_register(c: str, f: dict) -> str:
@@ -212,7 +212,7 @@ def gen_register(c: str, f: dict) -> str:
             f'          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>\n'
             f'        </div>'
         )
-    month = date(START.year, START.month, 1).strftime("%B").upper()
+    month = date(START.year, START.month, 1).strftime("%b %Y")
     total = sum(float(r["payment"]) for r in x["plan"]["first_month"])
     return (f'        <h3>PAY THIS MONTH · {month} <small>EXAMPLE</small></h3>\n' + "\n".join(rows) +
             f'\n        <div class="tot"><span>TOTAL THIS MONTH</span><b>{money(c, total)}</b></div>')
@@ -231,7 +231,7 @@ def gen_kpis(c: str, f: dict) -> str:
     when = f", {sooner} MO SOONER" if sooner > 0 else ""
     return (
         f'      <div class="kpi"><div class="l">OUTSTANDING</div><div class="v">{money(c, x["outstanding"])}</div><div class="s">{x["loans"]} LOANS</div></div>\n'
-        f'      <div class="kpi"><div class="l">DEBT-FREE BY</div><div class="v">{x["plan"]["debt_free"].upper()}</div><div class="s">AT {money(c, x["budget"])}/MO</div></div>\n'
+        f'      <div class="kpi"><div class="l">DEBT-FREE BY</div><div class="v">{x["plan"]["debt_free"]}</div><div class="s">AT {money(c, x["budget"])}/MO</div></div>\n'
         f'      <div class="kpi"><div class="l">INTEREST SAVED</div><div class="v" style="color:var(--pos)">{money(c, v["interest_saved"])}</div><div class="s">VS SMALLEST FIRST, SAME {money(c, x["budget"])}{when}</div></div>\n'
         f'      <div class="kpi"><div class="l">EXTRA THIS MONTH</div><div class="v">{money(c, extra[0])}</div><div class="s">ALL OF IT TO THE {extra[1].upper()}</div></div>'
     )
@@ -241,7 +241,7 @@ def gen_kpis(c: str, f: dict) -> str:
 # The old chart put leader labels inside the plot and an automatic placer
 # kept them from colliding, but not from pointing at the wrong label (A-01).
 # Now: one line (the plan), round y ticks with gridlines, a y-axis line, a
-# direct "₹0 · MAY ’32" label at the line's end, and the payoffs on a strip
+# direct "₹0 · May 2032" label at the line's end, and the payoffs on a strip
 # under the x-axis. Each payoff is one square on the line (payoffs within
 # MERGE_MONTHS share one square and one label, A-05), a faint guide drops
 # from the square to the strip, and the label hangs off that guide like a
@@ -323,13 +323,13 @@ def _short_name(loan: str) -> str:
 
 
 def _range(a: str, b: str, title: bool = False) -> str:
-    """'Oct 2027', 'Nov 2027' → "OCT–NOV ’27"; across years "NOV ’27–JAN ’28"."""
-    f = (lambda s: s[:3]) if title else (lambda s: s[:3].upper())
+    """'Oct 2027', 'Nov 2027' → "Oct–Nov 2027"; across years "Nov 2027–Jan 2028"."""
+    del title
     if a == b:
-        return f"{f(a)} ’{a[-2:]}"
+        return a
     if a[-4:] == b[-4:]:
-        return f"{f(a)}–{f(b)} ’{b[-2:]}"
-    return f"{f(a)} ’{a[-2:]}–{f(b)} ’{b[-2:]}"
+        return f"{a[:3]}–{b[:3]} {b[-4:]}"
+    return f"{a}–{b}"
 
 
 def clusters(x: dict) -> list[dict]:

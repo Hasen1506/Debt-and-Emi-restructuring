@@ -63,8 +63,8 @@ test('what a loan needs each month: its EMI, a card’s minimum, or the minimum 
   const emiLoan = { loan_type: 'personal_loan', outstanding: '200000', nominal_rate: '0.14', scheduled_emi: '9500' };
   assert.equal(Number(requiredMonthly(emiLoan, 'IN')), 9500);
   const card = { loan_type: 'credit_card', bank: 'HDFC Bank', outstanding: '80000', nominal_rate: '0.42', scheduled_emi: '0' };
-  const min = Number(requiredMonthly(card, 'IN'));
-  assert.ok(min > 0 && min < 80000, `card minimum ${min}`);
+  // Full-month formula is ₹7,304; the plan's cycle charge, and every screen, is ₹7,205.
+  assert.equal(Number(requiredMonthly(card, 'IN')), 7205);
   assert.equal(Number(requiredMonthly({ ...card, min_payment_override: '4000' }, 'IN')), 4000);
 });
 

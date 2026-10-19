@@ -124,6 +124,8 @@ interface LoanUi {
   rateUnreadable?: boolean;
   /** UX2-3: 'YYYY-MM' an interest-only or bullet loan ends (lib/repayment-shape). */
   endMonth?: string;
+  /** The empty form asks the kind of loan before any other field. */
+  typeSet?: boolean;
 }
 
 type FxQuote = FxRateResponse | 'loading' | 'failed';
@@ -878,16 +880,6 @@ export function QuickSetup() {
                   : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}{' '}
                 Not sure of a number? Tap I DON&apos;T KNOW beside it for a marked estimate.
               </p>
-              {country === 'IN' && (
-                <SetupImportCard
-                  loans={loans}
-                  blankLoan={blankLoan}
-                  todayIso={localIsoDate(getCountryToday(country))}
-                  // An untouched blank block gives way to the imported loans (UX50 D-04).
-                  onAdd={(added) => setLoans((cur) => [...cur.filter((l) => l.bank || Number(l.outstanding) > 0), ...added])}
-                  onUpdate={(i, patch) => setLoans((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)))}
-                />
-              )}
               {!prev && (
                 <p style={{ color: L_T.inkSoft, margin: '0 0 6px', fontSize: 12 }}>
                   One loan is enough to start: you&apos;ll see your plan next, and can add the rest from Plan with + LOAN.
@@ -947,6 +939,16 @@ export function QuickSetup() {
                   <LBracket onClick={skipLoans}>NO LOANS · SKIP</LBracket>
                 )}
               </div>
+              {country === 'IN' && (
+                <SetupImportCard
+                  loans={loans}
+                  blankLoan={blankLoan}
+                  todayIso={localIsoDate(getCountryToday(country))}
+                  // An untouched blank block gives way to the imported loans (UX50 D-04).
+                  onAdd={(added) => setLoans((cur) => [...cur.filter((l) => l.bank || Number(l.outstanding) > 0), ...added])}
+                  onUpdate={(i, patch) => setLoans((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)))}
+                />
+              )}
 
               {foreignCcys.map((c) => {
                 const q = fxQuotes[c];
@@ -1201,7 +1203,8 @@ function LoanBlock({
     !card && !ui.byMonths && Number(loan.outstanding) > 0 && Number(loan.scheduled_emi) > 0 &&
     Number(loan.nominal_rate) > 0 && tenure === null;
   // Live re-test 2 NEW-23: "Credit card", "HDFC car loan", not "LOAN 1".
-  const name = nameProp ?? setupLoanName([loan], 0) ?? `Loan ${index + 1}`;
+  const typeChosen = !!ui.typeSet || Number(loan.outstanding) > 0 || !!(loan.bank && loan.bank.trim()) || Number(loan.nominal_rate) > 0 || Number(loan.scheduled_emi) > 0;
+  const name = !typeChosen ? 'New loan' : (nameProp ?? setupLoanName([loan], 0) ?? `Loan ${index + 1}`);
   const setCurrency = (c: CurrencyCode) => onPatch({ currency: c });
   const find = (key: FindKey) => whereToFind(key, { country: ccy === 'INR' ? 'IN' : 'US', loanType: loan.loan_type });
   const estimated = new Set(loan.estimated_fields ?? []);
@@ -1220,11 +1223,17 @@ function LoanBlock({
       <ChipRow label="Kind of loan">
         {/* R7-7: no gold loans on a US borrower's dollar loan (an Indian product). */}
         {loanKindsFor(TYPE_CHIPS, ccy === 'INR' ? 'IN' : country, loan.loan_type).map(([t, label]) => (
-          <Chip key={t} on={loan.loan_type === t} onClick={() => onPatch(typeSwitch(loan, t, country))}>
+          <Chip key={t} on={typeChosen && loan.loan_type === t} onClick={() => { onPatch(typeSwitch(loan, t, country)); onUi({ typeSet: true }); }}>
             {label}
           </Chip>
         ))}
       </ChipRow>
+      {!typeChosen && (
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: L_T.inkSoft }}>
+          Choose the kind of loan first. Balance, rate and the monthly payment depend on it.
+        </p>
+      )}
+      {typeChosen && <>
       {showCurrency && (
         <ChipRow label="Currency of this loan">
           <Chip on={ccy === 'INR'} onClick={() => setCurrency('INR')}>₹ Rupees</Chip>
@@ -1433,6 +1442,7 @@ function LoanBlock({
           </p>
         </div>
       )}
+      </>}
     </div>
   );
 }
