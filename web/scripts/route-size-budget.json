@@ -1,12 +1,12 @@
 {
-  "_comment": "First-load JS (gzip kB) per route. Fails at +10 kB or over 300 kB. Re-baseline with --write and say why in the PR.",
+  "_comment": "First-load JS (gzip kB) per route. Fails at +10 kB or over 300 kB. Re-baseline with --write and say why in the PR. 19 Oct 2026: Home is 266.6 kB and the US letters page is 196.6 kB, measured by CI on 61cfcbe. Home carries the what-changed card, calendar links and the mark-paid amount box. The letters page shares that shell. This work is not split to satisfy the budget.",
   "routes": {
-    "/": 245.2,
+    "/": 266.6,
     "/_not-found": 103.3,
     "/account": 134.2,
     "/activity": 208.2,
     "/cant-pay": 187.6,
-    "/cant-pay/us-letters": 186.3,
+    "/cant-pay/us-letters": 196.6,
     "/glossary": 164.6,
     "/goals": 210.4,
     "/login": 161.8,
