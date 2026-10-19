@@ -77,3 +77,23 @@ test('the line under Pay this month gives the reason that matches the choice', (
   assert.match(leftOverLine({ leftOver: 4000, budget: 40000, budgetChoice: 'set' }, inr), /outside your total for debts/);
   assert.equal(leftOverLine({ leftOver: 0, budget: 0, budgetChoice: 'unset' }, inr), null);
 });
+
+test('a UTC month-end is the next morning in India and still the evening in New York', () => {
+  const { getCountryToday, localIsoDate } = lib('today.ts');
+  // 31 Mar 2026 18:29 UTC is 23:59 IST and 14:29 EDT.
+  assert.equal(localIsoDate(getCountryToday('IN', new Date('2026-03-31T18:29:00.000Z'))), '2026-03-31');
+  assert.equal(localIsoDate(getCountryToday('US', new Date('2026-03-31T18:29:00.000Z'))), '2026-03-31');
+  // 31 Mar 2026 18:31 UTC is 00:01 IST on 1 Apr. The same instant is still 31 Mar in New York.
+  assert.equal(localIsoDate(getCountryToday('IN', new Date('2026-03-31T18:31:00.000Z'))), '2026-04-01');
+  assert.equal(localIsoDate(getCountryToday('US', new Date('2026-03-31T18:31:00.000Z'))), '2026-03-31');
+});
+
+test('a US hardship letter changes when a different ask is ticked', () => {
+  const { hardshipLetter } = lib('distress-triage.ts');
+  const base = { name: 'Asha', lender: 'Chase', loanLabel: 'Chase credit card', accountRef: '1', reason: 'hours were cut', canPay: '$80', dateText: '1 April 2026', country: 'US', floating: false };
+  const two = hardshipLetter({ ...base, asks: ['pause', 'longer_tenure'] });
+  const three = hardshipLetter({ ...base, asks: ['pause', 'lower_emi', 'longer_tenure'] });
+  assert.match(three, /lower monthly payment/);
+  assert.doesNotMatch(two, /lower monthly payment/);
+  assert.notEqual(two, three);
+});

@@ -127,14 +127,23 @@ export function LBracket({
       <span aria-hidden="true">]</span>
     </>
   );
+  // A real link, so a click during load still opens the page. Once the
+  // script is running, onClick handles it without a second navigation.
+  const follow = onClick
+    ? (e: { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; button: number; preventDefault: () => void }) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        onClick();
+      }
+    : undefined;
   if (href) {
     if (href.startsWith('/') && !href.startsWith('//')) return (
-      <Link href={href} prefetch={prefetch} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
+      <Link href={href} prefetch={prefetch} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label} onClick={follow}>
         {inner}
       </Link>
     );
     return (
-      <a href={href} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
+      <a href={href} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label} onClick={follow}>
         {inner}
       </a>
     );

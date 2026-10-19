@@ -68,7 +68,8 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: Schedule
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Revoking in the same turn cancels the download before the browser reads it.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 /** What happens in each month of the plan, by month. Glyphs:
@@ -358,7 +359,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             <tbody>
               {/* Where the plan starts: what each loan owes before this
                   month's payments. The rows below are what's paid. */}
-              <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
+              <tr data-month="0" data-balance={Math.round(owedNow)} style={{ borderBottom: `1px solid ${L_T.ink}` }}>
                 <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
                 <td data-testid="schedule-start-label" style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>
@@ -387,6 +388,8 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               {visibleRows.map((r) => (
                 <tr
                   key={r.mo}
+                  data-month={r.mo}
+                  data-balance={Math.round(r.balance)}
                   // UI revert 2 (18 Oct 2026): every event row is yellow, in the
                   // events view and the full view, on every width, as it was
                   // from R3.3 (4fb2d3b, 1 Oct) until UX50 B-16 (b37ddf4, 13 Oct).

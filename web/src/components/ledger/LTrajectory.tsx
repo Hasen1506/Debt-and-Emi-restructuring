@@ -160,6 +160,9 @@ export interface LTrajPoint {
   min: number;
   /** Exact balance at this point, same words as the schedule cell. */
   tip?: string;
+  /** Schedule month (0 is owed now) and the whole-currency balance plotted. */
+  month?: number;
+  balance?: number;
 }
 
 export interface LTrajMilestone {
@@ -274,7 +277,7 @@ export function LTrajectory({
         <path d={path('av')} stroke={L_T.ink} strokeWidth="2.2" fill="none" />
         {points.map((p, i) =>
           p.tip ? (
-            <circle key={`tip-${i}`} cx={toX(p.t)} cy={toY(p.av)} r={7} fill="transparent">
+            <circle key={`tip-${i}`} cx={toX(p.t)} cy={toY(p.av)} r={7} fill="transparent" data-month={p.month} data-balance={p.balance}>
               <title>{p.tip}</title>
             </circle>
           ) : null,

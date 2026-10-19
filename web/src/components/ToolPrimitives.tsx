@@ -304,12 +304,14 @@ export function Field({
   // Live re-test 2 R2-1: "8.5x" is not a rate. Say so as it's typed
   // (it used to read as 0% until Continue, then "enter the rate").
   const pctError = isPercent ? unreadableRateError(pctText) : null;
-  const shownError =
-    pctError ??
-    error ??
-    (isMoney && moneyParsed?.error && (moneyTouched || isImmediateAmountError(moneyText, moneyParsed))
+  // A minus sign or garbage is the error even after Continue already said the
+  // field was blank. Callers treat "-100" as empty, so their message used to
+  // hide "Amounts can't be negative." while the box still showed -100.
+  const moneyError =
+    isMoney && moneyParsed?.error && (moneyTouched || isImmediateAmountError(moneyText, moneyParsed))
       ? moneyParsed.error
-      : null);
+      : null;
+  const shownError = pctError ?? moneyError ?? error ?? null;
   const hintText = [moneyWords ? `= ${moneyWords}` : '', hint ?? ''].filter(Boolean).join(' · ') || undefined;
   const describe = [describedBy(inputId, hintText, shownError), findIt ? `${inputId}-find` : '']
     .filter(Boolean)
@@ -320,6 +322,7 @@ export function Field({
       <input
         id={inputId}
         ref={inputRef}
+        aria-label={label}
         aria-describedby={describe}
         aria-invalid={shownError ? true : undefined}
         className={isNumeric ? 'num' : undefined}
@@ -674,6 +677,7 @@ export function Select<T extends string>({
       <LabelRow label={label} info={info} htmlFor={selectId} />
       <select
         id={selectId}
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         aria-describedby={[describedBy(selectId, hint, error), findIt ? `${selectId}-find` : ''].filter(Boolean).join(' ') || undefined}

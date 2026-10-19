@@ -81,6 +81,8 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       av: norm(p.avalanche),
       min: norm(p.minimums),
       tip: `${p.month === 0 ? 'Now' : shortDate(p.month)} · ${money(p.avalanche)}`,
+      month: p.month,
+      balance: Math.round(p.avalanche),
     }));
     const avAt = (m: number) => shown.find((p) => p.month === m)?.avalanche ?? 0;
 

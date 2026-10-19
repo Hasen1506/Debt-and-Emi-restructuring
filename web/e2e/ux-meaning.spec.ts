@@ -72,3 +72,16 @@ test('what-if rate box keeps a typed basis-point amount', async ({ page }) => {
   await expect(box).toHaveValue('30');
   await expect(page.getByTestId('whatif-box-error')).toHaveCount(0);
 });
+
+test('a minus amount is named, even after Continue said the field was empty', async ({ page }) => {
+  const email = `ux-neg-${Date.now()}@rightdue.app`;
+  await signInFresh(page, email);
+  await expect(page).toHaveURL(/\/onboarding/);
+  await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
+  await expect(page.getByText(/Enter what reaches your bank/i)).toBeVisible();
+  const take = page.getByLabel(/Take-home pay a month|What reaches your bank/i).first();
+  await take.fill('-100');
+  await page.getByLabel(/Spending a month/i).fill('-5');
+  await expect(page.getByRole('alert').filter({ hasText: /Amounts can't be negative/i }).first()).toBeVisible();
+  await expect(take).toHaveValue('-100');
+});

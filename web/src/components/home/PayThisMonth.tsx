@@ -76,6 +76,12 @@ export function PayThisMonth({
   const [vpas, setVpas] = useState<Record<number, string>>({});
   // A payoff just marked paid: the celebration and the closure letter.
   const [cleared, setCleared] = useState<PayRow | null>(null);
+  // The title month follows the same country clock as the header. The first
+  // paint can be the server's instant; a tick after load, and every half
+  // minute, uses the browser's instant in that country. A tab left open
+  // across midnight IST therefore changes month with the header, including
+  // when the server itself is on UTC.
+  const liveMonth = useCountryMonth(country);
   const profileAtRead = useRef('');
   const today = localIsoDate(getCountryToday(country));
   const month = today.slice(0, 7);
@@ -358,7 +364,7 @@ export function PayThisMonth({
       >
         <span id="home-pay">
           Pay this month
-          <span style={{ textTransform: 'none', letterSpacing: '0.02em' }}> · {monthLabel}</span>
+          <span style={{ textTransform: 'none', letterSpacing: '0.02em' }} suppressHydrationWarning> · {liveMonth || monthLabel}</span>
         </span>
       </LSectionHeader>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
@@ -627,16 +633,34 @@ export function PayThisMonth({
   );
 }
 
+/** This month's name in the user's country, refreshed while the tab stays open. */
+function countryMonthLabel(country: Country): string {
+  const d = getCountryToday(country);
+  return formatMonth(d.getFullYear(), d.getMonth(), 'long');
+}
+
+export function useCountryMonth(country: Country): string {
+  const [label, setLabel] = useState(() => countryMonthLabel(country));
+  useEffect(() => {
+    const sync = () => setLabel(countryMonthLabel(country));
+    sync();
+    const id = window.setInterval(sync, 30_000);
+    return () => window.clearInterval(id);
+  }, [country]);
+  return label;
+}
+
 /** The section when there's nothing to tick: details missing, or no plan. */
-export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
+export function PayNotice({ title, country, children }: { title: string; country?: Country; children: ReactNode }) {
+  const live = useCountryMonth(country ?? 'IN');
   const cut = title.indexOf(' · ');
   const head = cut === -1 ? title : title.slice(0, cut);
-  const rest = cut === -1 ? '' : title.slice(cut);
+  const rest = country ? ` · ${live}` : cut === -1 ? '' : title.slice(cut);
   return (
-    <section aria-label={title}>
+    <section aria-label={country ? `${head}${rest}` : title}>
       <LSectionHeader>
         {head}
-        {rest ? <span style={{ textTransform: 'none', letterSpacing: '0.02em' }}>{rest}</span> : null}
+        {rest ? <span style={{ textTransform: 'none', letterSpacing: '0.02em' }} suppressHydrationWarning>{rest}</span> : null}
       </LSectionHeader>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.7, color: L_T.ink }}>{children}</p>
     </section>

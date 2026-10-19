@@ -222,6 +222,7 @@ export function CreditReportImport({
             <input
               type="file"
               accept="application/pdf,.pdf"
+              aria-label="Credit report PDF"
               data-testid="cr-file"
               disabled={busy}
               onChange={(e) => onFile(e.target.files?.[0])}

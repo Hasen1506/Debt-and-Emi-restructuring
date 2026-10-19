@@ -114,7 +114,10 @@ export function ActivityPage({
     // `?log=payment&loan=2` (from Home's nudges) opens the dialog.
     const q = new URLSearchParams(window.location.search);
     const log = q.get('log');
-    if (log === 'payment' || log === 'rate' || log === 'pay' || log === 'spending' || log === 'loan') {
+    // `?log=entry` is the address of [LOG AN ENTRY], so a click before the
+    // script is listening still opens the dialog after the page loads.
+    if (log === 'entry') setDialog({});
+    else if (log === 'payment' || log === 'rate' || log === 'pay' || log === 'spending' || log === 'loan') {
       const loan = Number(q.get('loan'));
       setDialog({ type: log, ...(Number.isInteger(loan) && q.get('loan') !== null ? { loanIndex: loan } : {}) });
     }
@@ -294,7 +297,7 @@ export function ActivityPage({
         What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
       </FirstVisitIntro>
       <section aria-labelledby="activity-h">
-        <LSectionHeader right={<LBracket accent onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
+        <LSectionHeader right={<LBracket accent href="/activity?log=entry" onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
           {/* Audit 80 B25: no "0 entries" above "2 to log". */}
           <span id="activity-h">Activity · {count === 0 ? 'nothing logged yet' : `${count} ${count === 1 ? 'entry' : 'entries'}`}</span>
         </LSectionHeader>

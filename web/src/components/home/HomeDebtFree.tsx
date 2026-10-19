@@ -178,7 +178,7 @@ export async function HomePayThisMonth() {
   if (plan.gaps.length > 0) {
     const g = plan.gaps[0];
     return (
-      <PayNotice title={`Pay this month · ${monthLabel}`}>
+      <PayNotice title="Pay this month" country={country}>
         Add {describeGap(g.missing, g.loan)} for your {g.loan.bank ? `${g.loan.bank} ` : ''}
         {LOAN_TYPE_NAME[g.loan.loan_type]}
         {plan.gaps.length > 1 ? ` (and ${plan.gaps.length - 1} more)` : ''}. Without it the plan can&apos;t work out
@@ -190,13 +190,13 @@ export async function HomePayThisMonth() {
   if (!data || data.rows.length === 0) {
     if (plan.live) {
       return (
-        <PayNotice title={`Pay this month · ${monthLabel}`}>
+        <PayNotice title="Pay this month" country={country}>
           {localTerms('No loan payment is due this month. Check each loan’s first EMI date below.', plan.user.country)}
         </PayNotice>
       );
     }
     return (
-      <PayNotice title={`Pay this month · ${monthLabel}`}>
+      <PayNotice title="Pay this month" country={country}>
         {localTerms('The plan engine can’t be reached right now, so this month’s payments aren’t worked out. Your EMIs are due as usual.', plan.user.country)} <LBracket href="/plan">TRY THE PLAN →</LBracket>
       </PayNotice>
     );

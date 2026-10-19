@@ -95,6 +95,17 @@ def main() -> None:
                 row["screen"] = screen
                 row["ok"] = abs(got - screen) <= int(c.get("tolerance", 1))
                 row["detail"] = f"HDFC ADB minimum {got} vs screen {screen}"
+            elif kind == "pct-min":
+                # India default when no bank is chosen: 5% of the balance, or ₹200.
+                bal = Decimal(str(c["balance"]))
+                floor = Decimal(str(c.get("floor", 200)))
+                got = max(bal * Decimal("0.05"), floor)
+                got_i = int(got.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+                screen = int(c["screen"])
+                row["expected"] = got_i
+                row["screen"] = screen
+                row["ok"] = abs(got_i - screen) <= int(c.get("tolerance", 1))
+                row["detail"] = f"no bank chosen, India default 5% or ₹{floor} = {got_i} vs screen {screen}"
             else:
                 row["ok"] = False
                 row["detail"] = f"unknown kind {kind}"

@@ -459,7 +459,7 @@ export function LetterSection({
   const suggested = pick.covered === 'full' ? pick.required : pick.pay;
   const canPay = canPayText ?? (suggested > 0 ? groupIN(String(Math.round(suggested))) : '');
   const lender = lenderText ?? pick.bank;
-  const today = formatMonthDate(getCountryToday('IN'), 'long', true);
+  const today = formatMonthDate(getCountryToday(country), 'long', true);
   const canPayNum = num(canPay);
   const draft = hardshipLetter({
     name: nameText.trim(),
@@ -544,7 +544,7 @@ export function LetterSection({
         <legend style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted }}>What to ask for</legend>
         {(Object.keys(HARDSHIP_ASK_TEXT) as HardshipAsk[]).map((a) => (
           <label key={a} className="l-check-row">
-            <input type="checkbox" checked={asks.includes(a)} onChange={() => toggle(a)} />
+            <input type="checkbox" checked={asks.includes(a)} data-testid={`ask-${a}`} onChange={() => toggle(a)} />
             <span>{(country === 'US' ? US_ASK_TEXT : HARDSHIP_ASK_TEXT)[a]}</span>
           </label>
         ))}
