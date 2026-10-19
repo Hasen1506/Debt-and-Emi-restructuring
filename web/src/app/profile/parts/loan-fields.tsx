@@ -353,64 +353,21 @@ export function TenureField({
 
   return (
     <div>
-      <label
-        style={{
-          display: 'block',
-          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
-          color: 'var(--muted)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 6,
+      <Field
+        label="Tenure remaining (months)"
+        kind="integer"
+        value={derived != null ? String(derived) : (loan.tenure_months_remaining > 0 ? String(loan.tenure_months_remaining) : '')}
+        onChange={(v) => {
+          onSetManual(true);
+          onChangeTenure(v);
         }}
-      >
-        Tenure remaining
-      </label>
-      <div
-        style={{
-          fontSize: 'var(--fs-body)',
-          color: derived == null ? 'var(--muted)' : 'var(--ink)',
-          lineHeight: 1.5,
-          padding: '8px 10px',
-          border: '1px dashed var(--border)',
-          background: 'var(--soft-bg)',
-          minHeight: 38,
-        }}
-      >
-        {derived != null ? (
-          <>
-            ≈ <strong>{derived}</strong> months at this EMI
-            <div style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)', marginTop: 4 }}>
-              Worked out from the balance, rate and EMI above.
-            </div>
-          </>
-        ) : emiBelowInterest(loan, country) ? (
-          <span role="alert" style={{ color: 'var(--negative)' }}>
-            {emiBelowInterest(loan, country)}
-          </span>
-        ) : (
-          <>
-            <em>Fill in the balance, rate and EMI above</em> and the months
-            left are worked out for you.
-          </>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={() => onSetManual(true)}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--accent)',
-          padding: 0,
-          marginTop: 4,
-          fontSize: 'var(--fs-small)',
-          letterSpacing: '0.04em',
-          textDecoration: 'underline',
-          cursor: 'pointer',
-        }}
-      >
-        Set manually instead
-      </button>
+        hint={
+          derived != null
+            ? 'Worked out from the balance, rate and EMI. Edit it if you know the months left.'
+            : emiBelowInterest(loan, country) ?? 'Fill in the balance, rate and EMI and the months left are worked out here.'
+        }
+        error={derived == null && emiBelowInterest(loan, country) ? emiBelowInterest(loan, country) : null}
+      />
     </div>
   );
 }

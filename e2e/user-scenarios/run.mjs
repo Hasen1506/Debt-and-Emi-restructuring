@@ -817,7 +817,7 @@ async function letterAsksChange(page, screen, scenarioId) {
     const changed = after !== before;
     fieldRecord(`${screen} :: ${label} :: checkbox :: 0`, {
       screen, label, type: 'checkbox', scenario: scenarioId,
-      filled: true, effect: changed ? 'text-changed' : 'none', persisted: false,
+      filled: true, effect: changed ? 'text-changed' : 'none',
     });
     if (!changed) problems.push(`${label} did not change the letter`);
   }
@@ -827,7 +827,7 @@ async function letterAsksChange(page, screen, scenarioId) {
   const edited = await page.getByText(/no longer change it/i).first().isVisible().catch(() => false);
   fieldRecord(`${screen} :: The letter (you can edit it here) :: textarea :: 0`, {
     screen, label: 'The letter (you can edit it here)', type: 'textarea', scenario: scenarioId,
-    filled: true, effect: edited ? 'text-changed' : 'value-changed', persisted: false,
+    filled: true, effect: edited ? 'text-changed' : 'value-changed',
   });
   const reset = page.getByRole('button', { name: /RESET TO DRAFT/i });
   if (await reset.count()) await reset.click().catch(() => {});
@@ -925,12 +925,9 @@ async function fieldScenario(browser, persona, target, profile) {
       }
     }
     if (profile === 'normal' && (target.id === 'windfall' || target.id === 'yield')) {
-      const split = page.getByRole('button', { name: 'MY SPLIT', exact: true });
-      if (await split.count()) {
-        await waitControl(split);
-        await page.waitForTimeout(400);
-        await split.click();
-        const slider = page.getByRole('slider', { name: /home loan: amount/i }).first();
+      const sliderProbe = page.getByRole('slider', { name: /home loan: amount/i });
+      if (await sliderProbe.count()) {
+        const slider = sliderProbe.first();
         let after = '';
         let before = '';
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -967,19 +964,18 @@ async function fieldScenario(browser, persona, target, profile) {
           await page.waitForTimeout(400);
           after = await slider.inputValue().catch(() => '');
           if (after !== before && after !== '0') break;
-          await split.click();
         }
-        if (after && after !== before) {
+          if (after && after !== before) {
           fieldRecord('windfall :: Home loan: amount :: range :: 0', {
             screen: 'windfall', label: 'Home loan: amount', type: 'range', scenario: id,
             filled: true, effect: 'value-changed', persisted: false,
           });
         } else if (await slider.count() && !(await slider.isDisabled())) {
-          problems.push(`MY SPLIT left the home-loan slider at ${after || before}`);
+          problems.push(`the home-loan slider stayed at ${after || before} without MY SPLIT`);
         } else if (await slider.count()) {
-          problems.push('MY SPLIT left the home-loan slider disabled');
+          problems.push('the home-loan slider stayed disabled');
         } else {
-          problems.push('MY SPLIT did not show the home-loan slider');
+          problems.push('the home-loan slider was not on the page');
         }
       }
     }
@@ -1263,8 +1259,16 @@ async function onboardingFieldWalk(browser) {
       id: 'N-setup-back', name: 'Back mid-setup does not dump the person out', ok: backOk,
       persona: 'odd', screen: '/onboarding', detail: page.url(),
     });
-    if (await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
+    const owe = page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ });
+    if (await owe.isVisible().catch(() => false)) {
+      // Back can land on the income step with a figure the walk left too
+      // big or negative, and Continue then stays put. Put a livable pair
+      // back so the known loan can still be saved.
+      const takeHome = page.getByLabel(/Take-home pay a month|What reaches your bank|Take-home/i).first();
+      const spendBox = page.getByLabel(/Spending a month/i).first();
+      if (await takeHome.isVisible().catch(() => false)) await takeHome.fill('100000');
+      if (await spendBox.isVisible().catch(() => false)) await spendBox.fill('40000');
+      await owe.click();
     }
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     await finishSetup(page);
@@ -1299,15 +1303,16 @@ async function chartAgrees(browser, persona) {
     await settle(page);
     await page.getByRole('heading', { name: /MONTH BY MONTH/ }).waitFor({ timeout: 25000 });
     await waitReact(page);
-    const allMonths = page.getByRole('button', { name: /ALL \d+ MONTHS/ });
+    const allMonths = page.getByRole('button', { name: 'SHOW ALL', exact: true });
     if (await allMonths.count()) {
       // The heading is server HTML. The click only expands once this button is listening.
       await page.waitForFunction(() => {
-        const b = [...document.querySelectorAll('button')].find((el) => /ALL \d+ MONTHS/.test(el.textContent || ''));
+        const b = [...document.querySelectorAll('button')].find((el) => (el.textContent || '').includes('SHOW ALL'));
         return !!b && Object.keys(b).some((k) => k.startsWith('__react'));
       }, { timeout: 20000 });
       await allMonths.first().scrollIntoViewIfNeeded();
-      const want = Number(((await allMonths.first().innerText()).match(/(\d+)\s+MONTHS/) || [])[1] || 0);
+      const showing = await page.getByTestId('schedule-showing').innerText().catch(() => '');
+      const want = Number((showing.match(/of (\d+) months/) || [])[1] || 0);
       await allMonths.first().click();
       await page.getByRole('button', { name: /EVENTS ONLY/ }).waitFor({ timeout: 10000 });
       if (want > 0) {
@@ -1418,7 +1423,9 @@ async function roundTripSaved(page, persona, spec) {
     await waitControl(saveBtn);
     await saveBtn.click();
     await page.waitForTimeout(600);
-    const blocked = (await page.locator('[role=alert]').allInnerTexts()).map((t) => t.trim()).filter(Boolean);
+    // Only a message that the save itself was refused. Other alerts on the
+    // page (a loan note, a sync line) are not this field failing to save.
+    const blocked = (await page.locator('[role=alert]').allInnerTexts()).map((t) => t.trim()).filter((t) => /wasn.t saved|not saved yet|confirm or cancel|changed in another tab|didn.t keep/i.test(t));
     await page.reload({ waitUntil: 'domcontentloaded' });
     await settle(page);
     await page.goto(`${WEB}${path}`, { waitUntil: 'domcontentloaded' });
@@ -1567,22 +1574,44 @@ async function persistSession(page, persona) {
     await settle(page);
     await waitReact(page);
     const reason = page.getByLabel('Reason (short and true)').first();
-    await reason.fill('Zz session only');
+    await waitControl(reason);
+    await reason.fill('Hours were cut');
+    await reason.blur();
+    const lower = page.getByTestId('ask-lower_emi');
+    if (!(await lower.isChecked().catch(() => false))) await lower.check();
+    const letter = page.getByTestId('cp-letter-text');
+    const drafted = await letter.inputValue();
+    await letter.fill(`${drafted}\nQA extra line.`);
+    await letter.blur();
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await settle(page);
     await waitReact(page);
-    const after = await page.getByLabel('Reason (short and true)').first().inputValue().catch(() => '');
-    const cleared = after !== 'Zz session only';
+    const after = await readSettled(page.getByLabel('Reason (short and true)').first(), 'Hours were cut');
+    const letterAfter = await page.getByTestId('cp-letter-text').inputValue().catch(() => '');
+    const kept = after.includes('Hours were cut') && letterAfter.includes('QA extra line.');
+    await page.getByLabel('Reason (short and true)').first().fill('Hours were cut further');
+    await page.getByLabel('Reason (short and true)').first().blur();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settle(page);
+    const edited = await readSettled(page.getByLabel('Reason (short and true)').first(), 'Hours were cut further');
+    const ok = kept && edited.includes('Hours were cut further');
     fieldRecord('cant-pay :: Reason (short and true) :: text :: 0', {
       screen: 'cant-pay', label: 'Reason (short and true)', type: 'text', scenario: 'P-session',
-      filled: true, persisted: false, effect: cleared ? 'none' : 'text-changed',
+      filled: true, persisted: ok, effect: ok ? 'text-changed' : 'none',
+    });
+    fieldRecord('cant-pay :: The letter (you can edit it here) :: textarea :: 0', {
+      screen: 'cant-pay', label: 'The letter (you can edit it here)', type: 'textarea', scenario: 'P-session',
+      filled: true, persisted: letterAfter.includes('QA extra line.'), effect: 'text-changed',
     });
     scenario({
-      id: 'P-session-cant-pay', name: 'Can\'t-pay answers are not kept after a refresh',
-      ok: cleared, persona: persona.id, screen: '/cant-pay',
-      detail: cleared ? 'reason cleared, as the page promises' : `reason still "${after}"`,
+      id: 'P-session-cant-pay', name: 'Can\'t-pay reason and the edited letter survive refresh and a second edit',
+      ok, persona: persona.id, screen: '/cant-pay',
+      detail: ok ? 'reason and the hand-edited letter kept' : `reason "${after}" then "${edited}"; letter kept ${letterAfter.includes('QA extra line.')}`,
     });
+    if (!ok) await shot(page, 'persist-cant-pay');
   } catch (err) {
     scenario({ id: 'P-session-cant-pay', name: 'Can\'t-pay refresh', ok: false, persona: persona.id, screen: '/cant-pay', detail: String(err).split('\n')[0] });
+    await shot(page, 'persist-cant-pay');
   }
 }
 

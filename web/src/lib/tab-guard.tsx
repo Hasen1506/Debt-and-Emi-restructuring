@@ -7,12 +7,29 @@
  *    opened and compares it before saving: changed means another tab (or
  *    the account copy from another device) saved since, and the form asks
  *    "reload or overwrite?" instead of choosing for the person.
+ *    The snapshot waits until this tab's account copy has arrived. Opening
+ *    ?step=loans before that used to snapshot the empty cookie, then treat
+ *    the account load as another tab.
  *  • Every profile save stamps PROFILE_SAVED_KEY (lib/user-store), so other
  *    open tabs (storage event) show a banner that what they show may be old.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PROFILE_SAVED_KEY, profileCookieKey } from '@/lib/user-store';
 import { lPayBtn } from '@/components/ledger/primitives';
+
+/** True when the form still holds the blank loan and the account has balances.
+ *  Saving then would wipe the loans. A form the person has edited (including
+ *  clearing a loan on purpose) is not blank. */
+export function formWouldEraseSavedLoans(
+  saved: { outstanding?: string }[],
+  form: { outstanding?: string }[],
+  formReady: boolean,
+): boolean {
+  if (formReady) return false;
+  const has = (rows: { outstanding?: string }[]) =>
+    rows.some((l) => Number(String(l.outstanding ?? '').replace(/[,\s]/g, '')) > 0);
+  return has(saved) && !has(form);
+}
 
 export const CHANGED_ELSEWHERE = 'Changed in another tab — reload or overwrite?';
 
@@ -28,19 +45,29 @@ export function changedSince(openedWith: string, now: string = profileCookieKey(
  * true (and the question shows) when another tab saved since the form
  * opened, unless the person already chose to overwrite. `ui` is the
  * question, rendered beside the save button.
+ *
+ * `ready` is false while this tab is still waiting for the account copy.
+ * Saving is refused then, and the snapshot is taken only once the form is
+ * showing that copy, so the load itself is not "another tab".
  */
-export function useProfileEditGuard(save: () => unknown): { blocks: () => boolean; ui: ReactNode } {
+export function useProfileEditGuard(save: () => unknown, ready: boolean): { blocks: () => boolean; ui: ReactNode } {
   const openedWith = useRef<string | null>(null);
   const overwrite = useRef(false);
   const latestSave = useRef(save);
   latestSave.current = save;
   const [conflict, setConflict] = useState(false);
   useEffect(() => {
+    if (!ready) {
+      openedWith.current = null;
+      return;
+    }
     openedWith.current = profileCookieKey();
-  }, []);
+  }, [ready]);
 
   const blocks = () => {
-    if (openedWith.current === null || overwrite.current || !changedSince(openedWith.current)) return false;
+    if (!ready) return true;
+    if (openedWith.current === null) openedWith.current = profileCookieKey();
+    if (overwrite.current || !changedSince(openedWith.current)) return false;
     setConflict(true);
     return true;
   };

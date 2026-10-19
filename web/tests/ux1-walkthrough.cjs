@@ -361,8 +361,8 @@ test('fix 25: "To debts" says minimums only when nothing is spare, and never sug
   const html = (p) => text(renderToStaticMarkup(React.createElement(DebtBudgetControl, { choice: 'all', budget: '', currency: 'INR', hasFundTarget: true, ...p })));
   assert.match(html({ figures: fig(7500, 7500) }), /Only EMIs and minimums · ₹7,500 \(nothing spare\)/);
   assert.doesNotMatch(html({ figures: fig(7500, 7500) }), /All spare cash/);
-  assert.match(html({ figures: fig(7500, 14500) }), /All spare cash · ₹14,500/);
-  assert.match(html({ figures: fig(7500, 14500) }), /Suggested ₹11,000 = halfway between EMIs and minimums ₹7,500 and all spare cash ₹14,500/);
+  assert.match(html({ figures: fig(7500, 14500) }), /EMIs \+ all spare cash · ₹14,500/);
+  assert.match(html({ figures: fig(7500, 14500) }), /Suggested ₹11,000 = halfway between EMIs and minimums ₹7,500 and EMIs \+ all spare cash ₹14,500/);
   assert.match(html({ figures: fig(7500, 7500) }), /Suggested ₹7,500 = your EMIs and minimums/);
   assert.match(src('lib/debt-budget-figures.ts'), /suggested = Math\.round\(Math\.max\(required,/);
   assert.match(src('components/plan/DebtBudgetControl.tsx'), /placeholder=\{String\(suggested\)\}/);

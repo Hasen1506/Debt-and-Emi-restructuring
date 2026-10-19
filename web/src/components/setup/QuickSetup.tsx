@@ -1223,7 +1223,15 @@ function LoanBlock({
       <ChipRow label="Kind of loan">
         {/* R7-7: no gold loans on a US borrower's dollar loan (an Indian product). */}
         {loanKindsFor(TYPE_CHIPS, ccy === 'INR' ? 'IN' : country, loan.loan_type).map(([t, label]) => (
-          <Chip key={t} on={typeChosen && loan.loan_type === t} onClick={() => { onPatch(typeSwitch(loan, t, country)); onUi({ typeSet: true }); }}>
+          <Chip key={t} on={typeChosen && loan.loan_type === t} onClick={() => {
+            const next = typeSwitch(loan, t, country);
+            const guessed = (loan.estimated_fields ?? []).includes('rate') || !(loan.nominal_rate ?? '').trim();
+            const rate = typicalRate((next.currency ?? ccy) === 'INR' ? 'IN' : 'US', t);
+            if (guessed && rate != null) {
+              onPatch({ ...next, nominal_rate: String(rate), estimated_fields: withEstimate({ ...loan, ...next }, 'rate', true).estimated_fields });
+            } else onPatch(next);
+            onUi({ typeSet: true });
+          }}>
             {label}
           </Chip>
         ))}
@@ -1328,7 +1336,7 @@ function LoanBlock({
         />
       )}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-        {typical != null && (loan.nominal_rate.trim() === '' || estimated.has('rate')) && (
+        {typical != null && loan.nominal_rate.trim() === '' && (
           <LBracket
             onClick={() =>
               onPatch({ nominal_rate: String(typical), estimated_fields: withEstimate(loan, 'rate', true).estimated_fields })

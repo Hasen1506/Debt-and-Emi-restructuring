@@ -150,7 +150,7 @@ test('debt budget: each suggested figure says how it is made up, and the sum mat
   assert.equal(fig.takeHome - fig.costs - fig.fund - fig.goals - fig.other, fig.allSpare, 'the terms add up exactly');
   assert.equal(f.allSpareLine(fig, inr), '₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354 (₹10,000 of EMIs and minimums + ₹88,646 extra)');
   assert.equal(f.minimumsLine(fig, inr), '₹10,000 = Axis credit card minimum ₹10,000');
-  assert.equal(f.suggestedLine(fig, inr), 'Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and all spare cash ₹98,646');
+  assert.equal(f.suggestedLine(fig, inr), 'Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and EMIs + all spare cash ₹98,646');
   // Anything else the engine holds back shows as its own term, so the sum still matches.
   const other = f.debtBudgetFigures({ ...plan, surplusAllocation: { ...plan.surplusAllocation, debtSlice: 80000 } });
   assert.equal(other.other, 8646);
@@ -164,7 +164,7 @@ test('debt budget: the prompt asks, with three choices, and labels the plan unti
   const html = text(renderToStaticMarkup(React.createElement(DebtBudgetPrompt, { choice: 'unset', budget: '', figures: fig, currency: 'INR', hasFundTarget: false })));
   assert.match(html, /How much a month toward debts\?/);
   assert.match(html, /THIS PLAN: EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
-  assert.match(html, /All spare cash · ₹98,646/);
+  assert.match(html, /EMIs \+ all spare cash · ₹98,646/);
   assert.match(html, /Set an amount/);
   assert.match(html, /Only EMIs and minimums · ₹10,000/);
   assert.match(html, /₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354/);

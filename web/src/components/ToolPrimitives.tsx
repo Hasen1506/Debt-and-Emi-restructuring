@@ -291,9 +291,13 @@ export function Field({
   const handleBlur = () => {
     if (isMoney) {
       setMoneyTouched(true);
-      // "25L" becomes "25,00,000" once the person moves on.
+      // "25L" becomes "25,00,000" once the person moves on. Clearing the box
+      // when the value did not change (a computed EMI that equals what was
+      // already there) leaves the typed text empty while the value stays:
+      // show that value again.
       const p = parseAmountText(moneyText, currency).value;
       if (p) setMoneyText(groupDigits(p, currency));
+      else if (value) setMoneyText(formatAmount(value, currency));
     }
     onBlur?.();
   };

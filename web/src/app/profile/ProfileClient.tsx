@@ -6,7 +6,7 @@ import { creditScoreError, usableCreditScore } from '@/lib/r7-inputs';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { HYDRATED_EVENT, REMOTE_APPLIED_EVENT } from '@/lib/server-sync';
+import { HYDRATED_EVENT, REMOTE_APPLIED_EVENT, useAccountSettled } from '@/lib/server-sync';
 import { profileMarginalRate } from '@/lib/marginal-rate'; import { abroadIndiaRate, livesAbroad } from '@/lib/tax-setup';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
@@ -66,7 +66,8 @@ import {
 } from '@/lib/rate-type';
 import { suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
-import { deriveTenureMonths } from '@/lib/derived';
+import { computedEmi, deriveTenureMonths } from '@/lib/derived';
+import { typicalRate, withEstimate } from '@/lib/setup-estimates';
 import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { classifyBracket, grossMarginalRate, IN_TAX_YEAR_LABEL, inNewRegimeSlabLines } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
@@ -88,7 +89,7 @@ import { CountrySwitchPanel } from './parts/country-switch';
 import { AdvancedTaxDetails } from './parts/income-fields';
 import { HikeScheduleEditor, MinPaymentExplainer, TenureField } from './parts/loan-fields';
 import { EfLiquidityWarning, EfTierPicker, OtherBanksField } from './parts/savings-fields';
-import { useProfileEditGuard } from '@/lib/tab-guard';
+import { formWouldEraseSavedLoans, useProfileEditGuard } from '@/lib/tab-guard';
 const LoanExtras = dynamic(() => import('@/components/setup/LoanExtras').then((m) => m.LoanExtras)); // r3e: route budget
 /**
  * True when any field on the deductions payload is set to a meaningful
@@ -286,6 +287,9 @@ function ProfileEditor({
   // Form state starts empty. Until the effect copies the saved profile into
   // it, the summary must show that profile, not the empty fields on top of it.
   const [filled, setFilled] = useState(false);
+  // False until this tab's account copy has arrived. The loans form must
+  // not snapshot, or save, the blank fields it starts with.
+  const accountReady = useAccountSettled();
   // The page the user came from ("Plan"), for a way back to it.
   const [back, setBack] = useState<{ href: string; name: string } | null>(null);
   useEffect(() => setBack(previousPage('/profile')), []);
@@ -377,7 +381,8 @@ function ProfileEditor({
   // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
   // or jump to Loans, with no word, so a blocked save looked like a lost one.
   const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
-  const tabGuard = useProfileEditGuard(() => save()); // UX2 #23 two tabs
+  const formReady = accountReady && filled;
+  const tabGuard = useProfileEditGuard(() => save(), formReady && section !== null); // UX2 #23 two tabs
   // R8-7: the text typed in whole-month loan fields, by `${loan id}:lock|freq`.
   const [monthsText, setMonthsText] = useState<Record<string, string>>({});
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
@@ -390,6 +395,7 @@ function ProfileEditor({
   // outstanding, EMI, rate. We default to deriving tenure from those three
   // and only let the user override when they explicitly ask. This set tracks
   // which loan indices the user has chosen to enter manually.
+  const [moreOpen, setMoreOpen] = useState<Record<number, boolean>>({});
   const [manualTenureIdxs, setManualTenureIdxs] = useState<Set<number>>(
     () => new Set(),
   );
@@ -427,8 +433,11 @@ function ProfileEditor({
   // shows the data the user already entered (not blank defaults).
   // isLive=false means there's no cookie — leave empty defaults in place.
   useEffect(() => {
-    const stored = loadProfileClient();
     setReady(true);
+    // Wait for the account copy before copying it into the form. Filling
+    // earlier snapshots the empty cookie and then calls that load a conflict.
+    if (!accountReady) return;
+    const stored = loadProfileClient();
     // No saved cookie in this browser: a signed-out page opens the empty
     // form. A page the server already painted from the request cookie keeps
     // those figures (the cookie was not in document.cookie).
@@ -523,7 +532,7 @@ function ProfileEditor({
     loadedMarginalRate.current = stored.marginalRate ?? '';
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
     setFilled(true);
-  }, [initial.isLive]);
+  }, [initial.isLive, accountReady]);
 
   // Fetch True-APR suggestions whenever the bank / loan_type / rate_type
   // triplet of any loan changes. Keyed by JSON.stringify of the relevant
@@ -700,7 +709,7 @@ function ProfileEditor({
             tenure_months_remaining: tenure,
             outstanding: num(l.outstanding),
             nominal_rate: num(l.nominal_rate, '0'),
-            scheduled_emi: num(l.scheduled_emi),
+            scheduled_emi: num((l.scheduled_emi ?? '').trim() || computedEmi(l)),
             processing_fee_amortised: num(l.processing_fee_amortised ?? '', '0'),
             insurance_premium_pct: num(l.insurance_premium_pct ?? '', '0'),
             expected_monthly_spend:
@@ -833,8 +842,12 @@ function ProfileEditor({
   }
 
   async function save() {
-    // A country change waits for its currency decision; another tab's save waits for reload-or-overwrite (UX2 #23).
+    // Country switch, another tab, or the account copy still loading (UX2 #23).
     if (pendingCountry || tabGuard.blocks()) return;
+    if (formWouldEraseSavedLoans(loadProfileClient().user.loans ?? [], loans, filled)) {
+      setSaveBlocked('Not saved yet: your saved profile is still loading.');
+      return;
+    }
     // A deep link can reach Review without passing the Loans check.
     if (!loansComplete) {
       onOpen(3);
@@ -1090,6 +1103,9 @@ function ProfileEditor({
       <SectionTabs step={step} onOpen={onOpen} onAll={() => onDone(false)} />
 
       <Card>
+        {!formReady ? (
+          <p role="status" data-testid="profile-form-loading">Loading your saved profile…</p>
+        ) : (<>
         {step === 0 && (
           <div style={{ display: 'grid', gap: 14 }}>
             <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
@@ -1659,7 +1675,16 @@ function ProfileEditor({
                 <Select
                   label="Loan type"
                   value={l.loan_type}
-                  onChange={(v) => updateLoan(i, { loan_type: v })}
+                  onChange={(v) => {
+                    const guessed = (l.estimated_fields ?? []).includes('rate') || !(l.nominal_rate ?? '').trim();
+                    const rate = typicalRate(country, v);
+                    updateLoan(i, {
+                      loan_type: v,
+                      ...(guessed && rate != null
+                        ? { nominal_rate: String(rate), estimated_fields: withEstimate(l, 'rate', true).estimated_fields }
+                        : {}),
+                    });
+                  }}
                   options={LOAN_TYPES}
                   info={
                     <>
@@ -1845,6 +1870,123 @@ function ProfileEditor({
                     }
                   />
                 )}
+                {asksBusinessPurpose(l, country) && (
+                  <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
+                    <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {([
+                        [false, 'No, a personal loan'],
+                        [true, 'Yes, for a business'],
+                      ] as const).map(([v, text]) => {
+                        const on = l.business_purpose === v;
+                        return (
+                          <button
+                            key={String(v)}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => updateLoan(i, { business_purpose: v })}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 999,
+                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                              background: on ? 'var(--accent)' : 'var(--card)',
+                              color: on ? 'var(--card)' : 'var(--ink)',
+                              fontSize: 13,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {text}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                      {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
+                      {PURPOSE_HELP}
+                    </div>
+                  </div>
+                )}
+                {isNriUs && (
+                  <Select
+                    label="Currency"
+                    value={l.currency ?? 'USD'}
+                    onChange={(v: 'INR' | 'USD') =>
+                      updateLoan(i, { currency: v })
+                    }
+                    options={[
+                      { value: 'USD' as const, label: 'USD ($) — US loan' },
+                      { value: 'INR' as const, label: 'INR (₹) — Indian loan' },
+                    ]}
+                    info={
+                      <>
+                        Which currency is this loan denominated in? An NRI on a
+                        US work visa typically has both: a USD car loan or US
+                        credit card, and an INR home loan or family obligation
+                        back in India. Tag each so the NRI prepay tool can
+                        autofill currencies + FX correctly.
+                      </>
+                    }
+                  />
+                )}
+                <TenureField
+                  country={country}
+                  loan={l}
+                  manualMode={manualTenureIdxs.has(i)}
+                  onChangeTenure={(v) =>
+                    updateLoan(i, { tenure_months_remaining: Number(v) || 0 })
+                  }
+                  onSetManual={(manual) => setTenureMode(i, manual)}
+                />
+                <Field
+                  label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
+                  findIt={findFor(l, country, 'emi')}
+                  kind="money"
+                  currency={loanCurrency(l, country)}
+                  value={(l.scheduled_emi ?? '').trim() || computedEmi(l)}
+                  onChange={(v) => {
+                    const patch: Partial<LoanPayload> = { scheduled_emi: v };
+                    // Clearing the EMI keeps the months that were on screen, so the
+                    // box fills again with the EMI those months imply.
+                    if (!(v ?? '').trim() && !(l.tenure_months_remaining > 0)) {
+                      const derived = deriveTenureMonths(l.outstanding, l.nominal_rate, l.scheduled_emi);
+                      if (derived) patch.tenure_months_remaining = derived;
+                    }
+                    updateLoan(i, patch);
+                  }}
+                  hint={(l.scheduled_emi ?? '').trim() || l.loan_type === 'credit_card' ? undefined : (computedEmi({ ...l, scheduled_emi: '' }) ? 'Worked out from the balance, rate and months left. Change it if the EMI on your statement is different.' : undefined)}
+                  error={showLoanErrors ? loanErrors[i]?.emi : null}
+                  info={
+                    <>
+                      The <strong>contractual monthly amount</strong> the bank auto-debits, not what you pay when you overpay.
+                      Anything above it goes in Activity as an extra payment, or the plan sends it as spare cash.<br /><br />
+                      For credit cards: your usual payment, or <strong>0</strong> if you only ever pay the minimum.
+                    </>
+                  }
+                />
+                {l.loan_type === 'credit_card' && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <MinPaymentExplainer
+                      loan={l}
+                      country={country}
+                      onOverrideChange={(v) =>
+                        updateLoan(i, { min_payment_override: v })
+                      }
+                    />
+                  </div>
+                )}
+                {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <button
+                    type="button"
+                    data-testid="loan-more-options"
+                    aria-expanded={!!moreOpen[i]}
+                    onClick={() => setMoreOpen((cur) => ({ ...cur, [i]: !cur[i] }))}
+                    style={{ fontFamily: 'inherit', fontSize: 12, letterSpacing: '0.08em', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--muted)' }}
+                  >
+                    {moreOpen[i] ? '− More options' : '+ More options'}
+                  </button>
+                </div>
+                {moreOpen[i] && <>
                 {l.rate_type === 'floating' && (
                   <>
                     <Select
@@ -1930,42 +2072,6 @@ function ProfileEditor({
                       }
                     />
                   </>
-                )}
-                {asksBusinessPurpose(l, country) && (
-                  <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
-                    <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {([
-                        [false, 'No, a personal loan'],
-                        [true, 'Yes, for a business'],
-                      ] as const).map(([v, text]) => {
-                        const on = l.business_purpose === v;
-                        return (
-                          <button
-                            key={String(v)}
-                            type="button"
-                            aria-pressed={on}
-                            onClick={() => updateLoan(i, { business_purpose: v })}
-                            style={{
-                              padding: '7px 14px',
-                              borderRadius: 999,
-                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
-                              background: on ? 'var(--accent)' : 'var(--card)',
-                              color: on ? 'var(--card)' : 'var(--ink)',
-                              fontSize: 13,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {text}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-                      {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
-                      {PURPOSE_HELP}
-                    </div>
-                  </div>
                 )}
                 {l.loan_type !== 'credit_card' && (
                   <>
@@ -2077,7 +2183,7 @@ function ProfileEditor({
                 />
                   </>
                 )}
-                {l.loan_type === 'home_loan' && (
+                {moreOpen[i] && l.loan_type === 'home_loan' && (
                   <Field
                     label="Pre-EMI months remaining"
                     value={String(l.pre_emi_months_remaining ?? '')}
@@ -2101,65 +2207,6 @@ function ProfileEditor({
                     }
                   />
                 )}
-                {isNriUs && (
-                  <Select
-                    label="Currency"
-                    value={l.currency ?? 'USD'}
-                    onChange={(v: 'INR' | 'USD') =>
-                      updateLoan(i, { currency: v })
-                    }
-                    options={[
-                      { value: 'USD' as const, label: 'USD ($) — US loan' },
-                      { value: 'INR' as const, label: 'INR (₹) — Indian loan' },
-                    ]}
-                    info={
-                      <>
-                        Which currency is this loan denominated in? An NRI on a
-                        US work visa typically has both: a USD car loan or US
-                        credit card, and an INR home loan or family obligation
-                        back in India. Tag each so the NRI prepay tool can
-                        autofill currencies + FX correctly.
-                      </>
-                    }
-                  />
-                )}
-                <TenureField
-                  country={country}
-                  loan={l}
-                  manualMode={manualTenureIdxs.has(i)}
-                  onChangeTenure={(v) =>
-                    updateLoan(i, { tenure_months_remaining: Number(v) || 0 })
-                  }
-                  onSetManual={(manual) => setTenureMode(i, manual)}
-                />
-                <Field
-                  label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
-                  findIt={findFor(l, country, 'emi')}
-                  kind="money"
-                  currency={loanCurrency(l, country)}
-                  value={l.scheduled_emi}
-                  onChange={(v) => updateLoan(i, { scheduled_emi: v })}
-                  error={showLoanErrors ? loanErrors[i]?.emi : null}
-                  info={
-                    <>
-                      The <strong>contractual monthly amount</strong> the bank auto-debits, not what you pay when you overpay.
-                      Anything above it goes in Activity as an extra payment, or the plan sends it as spare cash.<br /><br />
-                      For credit cards: your usual payment, or <strong>0</strong> if you only ever pay the minimum.
-                    </>
-                  }
-                />
-                {l.loan_type === 'credit_card' && (
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <MinPaymentExplainer
-                      loan={l}
-                      country={country}
-                      onOverrideChange={(v) =>
-                        updateLoan(i, { min_payment_override: v })
-                      }
-                    />
-                  </div>
-                )}
-                {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
                 <div style={{ gridColumn: '1 / -1' }}>{/* UI revert 2: a whole row, so later fields keep their column */}<LoanExtras loan={l} country={country} onPatch={(p) => updateLoan(i, p)} /></div>
                 {l.loan_type === 'credit_card' && (
                   <Field
@@ -2366,6 +2413,7 @@ function ProfileEditor({
                 />
                   </>
                 )}
+                </>}
                 <div style={{ gridColumn: '1 / -1' }}>
                   <EffectiveAprBreakdown
                     loan={l}
@@ -2817,6 +2865,7 @@ function ProfileEditor({
             )}>SAVE CHANGES</LButton>
           </span>
         </div>
+        </>)}
       </Card>
     </div>
     </LShell>

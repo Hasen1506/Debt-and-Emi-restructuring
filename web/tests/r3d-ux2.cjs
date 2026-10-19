@@ -271,13 +271,17 @@ test('#23 offline: the notice and snapshots only run on Home and Plan, once the 
 
 // ── #23 two tabs ──────────────────────────────────────────────────────────────
 test('#23 two tabs: the Profile form compares the saved profile with what it opened with, and asks', () => {
-  const { changedSince, CHANGED_ELSEWHERE } = lib('tab-guard.tsx');
+  const { changedSince, CHANGED_ELSEWHERE, formWouldEraseSavedLoans } = lib('tab-guard.tsx');
   assert.equal(changedSince('a\u0000b', 'a\u0000b'), false);
   assert.equal(changedSince('a\u0000b', 'a2\u0000b'), true);
   assert.equal(CHANGED_ELSEWHERE, 'Changed in another tab — reload or overwrite?');
   const g = src('lib/tab-guard.tsx');
-  // Snapshot once, when the form opens; overwrite only on the person's choice.
-  assert.match(g, /useEffect\(\(\) => \{\s*openedWith\.current = profileCookieKey\(\);\s*\}, \[\]\);/);
+  // Snapshot once the account copy is in the form, not on the blank first paint.
+  assert.match(g, /if \(!ready\) \{\s*openedWith\.current = null;\s*return;\s*\}\s*openedWith\.current = profileCookieKey\(\);\s*\}, \[ready\]\);/);
+  assert.match(g, /if \(!ready\) return true;/);
+  assert.equal(formWouldEraseSavedLoans([{ outstanding: '2500000' }], [{ outstanding: '' }], false), true);
+  assert.equal(formWouldEraseSavedLoans([{ outstanding: '2500000' }], [{ outstanding: '' }], true), false);
+  assert.equal(formWouldEraseSavedLoans([{ outstanding: '2500000' }], [{ outstanding: '2500000' }], false), false);
   assert.match(g, /overwrite\.current = true; setConflict\(false\); void latestSave\.current\(\);/);
   assert.match(g, /window\.location\.reload\(\)/);
   const p = src('app/profile/ProfileClient.tsx');

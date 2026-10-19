@@ -133,6 +133,7 @@ export function LiquidateTool() {
   }, [profile.user.loans]);
   const [targetIdx, setTargetIdx] = useState<string>(initialIdx);
   // From the profile's dearest loan (below) and its income, else blank.
+  const [editDebt, setEditDebt] = useState(false);
   const [debtBalance, setDebtBalance] = useState('');
   const [debtRate, setDebtRate] = useState('');
   // The loan's monthly payment. Keeping the asset then pays the loan down on
@@ -198,6 +199,7 @@ export function LiquidateTool() {
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
     setConvertedFrom(null);
+    setEditDebt(idx === '');
     if (idx === '') {
       setDebtBalance('');
       setDebtPayment('');
@@ -529,6 +531,14 @@ export function LiquidateTool() {
                 </LChipRow>
               </div>
             )}
+            {targetIdx !== '' && !editDebt ? (
+              <p style={{ margin: '0 0 12px', fontSize: 13, lineHeight: 1.6 }}>
+                {formatCurrency(debtBalance || '0', userCcy)} still owed
+                {debtRate ? ` at ${formatPct(debtRate)}` : ''}
+                {debtPayment ? `, ${formatCurrency(debtPayment, userCcy)} a month` : ''}.{' '}
+                <LBracket onClick={() => setEditDebt(true)}>EDIT</LBracket>
+              </p>
+            ) : (
             <LFieldGrid min={200}>
               <Field
                 label="Still owed"
@@ -563,6 +573,9 @@ export function LiquidateTool() {
                 findIt={whereToFind('emi', { country: isUS ? 'US' : 'IN' })}
                 hint="Blank: the loan grows unpaid, a stress case"
               />
+            </LFieldGrid>
+            )}
+            <LFieldGrid min={200}>
               <Field
                 label="Your taxable income, a year"
                 kind="money"

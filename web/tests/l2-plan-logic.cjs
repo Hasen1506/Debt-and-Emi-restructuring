@@ -80,14 +80,14 @@ test('#16: a short plan names both dates, so headline and table tell one story',
   assert.match(never.sub, /as things stand: not in 30 years/);
 });
 
-test('#17 (founder 18 Oct 2026): the axis runs to where the minimums-only line clears, so both lines show whole', () => {
-  // A card plan clearing in 3 months beside minimums taking 216: the dashed line is whole.
-  assert.equal(gap.chartEndMonth({ planClears: 3, minClear: 216, lastMonth: 360 }), 216);
-  assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 120, lastMonth: 216 }), 120);
-  // Minimums clear before the plan (rare): the plan's own end.
+test('#17 (founder 19 Oct 2026): the axis ends at the plan payoff, not a long ₹0 tail', () => {
+  // A card plan clearing in 3 months beside minimums taking 216: stop at the payoff.
+  assert.equal(gap.chartEndMonth({ planClears: 3, minClear: 216, lastMonth: 360 }), 3);
+  assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 120, lastMonth: 216 }), 82);
+  // Minimums clear before the plan: still the plan's own end.
   assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 60, lastMonth: 216 }), 82);
-  // Minimums never clear: to the engine's horizon (the chart says they never clear).
-  assert.equal(gap.chartEndMonth({ planClears: 3, minClear: null, lastMonth: 360 }), 360);
+  // Minimums never clear: still the payoff. The caption says they never clear.
+  assert.equal(gap.chartEndMonth({ planClears: 3, minClear: null, lastMonth: 360 }), 3);
   // A gap that only grows: three years of it, not 30.
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360, growingGapFrom: 1 }), 37);
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360 }), 360);

@@ -83,5 +83,5 @@ export function minimumsLine(f: DebtBudgetFigures, money: (v: number) => string,
 /** "Suggested ₹54,323 = halfway between EMIs and minimums ₹10,000 and all spare cash ₹98,646". */
 export function suggestedLine(f: DebtBudgetFigures, money: (v: number) => string): string {
   if (f.suggested <= f.required) return `Suggested ${money(f.suggested)} = your EMIs and minimums; nothing is spare above them`;
-  return `Suggested ${money(f.suggested)} = halfway between EMIs and minimums ${money(f.required)} and all spare cash ${money(f.allSpare)}`;
+  return `Suggested ${money(f.suggested)} = halfway between EMIs and minimums ${money(f.required)} and EMIs + all spare cash ${money(f.allSpare)}`;
 }

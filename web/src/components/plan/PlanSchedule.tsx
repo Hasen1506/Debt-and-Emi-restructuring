@@ -277,14 +277,17 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             </LBracket>
             <LBracket onClick={() => window.print()}>PRINT</LBracket>
             <LBracket onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '↑ EVENTS ONLY' : `↓ ALL ${totalCount} MONTHS`}
+              {expanded ? 'EVENTS ONLY' : 'SHOW ALL'}
             </LBracket>
           </span>
         }
       >
-        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''} ·{' '}
-        {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''}
       </LSectionHeader>
+      <p data-testid="schedule-showing" style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6 }}>
+        Showing {expanded ? totalCount : eventRows.length} of {totalCount} months
+        {expanded ? '' : '. Show all for every month.'}
+      </p>
       {visibleRows.length === 0 ? (
         <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
           NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.

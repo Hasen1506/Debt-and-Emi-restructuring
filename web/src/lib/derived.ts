@@ -19,7 +19,7 @@ import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
 import { countryMonthKey } from './today';
 import { HORIZON_MONTHS } from './horizon';
-import { monthsToClear } from './amortization';
+import { emiNumber, monthsToClear } from './amortization';
 import { emiOffTakeHome } from './loan-status-core';
 
 /** Spending a month, without EMIs: fixed plus flexible. One figure everywhere
@@ -218,5 +218,26 @@ export function deriveTenureMonths(
   const n = monthsToClear(P, annualR, E);
   if (n == null || n > HORIZON_MONTHS) return null;
   return n;
+}
+
+/** EMI that clears `outstanding` in `tenure` months at `rate`, when the EMI
+ *  box is still empty. A fraction rate ("0.085"). Empty string when it
+ *  cannot be worked out, or when an EMI is already typed. */
+export function computedEmi(loan: {
+  loan_type?: string;
+  outstanding?: string;
+  nominal_rate?: string;
+  tenure_months_remaining?: number;
+  scheduled_emi?: string;
+}): string {
+  if ((loan.scheduled_emi ?? '').trim()) return '';
+  if (loan.loan_type === 'credit_card' || loan.loan_type === 'bnpl') return '';
+  const principal = Number(String(loan.outstanding ?? '').replace(/[,\s₹$]/g, ''));
+  const rate = Number(loan.nominal_rate);
+  const months = Number(loan.tenure_months_remaining);
+  if (!(principal > 0) || !(rate > 0) || !(months > 0)) return '';
+  const emi = emiNumber(principal, rate, months);
+  if (!Number.isFinite(emi) || emi <= 0) return '';
+  return String(Math.round(emi));
 }
 

@@ -252,7 +252,11 @@ test('B1 (#3 gaps): moratorium months move the end month on, count interest now,
   assert.equal(r.typeSwitch({ ...gold, repayment: 'interest_only' }, 'credit_card', 'IN').repayment, undefined);
   const qs = src('components/setup/QuickSetup.tsx');
   assert.match(qs, /payingNow\(l, endOf\(l\), ccy\) \?\? emiOf\(l\)/);
-  assert.match(qs, /onPatch\(typeSwitch\(loan, t, country\)\)/);
+  // The chip still applies typeSwitch (it drops a stale repayment shape), then
+  // fills a typical rate when the box was empty or still an estimate.
+  assert.match(qs, /const next = typeSwitch\(loan, t, country\)/);
+  assert.match(qs, /onPatch\(\{ \.\.\.next, nominal_rate: String\(rate\)/);
+  assert.match(qs, /else onPatch\(next\)/);
   assert.match(qs, /\+ moratoriumMonths\(loan, end, thisMonth\)/);
 });
 
