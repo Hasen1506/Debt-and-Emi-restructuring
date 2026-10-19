@@ -42,6 +42,7 @@ import type {
 import { formatCurrency } from '@/lib/api';
 import type { CurrencyCode } from '@/lib/currency';
 import { percentRateError } from '@/lib/loan-gaps';
+import { prepaymentBarred, RBI_ZERO_NOTE } from '@/lib/prepayment-fee';
 
 type FormState = {
   bank: string;
@@ -136,6 +137,7 @@ export function UpdateRestructureModal({
   }
 
   const rateError = percentRateError(form.rate);
+  const feeBarred = !consolidation && primary != null && prepaymentBarred(primary, user.country);
 
   function handleSubmit() {
     if (rateError) return;
@@ -145,8 +147,12 @@ export function UpdateRestructureModal({
     const rateDecimal = String(Number(form.rate || 0) / 100);
     const tenure = Math.max(1, Number(form.tenureMonths || 0));
     const procFee = String(Number(form.processingFee || 0));
-    const penaltyDecimal = String(Number(form.prepayPenaltyPct || 0) / 100);
-    const lockIn = Math.max(0, Number(form.prepayLockInMonths || 0));
+    const resulting: LoanPayload = consolidation
+      ? { loan_type: 'personal_loan', rate_type: 'fixed', bank: form.bank || 'consolidated', outstanding: '0', nominal_rate: '0', tenure_months_remaining: 1, scheduled_emi: '0' }
+      : { ...(primary as LoanPayload), rate_type: primary?.rate_type ?? 'floating', bank: form.bank || primary?.bank || '' };
+    const feeBarred = !consolidation && prepaymentBarred(resulting, user.country);
+    const penaltyDecimal = feeBarred ? '0' : String(Number(form.prepayPenaltyPct || 0) / 100);
+    const lockIn = feeBarred && (resulting.sanction_year ?? 0) >= 2026 ? 0 : Math.max(0, Number(form.prepayLockInMonths || 0));
 
     if (opportunity.kind === 'consolidation' && consolidation) {
       // Zero out each merged loan in place — engine treats outstanding=0 as
@@ -292,11 +298,15 @@ export function UpdateRestructureModal({
           value={form.processingFee}
           onChange={(v) => setForm((f) => ({ ...f, processingFee: v }))}
         />
-        <FormField
-          label="Prepay penalty (%)"
-          value={form.prepayPenaltyPct}
-          onChange={(v) => setForm((f) => ({ ...f, prepayPenaltyPct: v }))}
-        />
+        {feeBarred ? (
+          <p data-testid="prepayment-fee-barred" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 13, color: 'var(--muted)' }}>{RBI_ZERO_NOTE}</p>
+        ) : (
+          <FormField
+            label="Prepay penalty (%)"
+            value={form.prepayPenaltyPct}
+            onChange={(v) => setForm((f) => ({ ...f, prepayPenaltyPct: v }))}
+          />
+        )}
         <FormField
           label="Prepay lock-in (months)"
           value={form.prepayLockInMonths}

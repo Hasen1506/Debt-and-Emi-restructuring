@@ -21,6 +21,7 @@ import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { costLines } from '@/lib/cost-lines';
 import { loanMarginalCost, type MarginalCost } from '@/lib/marginal-cost';
+import { effectivePrepaymentPct } from '@/lib/prepayment-fee';
 import { trueApr, trueAprInputsFromBreakdown } from '@/lib/true-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -74,7 +75,7 @@ export function EffectiveAprBreakdown({
   const all = costLines(loan.nominal_rate || 0, mc, {
     taxNote,
     monthsLeft: Number(loan.tenure_months_remaining || 0),
-    feePct: loan.prepayment_penalty_pct || 0,
+    feePct: effectivePrepaymentPct(loan, country),
   });
   const lines = all.filter((l) => l.key !== 'fee');
   const feeLine = all.find((l) => l.key === 'fee');

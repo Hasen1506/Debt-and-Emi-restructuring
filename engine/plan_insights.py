@@ -141,10 +141,13 @@ def _order_reasons(user: User, moved: list[int], marginal_rate: Decimal) -> list
     out: list[str] = []
     for i in moved:
         l = user.loans[i]
-        if (l.prepayment_penalty_pct or 0) > 0:
-            out.append(f"the {loan_label(l)} charges {l.prepayment_penalty_pct * 100:.1f}% on each part-payment")
-        if (l.prepay_lock_in_months or 0) > 0:
-            out.append(f"the {loan_label(l)} takes no part-payment for {l.prepay_lock_in_months} months")
+        from engine.prepayment_fee import chargeable_lock_in_months, chargeable_prepayment_pct
+        fee = chargeable_prepayment_pct(l, user.country)
+        lock = chargeable_lock_in_months(l, user.country)
+        if fee > 0:
+            out.append(f"the {loan_label(l)} charges {fee * 100:.1f}% on each part-payment")
+        if lock > 0:
+            out.append(f"the {loan_label(l)} takes no part-payment for {lock} months")
         if shields.get(id(l), D("0")) > 0:
             out.append(f"the {loan_label(l)}'s interest earns a tax break, so it costs less than its printed rate")
         mc = costs.get(id(l))

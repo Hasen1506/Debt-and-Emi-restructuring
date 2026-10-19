@@ -177,9 +177,10 @@ def with_lump_sum(
     u = deepcopy(user)
     if 0 <= target_loan_index < len(u.loans):
         l = u.loans[target_loan_index]
-        if l.pre_emi_months_remaining <= 0 and l.prepay_lock_in_months <= 0:
+        from engine.prepayment_fee import chargeable_lock_in_months, chargeable_prepayment_pct
+        if l.pre_emi_months_remaining <= 0 and chargeable_lock_in_months(l, u.country) <= 0:
             in_loan_ccy = from_user_currency(amount, l, u)
-            to_principal = in_loan_ccy * (D("1") - (l.prepayment_penalty_pct or D("0")))
+            to_principal = in_loan_ccy * (D("1") - chargeable_prepayment_pct(l, u.country))
             l.outstanding = max(D("0"), l.outstanding - to_principal)
             if (mode == "reduce_emi" and l.loan_type != LoanType.CREDIT_CARD
                     and l.outstanding > 0 and l.tenure_months_remaining > 0 and l.scheduled_emi > 0):

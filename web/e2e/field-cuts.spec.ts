@@ -45,6 +45,10 @@ test('profile hides rare loan inputs until More options, and shows a worked-out 
   await expect(page.getByLabel('Processing fee a year (%, optional)')).toHaveCount(0);
   await expect(page.getByLabel('Prepayment fee (%, optional)')).toHaveCount(0);
   await expect(page.getByLabel("Bank's reset frequency")).toHaveCount(0);
+  // A floating home loan carries no prepayment charge, so the fee is not asked.
+  await expect(page.getByTestId('prepayment-fee-barred')).toHaveText(
+    'No prepayment charge on floating-rate loans (RBI rule)',
+  );
   const tenure = page.getByLabel('Tenure remaining (months)');
   await expect(tenure).not.toHaveValue('');
   await tenure.fill(await tenure.inputValue());
@@ -52,13 +56,17 @@ test('profile hides rare loan inputs until More options, and shows a worked-out 
   await more.click();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Processing fee a year (%, optional)')).toBeVisible();
-  await expect(page.getByLabel('Prepayment fee (%, optional)')).toBeVisible();
+  await expect(page.getByLabel('Prepayment fee (%, optional)')).toHaveCount(0);
   await expect(page.getByLabel("Bank's reset frequency")).toBeVisible();
   const emi = page.getByLabel('Bank-required EMI');
   await emi.fill('');
   await emi.blur();
   await expect(emi).not.toHaveValue('');
   await expect(page.getByText(/Worked out from the balance, rate and months left/)).toBeVisible();
+  // A fixed-rate loan can still carry a charge, so More options asks for it.
+  await page.getByLabel('Fixed or floating rate').selectOption('fixed');
+  await expect(page.getByTestId('prepayment-fee-barred')).toHaveCount(0);
+  await expect(page.getByLabel('Prepayment fee (%, optional)')).toBeVisible();
 });
 
 test('sell to repay uses the saved loan instead of asking for it again', async ({ page }) => {

@@ -131,7 +131,7 @@ class WindfallAllocation:
     blocked: list[str] = field(default_factory=list)
 
 
-def prepay_block(loan: Loan) -> str | None:
+def prepay_block(loan: Loan, country: Country = Country.IN) -> str | None:
     """Why the loan can't take an extra payment this month, or None. The
     same gates as the plan's simulator: a lock-in (months from now) and a
     pre-EMI period. A part-payment frequency limit isn't known to be used
@@ -142,17 +142,19 @@ def prepay_block(loan: Loan) -> str | None:
     why = forgiveness_prepay_block(loan)
     if why is not None:
         return why
-    if loan.prepay_lock_in_months > 0:
-        n = loan.prepay_lock_in_months
+    from engine.prepayment_fee import chargeable_lock_in_months
+    n = chargeable_lock_in_months(loan, country)
+    if n > 0:
         return f"is locked against prepayment for {n} more month{'' if n == 1 else 's'}"
     return None
 
 
-def _prepay_split(loan: Loan, amount: Decimal) -> tuple[Decimal, Decimal]:
+def _prepay_split(loan: Loan, amount: Decimal, country: Country = Country.IN) -> tuple[Decimal, Decimal]:
     """(cash paid, fee) for putting up to `amount` into `loan`. The fee is a
     share of the payment and comes out of it, so it takes a little more than
-    the balance to clear the loan."""
-    pct = loan.prepayment_penalty_pct or D("0")
+    the balance to clear the loan. A charge RBI forbids is 0."""
+    from engine.prepayment_fee import chargeable_prepayment_pct
+    pct = chargeable_prepayment_pct(loan, country)
     need = loan.outstanding / (D("1") - pct) if pct < 1 else loan.outstanding
     paid = min(amount, need)
     return paid, (paid * pct).quantize(D("0.01"), rounding=ROUND_HALF_UP)
@@ -196,10 +198,10 @@ def allocate_windfall(
     # A loan whose terms bar an extra payment now (a lock-in) isn't offered:
     # Spare Cash used to send ₹20,000 to a loan the plan itself wouldn't pay.
     blocked = [
-        f"{l.bank} {l.loan_type.value.replace('_', ' ')} {prepay_block(l)}"
-        for l in ranked if prepay_block(l)
+        f"{l.bank} {l.loan_type.value.replace('_', ' ')} {prepay_block(l, country)}"
+        for l in ranked if prepay_block(l, country)
     ]
-    ranked = [l for l in ranked if not prepay_block(l)]
+    ranked = [l for l in ranked if not prepay_block(l, country)]
     if not ranked:
         return WindfallAllocation(
             to_loan_id=None, loan_label="—", amount=D("0"),
@@ -209,7 +211,7 @@ def allocate_windfall(
         )
 
     def net_of_fee(l: Loan) -> tuple[Decimal, Decimal, Decimal]:
-        paid, fee = _prepay_split(l, amount)
+        paid, fee = _prepay_split(l, amount, country)
         avoided = interest_saved_by_prepaying(l, paid - fee, country)
         return paid, fee, avoided
 
@@ -285,8 +287,9 @@ def allocate_windfall(
     if leftover > 0:
         rationale += f"; clears it with {money(leftover, country)} left over"
     if fee > 0:
+        from engine.prepayment_fee import chargeable_prepayment_pct
         rationale += (
-            f"; its {top.prepayment_penalty_pct * 100:.4g}% prepayment fee takes {money(fee, country)}, "
+            f"; its {chargeable_prepayment_pct(top, country) * 100:.4g}% prepayment fee takes {money(fee, country)}, "
             f"leaving {money(avoided - fee, country)} saved"
         )
     if top.part_payment_freq_months and top.part_payment_freq_months > 1:

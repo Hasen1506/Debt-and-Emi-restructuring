@@ -27,6 +27,13 @@ from engine.marginal_cost import marginal_cost, user_forward_rates
 from engine.formulas import emi, loan_market
 from engine.tax.gst import GST_RATE_IN
 from engine.lenders import resolve as resolve_lender
+from engine.prepayment_fee import chargeable_prepayment_pct
+
+
+def _chargeable_fee(loan, country) -> Decimal:
+    """Foreclosure / prepayment charge the refinance maths may count.
+    Zero when RBI forbids it."""
+    return chargeable_prepayment_pct(loan, country)
 from engine.loan_check import _inr
 from engine.models import Country, IncomeType, Loan, LoanType, User
 from engine.surplus import from_user_currency, loan_currency_or_default, to_user_currency
@@ -1047,7 +1054,7 @@ def _fit_repayment_comparison(opp, user, baseline, options, country) -> Optional
         alternative = replacement(opp.alternative_target_rate, opp.alternative_target_bank)
         alt_closing = D("0") if opp.kind == "refinance" and _same_bank(
             opp.alternative_target_bank, original.bank, country,
-        ) else sum((user.loans[i].outstanding * user.loans[i].prepayment_penalty_pct for i in idx), D("0"))
+        ) else sum((user.loans[i].outstanding * _chargeable_fee(user.loans[i], country) for i in idx), D("0"))
         alt_cost = cost - D(opp.detail.get("closing_fee", "0")) + alt_closing
         alt_saving = sum(monthly_differences(alternative)[:12], D("0")) - alt_cost
         if alt_saving > saving:
@@ -1164,7 +1171,7 @@ def scan(
             # recorded early-repayment charge is another up-front cost.
             repricing = opp.kind == "refinance" and _same_bank(opp.target_bank, loan.bank, m)
             closing_fee = D("0") if repricing else sum((
-                user.loans[i].outstanding * user.loans[i].prepayment_penalty_pct
+                user.loans[i].outstanding * _chargeable_fee(user.loans[i], m)
                 for i in opp.affected_loan_indices
             ), D("0"))
             if closing_fee > 0:

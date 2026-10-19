@@ -152,7 +152,7 @@ test('#11 an Indian floating loan asks "for a business?" and a yes drops the RBI
   assert.match(PURPOSE_HELP, /yourself or your family/);
   assert.match(PURPOSE_HELP, /2 July 2025/);
   const profile = profileSource();
-  assert.match(profile, /feeShownWithPurpose as feeShown/);
+  assert.match(profile, /PrepaymentFeeFields/);
   assert.match(profile, /asksBusinessPurpose\(l, country\)/);
 });
 

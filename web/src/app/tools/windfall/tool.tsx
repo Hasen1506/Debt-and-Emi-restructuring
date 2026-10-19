@@ -34,6 +34,7 @@ import { rollBalancesForward } from '@/lib/roll-forward';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
 import { countryMonthKey } from '@/lib/today';
 import { readEfSplitClient } from '@/lib/ef-split';
+import { effectivePrepaymentPct } from '@/lib/prepayment-fee';
 import { allocateCash, type CashFunding } from '@/lib/cash-allocation';
 import { commitCashChange } from '@/lib/commit-cash-change';
 import { readCashEventsClient } from '@/lib/cash-events';
@@ -217,7 +218,7 @@ export function WindfallTool({
     for (const { l, i } of loans) {
       const fx = loanToUser(1, l, country, planUser.fx_to_user_currency);
       if (fx == null) continue;
-      const feePct = Number(l.prepayment_penalty_pct || 0);
+      const feePct = Number(effectivePrepaymentPct(l, country) || 0);
       const owedL = (l.id ? owedLoans.find((o) => o.id === l.id) : owedLoans[i]) ?? l;
       const cap = (Math.min(Number(l.outstanding), Number(owedL.outstanding)) * fx) / (feePct < 1 ? 1 - feePct : 1);
       out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l), ...(l.debt_status === 'collections' ? { collections: true } : {}) });
@@ -466,7 +467,7 @@ export function WindfallTool({
         if (!loan) throw new Error(`${t.label} is no longer in your profile. Reload and try again.`);
         if (Number(currentLoans[index].outstanding) <= 0 || block(currentLoans[index])) throw new Error(`${t.label} is no longer available for prepayment. Reload and try again.`);
         const currentFx = loanToUser(1, currentLoans[index], country, stored.user.fx_to_user_currency);
-        if (currentFx !== t.fx || Number(currentLoans[index].prepayment_penalty_pct || 0) !== t.feePct)
+        if (currentFx !== t.fx || Number(effectivePrepaymentPct(currentLoans[index], country) || 0) !== t.feePct)
           throw new Error('The exchange rate or prepayment terms changed. Check the split again.');
         const fee = feeOf(t, v);
         const principal = new Decimal(v).minus(fee).div(t.fx!);

@@ -2251,8 +2251,8 @@
     "sanctioned_amount": "4000000"
    },
    "pct": "0",
-   "status": "unknown",
-   "reason": "Not known: RBI's no-prepayment-charge rule covers business loans only from some lenders, and only for loans sanctioned from 1 January 2026. Check your loan agreement or Key Facts Statement."
+   "status": "assumed",
+   "reason": "Assumed 0%: an HFC is an NBFC in the middle layer unless it is upper layer, so RBI bars prepayment charges on its floating-rate business loans up to ₹50 lakh sanctioned from 1 January 2026 (RBI Directions, 2 July 2025, para 5(ii)(b))."
   },
   {
    "args": {
@@ -4897,8 +4897,8 @@
     "sanctioned_amount": "4000000"
    },
    "pct": "0",
-   "status": "unknown",
-   "reason": "Not known: RBI's no-prepayment-charge rule covers business loans only from some lenders, and only for loans sanctioned from 1 January 2026. Check your loan agreement or Key Facts Statement."
+   "status": "assumed",
+   "reason": "Assumed 0%: an HFC is an NBFC in the middle layer unless it is upper layer, so RBI bars prepayment charges on its floating-rate business loans up to ₹50 lakh sanctioned from 1 January 2026 (RBI Directions, 2 July 2025, para 5(ii)(b))."
   },
   {
    "args": {

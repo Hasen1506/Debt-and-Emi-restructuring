@@ -71,8 +71,8 @@ import { typicalRate, withEstimate } from '@/lib/setup-estimates';
 import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { classifyBracket, grossMarginalRate, IN_TAX_YEAR_LABEL, inNewRegimeSlabLines } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
-import { RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
-import { asksBusinessPurpose, feeShownWithPurpose as feeShown, PURPOSE_HELP, PURPOSE_QUESTION } from '@/lib/loan-purpose';
+import { PrepaymentFeeFields, withStatutoryPrepayment } from '@/components/profile/PrepaymentFeeFields';
+import { asksBusinessPurpose, PURPOSE_HELP, PURPOSE_QUESTION } from '@/lib/loan-purpose';
 import { cleanCity, stateFor, statesFor, STATE_HELP } from '@/lib/locations';
 import { NICKNAME_MAX } from '@/lib/loan-types';
 import { dropKfsFields, kfsNote } from '@/lib/kfs';
@@ -372,6 +372,18 @@ function ProfileEditor({
   }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
+  // A fee the law sets to zero is cleared, including one already saved.
+  useEffect(() => {
+    setLoans((cur) => {
+      let changed = false;
+      const next = cur.map((l) => {
+        const fixed = withStatutoryPrepayment(l, country);
+        if (fixed !== l) changed = true;
+        return fixed;
+      });
+      return changed ? next : cur;
+    });
+  }, [country, loans]);
   // The loans as saved, to tell a changed balance from one left alone.
   const savedLoansRef = useRef<LoanPayload[]>([]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
@@ -569,7 +581,10 @@ function ProfileEditor({
       cur.map((l, i) =>
         i === idx
           ? // A field changed here stops being "from your Key Facts Statement" (lib/kfs).
-            { ...patchLoanKeepingRateType(l, patch, country), kfs_fields: dropKfsFields(l, patch) }
+            withStatutoryPrepayment(
+              { ...patchLoanKeepingRateType(l, patch, country), kfs_fields: dropKfsFields(l, patch) },
+              country,
+            )
           : l,
       ),
     );
@@ -1975,6 +1990,7 @@ function ProfileEditor({
                   </div>
                 )}
                 {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
+                <PrepaymentFeeFields loan={l} country={country} askOpen={false} onChange={(p) => updateLoan(i, p)} />
                 <div style={{ gridColumn: '1 / -1' }}>
                   <button
                     type="button"
@@ -2075,46 +2091,14 @@ function ProfileEditor({
                 )}
                 {l.loan_type !== 'credit_card' && (
                   <>
-                <Field
-                  label="Prepayment fee (%, optional)"
+                <PrepaymentFeeFields
+                  loan={l}
+                  country={country}
+                  askOpen
+                  note={false}
+                  onChange={(p) => updateLoan(i, p)}
                   findIt={findFor(l, country, 'prepayFee')}
-                  kind="percent"
-                  value={l.prepayment_penalty_pct ?? ''}
-                  onChange={(v) =>
-                    updateLoan(i, { prepayment_penalty_pct: v })
-                  }
                   error={assumptionError('fee', l.prepayment_penalty_pct)}
-                  placeholder={feeShown(l, country).placeholder}
-                  hint={feeShown(l, country).hint}
-                  suggestion={
-                    // A bank's curated fee is only offered where no rule
-                    // fixes it (roadmap PR K): never on a floating-rate
-                    // Indian loan, where RBI bars the fee.
-                    feeShown(l, country).status === 'unknown' &&
-                    loanSuggestions[i]?.prepayment_penalty_pct != null &&
-                    Number(loanSuggestions[i]!.prepayment_penalty_pct) > 0
-                      ? {
-                          value: loanSuggestions[i]!.prepayment_penalty_pct!,
-                          label: suggestionLabel(
-                            `${l.bank || 'default'} ${l.rate_type || 'floating'}`,
-                            `${(Number(loanSuggestions[i]!.prepayment_penalty_pct!) * 100).toFixed(1)}%`,
-                            loanSuggestions[i]!,
-                          ),
-                        }
-                      : undefined
-                  }
-                  info={
-                    <>
-                      What the bank charges on payments above the
-                      schedule, as a % of the amount prepaid. Leave it
-                      blank if you don&apos;t know. For a floating-rate
-                      loan in India it is taken as 0%: RBI bars
-                      prepayment charges on floating-rate loans to
-                      individuals for non-business purposes ({RBI_PREPAYMENT_RULE}).
-                      For a fixed-rate or US loan nothing is assumed; the
-                      sanction letter or Key Facts Statement states it.
-                    </>
-                  }
                 />
                 <Field
                   label="Prepay lock-in left (months)"

@@ -49,7 +49,7 @@ import { HORIZON_MONTHS } from '@/lib/horizon';
 import { emiBelowInterest, formatAsOfDate, loanDraftErrors, loanRateOutOfRange, needsEmi, rateSanityNote, setupLoanName, setupSummaryLine, slowPayoffNote } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { feeShown } from '@/lib/prepayment-fee';
+import { PrepaymentFeeFields, withStatutoryPrepayment } from '@/components/profile/PrepaymentFeeFields';
 import { readEfSplitClient, writeEfSplitClient } from '@/lib/ef-split';
 import { SetupChoices } from '@/components/setup/SetupChoices';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
@@ -1197,6 +1197,14 @@ function LoanBlock({
 }) {
   const ccy = loanCurrency(loan, country);
   const card = loan.loan_type === 'credit_card';
+  useEffect(() => {
+    const fixed = withStatutoryPrepayment(loan, country);
+    if (fixed === loan) return;
+    onPatch({
+      prepayment_penalty_pct: fixed.prepayment_penalty_pct,
+      ...(fixed.prepay_lock_in_months !== loan.prepay_lock_in_months ? { prepay_lock_in_months: fixed.prepay_lock_in_months } : {}),
+    });
+  }, [loan, country, onPatch]);
   const end = ui.endMonth ?? savedEndMonth(loan, thisMonth);
   const tenure = !card && !ui.byMonths ? deriveTenureMonths(loan.outstanding, loan.nominal_rate, loan.scheduled_emi) : null;
   const emiTooSmall =
@@ -1370,6 +1378,7 @@ function LoanBlock({
           <span aria-hidden="true">[</span>{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL<span aria-hidden="true">]</span>
         </button>
       </div>
+      {!card && <PrepaymentFeeFields loan={loan} country={country} askOpen={false} onChange={onPatch} />}
       {!card && ui.estOpen && (
         <EstimateBalance loan={loan} ui={ui} onUi={onUi} onPatch={onPatch} country={country} ccy={ccy} typical={typical} thisMonth={thisMonth} />
       )}
@@ -1414,14 +1423,13 @@ function LoanBlock({
             />
           )}
           {!card && (
-            <Field
-              label="Prepayment fee, % (optional)"
+            <PrepaymentFeeFields
+              loan={loan}
+              country={country}
+              askOpen
+              note={false}
+              onChange={onPatch}
               findIt={find('prepayFee')}
-              kind="percent"
-              value={loan.prepayment_penalty_pct ?? ''}
-              onChange={(v) => onPatch({ prepayment_penalty_pct: v })}
-              placeholder={feeShown(loan, country).placeholder}
-              hint={feeShown(loan, country).hint}
               error={issues.fee}
             />
           )}
