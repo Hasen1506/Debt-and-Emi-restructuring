@@ -76,6 +76,7 @@ LOAN_TYPE_NAME = {
     "credit_card": "credit card", "education_loan": "education loan", "gold_loan": "gold loan", "bnpl": "BNPL",
     "loan_against_property": "loan against property", "home_topup": "home loan top-up",
     "two_wheeler_loan": "two-wheeler loan", "medical_loan": "medical loan",
+    "people_loan": "loan from a person",
 }
 
 

@@ -63,6 +63,7 @@ const SetupThisMonth = dynamic(() => import('./SetupThisMonth').then((m) => m.Se
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
+import { PeopleLoanFields } from './PeopleLoanFields';
 import dynamic from 'next/dynamic';
 // Status / salary / house-use extras load after the form (route budget, round 3).
 const LoanExtras = dynamic(() => import('./LoanExtras').then((m) => m.LoanExtras));
@@ -104,6 +105,7 @@ const TYPE_CHIPS: Array<[LoanType, string]> = [
   ['credit_card', 'Card'], ['personal_loan', 'Personal'], ['home_loan', 'Home'], ['home_topup', 'Home top-up'],
   ['loan_against_property', 'Against property'], ['auto_loan', 'Car'], ['two_wheeler_loan', 'Two-wheeler'],
   ['education_loan', 'Education'], ['gold_loan', 'Gold'], ['medical_loan', 'Medical'], ['bnpl', 'Pay later'],
+  ['people_loan', 'Someone'],
 ];
 
 type Issues = Partial<Record<'balance' | 'rate' | 'emi' | 'months' | 'fee' | 'paid' | 'end', string>>;
@@ -1233,11 +1235,15 @@ function LoanBlock({
         {loanKindsFor(TYPE_CHIPS, ccy === 'INR' ? 'IN' : country, loan.loan_type).map(([t, label]) => (
           <Chip key={t} on={typeChosen && loan.loan_type === t} onClick={() => {
             const next = typeSwitch(loan, t, country);
-            const guessed = (loan.estimated_fields ?? []).includes('rate') || !(loan.nominal_rate ?? '').trim();
-            const rate = typicalRate((next.currency ?? ccy) === 'INR' ? 'IN' : 'US', t);
-            if (guessed && rate != null) {
-              onPatch({ ...next, nominal_rate: String(rate), estimated_fields: withEstimate({ ...loan, ...next }, 'rate', true).estimated_fields });
-            } else onPatch(next);
+            if (t === 'people_loan') {
+              onPatch({ ...next, lender_type: 'other', nominal_rate: '0', scheduled_emi: '0', tenure_months_remaining: 0, people_interest: 'none', people_repay: 'whenever', rate_type: 'fixed', rate_type_assumed: false });
+            } else {
+              const guessed = (loan.estimated_fields ?? []).includes('rate') || !(loan.nominal_rate ?? '').trim();
+              const rate = typicalRate((next.currency ?? ccy) === 'INR' ? 'IN' : 'US', t);
+              if (guessed && rate != null) {
+                onPatch({ ...next, nominal_rate: String(rate), estimated_fields: withEstimate({ ...loan, ...next }, 'rate', true).estimated_fields });
+              } else onPatch(next);
+            }
             onUi({ typeSet: true });
           }}>
             {label}
@@ -1259,16 +1265,18 @@ function LoanBlock({
       {loan.loan_type === 'education_loan' && ccy === 'USD' && (
         <UsStudentChips loan={loan} onPatch={onPatch} />
       )}
+      {loan.loan_type === 'people_loan' && <PeopleLoanFields loan={loan} thisMonth={thisMonth} onPatch={onPatch} />}
       <RepaymentChips loan={loan} country={country} endMonth={end} onPatch={onPatch} onEnd={(v) => onUi({ endMonth: v })} error={issues.end} money={(v) => formatCurrencyWhole(String(v), ccy)} />
       <div style={grid2}>
         <BankCombobox
-          label={card ? 'Card from (optional)' : 'Lender (optional)'}
+          label={loan.loan_type === 'people_loan' ? 'Who you borrowed from' : card ? 'Card from (optional)' : 'Lender (optional)'}
+          placeholder={loan.loan_type === 'people_loan' ? 'Their name' : undefined}
           value={loan.bank}
           onChange={(v) => onPatch({ bank: v })}
           country={ccy === 'INR' ? 'IN' : 'US'}
         />
         <Field
-          label={card ? 'Balance on the card' : 'Balance left to repay'}
+          label={loan.loan_type === 'people_loan' ? 'Amount borrowed' : card ? 'Balance on the card' : 'Balance left to repay'}
           findIt={find('balance')}
           kind="money"
           currency={ccy}
@@ -1278,7 +1286,7 @@ function LoanBlock({
           hint={estimated.has('balance') ? 'An estimate from what you borrowed. Replace it with your statement’s figure when you can.' : undefined}
           error={issues.balance}
         />
-        <Field
+        {loan.loan_type !== 'people_loan' && <Field
           label={card ? 'Card APR, % a year' : 'Interest rate, % a year'}
           findIt={find('rate')}
           kind="percent"
@@ -1294,7 +1302,7 @@ function LoanBlock({
                 ? 'A 3.5% monthly rate is 42% a year'
                 : undefined)}
           error={issues.rate}
-        />
+        />}
         {!card && !ui.byMonths && shapeNeedsEmi(loan, end) && (
           <Field
             label={paymentWords(country).field}

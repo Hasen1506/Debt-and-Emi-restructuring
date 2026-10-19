@@ -468,6 +468,7 @@ export function BankCombobox({
   country,
   hint,
   info,
+  placeholder: placeholderProp,
 }: {
   label: string;
   value: string;
@@ -475,9 +476,10 @@ export function BankCombobox({
   country: string;
   hint?: string;
   info?: ReactNode;
+  placeholder?: string;
 }) {
   const allBanks = country === 'US' ? BANKS_US : BANKS_IN;
-  const placeholder = country === 'US' ? 'Select bank' : 'Select bank';
+  const placeholder = placeholderProp ?? 'Select bank';
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');

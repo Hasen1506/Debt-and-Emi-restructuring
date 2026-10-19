@@ -45,10 +45,16 @@ export function readStrategyClient(): StrategyName {
 
 export function writeStrategyClient(strategy: StrategyName) {
   if (typeof document === 'undefined') return;
+  const prev = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`))?.[1];
   document.cookie = `${COOKIE_NAME}=${strategy}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   void import('./server-sync').then(({ syncSliceToServer }) =>
     syncSliceToServer('strategy', strategy),
   );
+  if (prev !== strategy) {
+    void import('./change-log').then(({ recordChange }) =>
+      recordChange({ kind: 'settings', what: 'Payoff order', before: prev ? decodeURIComponent(prev) : '', after: strategy }),
+    );
+  }
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

@@ -117,6 +117,8 @@ export interface PlanData {
   /** Round 2: why the panel shows for a salaried user (non-TDS income) and
    *  what skipping it costs; null/absent for business income. */
   advanceTaxNote?: string | null;
+  /** Logged spending replaced the single setup figure. Null when none is logged. */
+  spendAverage?: { average: number; count: number; months: string[] } | null;
   /** Round 2 (item 4): the plan ran on the user's seasonal pattern; both
    *  versions (reserve on / off) for the honest interest line. */
   seasonal?: import('@/lib/api').SeasonalOutRaw | null;

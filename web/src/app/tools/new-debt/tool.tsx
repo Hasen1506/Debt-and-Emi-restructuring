@@ -564,6 +564,7 @@ const RATE_FIELD_BY_LOAN_TYPE: Record<LoanType, keyof InstitutionPayload | null>
   home_topup: null,
   two_wheeler_loan: null,
   medical_loan: null,
+  people_loan: null,
 };
 
 function rankBanksForLoanType(

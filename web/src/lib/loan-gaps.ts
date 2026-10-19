@@ -40,7 +40,7 @@ const NEVER_ZERO_RATE: ReadonlySet<LoanType> = new Set([
 
 /** Cards revolve: the bank sets the minimum, so no EMI is needed. */
 export function needsEmi(type: LoanType): boolean {
-  return type !== 'credit_card';
+  return type !== 'credit_card' && type !== 'people_loan';
 }
 
 /** A stored rate (a fraction of 1) the plan engine won't take: not a
@@ -103,7 +103,9 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
   ) {
     gaps.push('rate');
   }
-  if (needsEmi(loan.loan_type) && loan.repayment !== 'bullet' && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
+  if (loan.loan_type === 'people_loan') {
+    if (loan.people_repay === 'emi' && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
+  } else if (needsEmi(loan.loan_type) && loan.repayment !== 'bullet' && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
   if (ctx && loanToUser(1, loan, ctx.country, ctx.fx) == null) gaps.push('fx');
   return gaps;
 }
@@ -111,7 +113,7 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
 /** Setup's check on a loan being typed in: a blank field is missing even
  *  where 0 would be allowed. Returns a message per missing field. */
 export function loanDraftErrors(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track'>> & { currency?: 'INR' | 'USD' },
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track' | 'people_interest' | 'people_repay'>> & { currency?: 'INR' | 'USD' },
   country?: string,
 ): Partial<Record<LoanGapField, string>> {
   const pw = paymentWords(country ?? (loan.currency === 'USD' ? 'US' : 'IN'));
@@ -124,12 +126,19 @@ export function loanDraftErrors(
   const rateBlank = (loan.nominal_rate ?? '').trim() === '';
   if (loan.loan_type === 'credit_card' && rateBlank) {
     out.rate = 'Enter the card’s interest rate, e.g. 42 (a 3.5% monthly rate is 42% a year).';
+  } else if (loan.loan_type === 'people_loan') {
+    if (loan.people_interest && loan.people_interest !== 'none' && rateBlank) {
+      out.rate = 'Enter the interest, or choose no interest.';
+    }
   } else if (rateBlank) {
     out.rate = 'Enter the interest rate from your statement (0 only if it’s really interest-free).';
   } else if (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0)) {
     out.rate = 'This kind of loan always charges interest. Enter the rate from your statement.';
   }
   if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return out;
+  if (loan.loan_type === 'people_loan' && loan.people_repay === 'emi' && dec(loan.scheduled_emi).lte(0)) {
+    out.emi = 'Enter the amount you pay each month.';
+  }
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) {
     out.emi = pw.one === 'EMI'
       ? 'Enter the monthly EMI the bank takes (on your statement or banking app).'

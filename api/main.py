@@ -157,7 +157,7 @@ if db_enabled():
     from api.auth.consent import router as consent_router
     from api.auth.routes import router as auth_router
     from api.auth.google import router as google_router
-    from api.routes import user_state
+    from api.routes import share, user_state
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(account_router, prefix="/api")
@@ -166,6 +166,7 @@ if db_enabled():
     # client id/secret are set (api/auth/google.py, DEPLOY.md).
     app.include_router(google_router, prefix="/api")
     app.include_router(user_state.router, prefix="/api")
+    app.include_router(share.router, prefix="/api")
 else:
     log.warning("Skipping /api/auth/* and /api/user-state — DATABASE_URL unset.")
 

@@ -10,9 +10,10 @@ import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
 import Link from 'next/link';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
-import { formatMonth, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { countryMonthKey, formatMonth, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
+import { WhatChangedCard } from './WhatChangedCard';
 import { HomeProgress } from './HomeProgress';
 import { retentionInputs } from '@/lib/retention-inputs';
 import { localIsoDate } from '@/lib/today';
@@ -172,33 +173,50 @@ function rateWords(l: LoanWithEffective, _country: string): string {
 export async function HomePayThisMonth() {
   const plan = await loadPlanOnce();
   const country = plan.user.country;
+  const interestPoint = plan.live && plan.gaps.length === 0 ? plan.trajectory.find((p) => p.month === 1) : undefined;
+  const changed = (
+    <WhatChangedCard
+      month={countryMonthKey(country)}
+      debtFree={plan.debtFreeMonth ? monthIndexToCountryLabel(plan.debtFreeMonth, country) : 'not on this plan'}
+      interest={interestPoint?.interest != null ? formatCurrencyWhole(Math.round(interestPoint.interest), userDefaultCurrency(country)) : ''}
+    />
+  );
   const today = getCountryToday(country);
   const monthLabel = formatMonth(today.getFullYear(), today.getMonth(), 'long');
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(country));
   if (plan.gaps.length > 0) {
     const g = plan.gaps[0];
     return (
-      <PayNotice title="Pay this month" country={country}>
-        Add {describeGap(g.missing, g.loan)} for your {g.loan.bank ? `${g.loan.bank} ` : ''}
-        {LOAN_TYPE_NAME[g.loan.loan_type]}
-        {plan.gaps.length > 1 ? ` (and ${plan.gaps.length - 1} more)` : ''}. Without it the plan can&apos;t work out
-        what to pay. <LBracket active href="/profile?step=loans">ADD THE DETAILS</LBracket>
-      </PayNotice>
+      <>
+        <PayNotice title="Pay this month" country={country}>
+          Add {describeGap(g.missing, g.loan)} for your {g.loan.bank ? `${g.loan.bank} ` : ''}
+          {LOAN_TYPE_NAME[g.loan.loan_type]}
+          {plan.gaps.length > 1 ? ` (and ${plan.gaps.length - 1} more)` : ''}. Without it the plan can&apos;t work out
+          what to pay. <LBracket active href="/profile?step=loans">ADD THE DETAILS</LBracket>
+        </PayNotice>
+        {changed}
+      </>
     );
   }
   const data = payThisMonth(plan);
   if (!data || data.rows.length === 0) {
     if (plan.live) {
       return (
-        <PayNotice title="Pay this month" country={country}>
-          {localTerms('No loan payment is due this month. Check each loan’s first EMI date below.', plan.user.country)}
-        </PayNotice>
+        <>
+          <PayNotice title="Pay this month" country={country}>
+            {localTerms('No loan payment is due this month. Check each loan’s first EMI date below.', plan.user.country)}
+          </PayNotice>
+          {changed}
+        </>
       );
     }
     return (
-      <PayNotice title="Pay this month" country={country}>
-        {localTerms('The plan engine can’t be reached right now, so this month’s payments aren’t worked out. Your EMIs are due as usual.', plan.user.country)} <LBracket href="/plan">TRY THE PLAN →</LBracket>
-      </PayNotice>
+      <>
+        <PayNotice title="Pay this month" country={country}>
+          {localTerms('The plan engine can’t be reached right now, so this month’s payments aren’t worked out. Your EMIs are due as usual.', plan.user.country)} <LBracket href="/plan">TRY THE PLAN →</LBracket>
+        </PayNotice>
+        {changed}
+      </>
     );
   }
   // Why the top extra goes where it does, and what it saves in a year.
@@ -258,6 +276,7 @@ export async function HomePayThisMonth() {
         reason={reason}
         alert={alert}
       />
+      {changed}
     </>
   );
 }
@@ -346,7 +365,7 @@ const planProfile = (plan: Awaited<ReturnType<typeof loadPlanOnce>>) => ({ user:
 export async function HomeCashFlow() {
   const plan = await loadPlanOnce();
   const pay = plan.live && plan.gaps.length === 0 ? payThisMonth(plan) : null;
-  return <CashFlow profile={planProfile(plan)} dues={pay?.duesUser} addsSpare={(pay?.extraUser ?? 0) >= 1} />;
+  return <CashFlow profile={planProfile(plan)} dues={pay?.duesUser} addsSpare={(pay?.extraUser ?? 0) >= 1} spendMonths={plan.spendAverage?.count ?? 0} />;
 }
 
 export async function HomeDuesTotal() {

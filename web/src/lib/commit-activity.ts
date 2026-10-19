@@ -2,6 +2,7 @@ import type { ActivityEntry } from './activity';
 import type { UserPayload } from './api';
 import { syncActivityCookieClient, parseActivityDeltas, activityDeltas } from './activity-cookie';
 import { syncSliceToServer } from './server-sync';
+import { activityChanges, recordChanges } from './change-log';
 
 /** Persist the ledger and its projection together before displaying success. */
 export function commitActivity(entries: ActivityEntry[], user: UserPayload): void {
@@ -22,4 +23,10 @@ export function commitActivity(entries: ActivityEntry[], user: UserPayload): voi
     throw e;
   }
   void syncSliceToServer('activity', entries);
+  try {
+    const prev: ActivityEntry[] = before ? JSON.parse(before) : [];
+    recordChanges(activityChanges(Array.isArray(prev) ? prev : [], entries));
+  } catch {
+    recordChanges(activityChanges([], entries));
+  }
 }

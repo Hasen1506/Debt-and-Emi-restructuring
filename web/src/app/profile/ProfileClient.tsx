@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
 import { LBracket, LButton, LShell, L_T } from '@/components/ledger/primitives';
+import { PeopleLoanFields } from '@/components/setup/PeopleLoanFields';
 import { previousPage } from '@/lib/nav-trail';
 import { PROFILE_SECTIONS, ProfileSummary } from '@/components/profile/ProfileSummary';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
@@ -190,6 +191,7 @@ const LOAN_TYPES: { value: LoanType; label: string }[] = [
   { value: 'gold_loan', label: 'Gold loan' }, { value: 'bnpl', label: 'BNPL / pay-later' },
   { value: 'home_topup', label: 'Home loan top-up' }, { value: 'loan_against_property', label: 'Loan against property' },
   { value: 'two_wheeler_loan', label: 'Two-wheeler loan' }, { value: 'medical_loan', label: 'Medical loan or bill' },
+  { value: 'people_loan', label: 'Loan from a person' },
 ];
 
 function blankLoan(): LoanPayload {
@@ -1693,12 +1695,14 @@ function ProfileEditor({
                   onChange={(v) => {
                     const guessed = (l.estimated_fields ?? []).includes('rate') || !(l.nominal_rate ?? '').trim();
                     const rate = typicalRate(country, v);
-                    updateLoan(i, {
-                      loan_type: v,
-                      ...(guessed && rate != null
-                        ? { nominal_rate: String(rate), estimated_fields: withEstimate(l, 'rate', true).estimated_fields }
-                        : {}),
-                    });
+                    updateLoan(i, v === 'people_loan'
+                      ? { loan_type: v, lender_type: 'other', nominal_rate: '0', scheduled_emi: '0', tenure_months_remaining: 0, people_interest: 'none', people_repay: 'whenever', rate_type: 'fixed', rate_type_assumed: false }
+                      : {
+                          loan_type: v,
+                          ...(guessed && rate != null
+                            ? { nominal_rate: String(rate), estimated_fields: withEstimate(l, 'rate', true).estimated_fields }
+                            : {}),
+                        });
                   }}
                   options={LOAN_TYPES}
                   info={
@@ -1706,24 +1710,33 @@ function ProfileEditor({
                       <strong>Credit cards</strong> and <strong>BNPL</strong>{' '}
                       are revolving — no fixed payoff date.{' '}
                       <strong>Home / auto / personal / education / gold</strong>{' '}
-                      loans amortize over a tenure. Determines how the engine
-                      prices each line.
+                      loans amortize over a tenure. A loan from a person is
+                      anyone a credit report will not list.
                     </>
                   }
                 />
+                {l.loan_type === 'people_loan' && (
+                  <PeopleLoanFields loan={l} thisMonth={new Date().toISOString().slice(0, 7)} onPatch={(p) => updateLoan(i, p)} />
+                )}
                 <BankCombobox
-                  label="Bank / lender"
+                  label={l.loan_type === 'people_loan' ? 'Who you borrowed from' : 'Bank / lender'}
+                  placeholder={l.loan_type === 'people_loan' ? 'Their name' : undefined}
                   value={l.bank}
                   onChange={(v) => updateLoan(i, { bank: v })}
                   country={country}
                   info={
+                    l.loan_type === 'people_loan' ? (
+                      <>The person’s name, or the chit fund. Type it; it does not have to be a bank.</>
+                    ) : (
                     <>
                       The institution holding this debt. Tap to open the list,
                       type to filter. If your lender isn't shown, type it
                       manually — free text is accepted.
                     </>
+                    )
                   }
                 />
+                {l.loan_type !== 'people_loan' && (
                 <Field
                   label="Nickname (optional)"
                   kind="text"
@@ -1732,8 +1745,9 @@ function ProfileEditor({
                   placeholder="e.g. Dad's car loan"
                   hint="Your own name for it. Shown with the lender everywhere this loan appears."
                 />
+                )}
                 <Field
-                  label="Outstanding balance"
+                  label={l.loan_type === 'people_loan' ? 'Amount still owed' : 'Outstanding balance'}
                   findIt={findFor(l, country, 'balance')}
                   kind="money"
                   currency={loanCurrency(l, country)}
@@ -1766,6 +1780,7 @@ function ProfileEditor({
                 )}
                 {dropOf(l) > 0 && l.id && <BalanceDropQuestion drop={formatCurrency(dropOf(l), loanCurrency(l, country))} value={dropReasons[l.id]}
                   onChange={(r) => setDropReasons((d) => ({ ...d, [l.id as string]: r }))} error={showLoanErrors ? dropErrors[i] : null} />}
+                {l.loan_type !== 'people_loan' && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"
@@ -1807,7 +1822,8 @@ function ProfileEditor({
                   />
                   <MarketRateLine loan={l} country={country} />
                 </div>
-                {l.loan_type !== 'credit_card' && (
+                )}
+                {l.loan_type !== 'credit_card' && l.loan_type !== 'people_loan' && (
                 <Select<RateType | 'unsure'>
                   label="Fixed or floating rate"
                   findIt={findFor(l, country, 'rateType')}
@@ -1943,6 +1959,7 @@ function ProfileEditor({
                     }
                   />
                 )}
+                {(l.loan_type !== 'people_loan' || l.people_repay === 'emi') && (
                 <TenureField
                   country={country}
                   loan={l}
@@ -1952,8 +1969,10 @@ function ProfileEditor({
                   }
                   onSetManual={(manual) => setTenureMode(i, manual)}
                 />
+                )}
+                {(l.loan_type !== 'people_loan' || l.people_repay === 'emi') && (
                 <Field
-                  label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
+                  label={l.loan_type === 'people_loan' ? 'Amount you pay each month' : l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
                   findIt={findFor(l, country, 'emi')}
                   kind="money"
                   currency={loanCurrency(l, country)}
@@ -1978,6 +1997,7 @@ function ProfileEditor({
                     </>
                   }
                 />
+                )}
                 {l.loan_type === 'credit_card' && (
                   <div style={{ gridColumn: '1 / -1' }}>
                     <MinPaymentExplainer
@@ -1990,7 +2010,7 @@ function ProfileEditor({
                   </div>
                 )}
                 {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
-                <PrepaymentFeeFields loan={l} country={country} askOpen={false} onChange={(p) => updateLoan(i, p)} />
+                {l.loan_type !== 'people_loan' && <PrepaymentFeeFields loan={l} country={country} askOpen={false} onChange={(p) => updateLoan(i, p)} />}
                 <div style={{ gridColumn: '1 / -1' }}>
                   <button
                     type="button"

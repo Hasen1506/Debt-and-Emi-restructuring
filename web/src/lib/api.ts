@@ -20,8 +20,12 @@ const BASE = apiBase();
 // Auth cookies must belong to the web host so middleware can see them.
 // Only authenticated state uses this fixed, same-origin proxy; engine calls
 // keep using the configured API host (including server component calls).
+function usesSession(path: string): boolean {
+  return path.startsWith('/api/auth/') || path === '/api/user/state' || path.startsWith('/api/user/share');
+}
+
 function endpoint(path: string): string {
-  if (typeof window !== 'undefined' && (path.startsWith('/api/auth/') || path === '/api/user/state')) {
+  if (typeof window !== 'undefined' && usesSession(path)) {
     return `/api/session/${path.slice('/api/'.length)}`;
   }
   return `${BASE}${path}`;
@@ -32,7 +36,7 @@ function endpoint(path: string): string {
 // Public calculations do not use account cookies. Wildcard CORS responses
 // cannot be read by credentialed browser requests.
 function requestCredentials(path: string): RequestCredentials {
-  return path.startsWith('/api/auth/') || path === '/api/user/state' ? 'include' : 'omit';
+  return usesSession(path) ? 'include' : 'omit';
 }
 
 export type Country = 'IN' | 'US';
@@ -44,7 +48,8 @@ export type LoanType =
   | 'credit_card'
   | 'education_loan'
   | 'gold_loan' | 'bnpl'
-  | 'loan_against_property' | 'home_topup' | 'two_wheeler_loan' | 'medical_loan';
+  | 'loan_against_property' | 'home_topup' | 'two_wheeler_loan' | 'medical_loan'
+  | 'people_loan';
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
 /** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
@@ -207,6 +212,14 @@ export interface LoanPayload {
   max_tenure_months?: number;
   /** Audit 80+ C2: 'emi' | 'interest_only' | 'bullet' (a gold loan with no EMI is a bullet). */
   repayment?: 'emi' | 'interest_only' | 'bullet';
+  /** A loan from a person (lib/people-loan). The API ignores these; the
+   *  engine sees the rate, EMI and repayment they map to. */
+  people_interest?: 'none' | 'annual' | 'monthly' | 'fixed';
+  /** What they typed: a yearly %, a monthly %, or a rupee amount. */
+  people_rate_input?: string;
+  people_repay?: 'emi' | 'whenever' | 'lump';
+  /** 'YYYY-MM' the lump sum is due. */
+  people_due?: string;
   promo_until?: string; rate_after_promo?: string; promo_months?: number; joint_split?: boolean; // UX2B-5/9: lib/promo-rate, lib/joint-share
   /** Audit 80+ C15: a flat-rate loan's original tenure, for its true rate. */
   original_tenure_months?: number;
@@ -1361,6 +1374,24 @@ export interface LenderScore {
 }
 
 /** A 422 from an endpoint that answers `{detail: {field, message}}`. */
+export interface ShareLinkState {
+  active: boolean;
+  token?: string;
+  hide_loans?: boolean;
+  path?: string;
+}
+
+export interface SharedPlan {
+  country: 'IN' | 'US' | null;
+  currency: 'INR' | 'USD' | null;
+  loan_count: number;
+  debt_free: string | null;
+  interest: string | null;
+  hide_loans: boolean;
+  note: string;
+  loans?: { name: string; balance: string; emi: string; rate: string; type: string }[];
+}
+
 export class ApiFieldError extends Error {
   constructor(public field: string, message: string) {
     super(message);
@@ -1371,7 +1402,7 @@ export class ApiFieldError extends Error {
  *  outcome reports change something and are never retried. */
 function retryable(path: string, method: string): boolean {
   return (method === 'GET' || !path.startsWith('/api/outcomes')) &&
-    !path.startsWith('/api/auth/') && path !== '/api/user/state';
+    !path.startsWith('/api/auth/') && path !== '/api/user/state' && !path.startsWith('/api/user/share');
 }
 
 export const WAKING_MESSAGE =
@@ -1470,7 +1501,7 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
 }
 
 function accountHeaders(path: string): Record<string, string> {
-  if (path === '/api/user/state' && typeof window !== 'undefined') {
+  if ((path === '/api/user/state' || path.startsWith('/api/user/share')) && typeof window !== 'undefined') {
     try {
       const account = localStorage.getItem('rightdue_account_id');
       if (account) return { 'X-Account-Id': account };
@@ -1828,6 +1859,10 @@ export const api = {
       ...(force ? { force: true } : {}),
       ...(deviceId ? { device_id: deviceId } : {}),
     }, 'PATCH'),
+
+  getShareLink: () => get<ShareLinkState>('/api/user/share'),
+  saveShareLink: (hideLoans: boolean) => post<ShareLinkState>('/api/user/share', { hide_loans: hideLoans }),
+  revokeShareLink: () => post<ShareLinkState>('/api/user/share/revoke', {}),
 
   marketLowest: (country: 'IN' | 'US', loanType: string) =>
     get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(

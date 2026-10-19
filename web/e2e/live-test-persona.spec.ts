@@ -33,6 +33,7 @@ test('Persona: Chennai, ₹1.2L take-home, 3 loans: set up, saved, plan dated, s
     const mark = page.getByRole('button', { name: /^Mark paid: Credit card/ }).first();
     await expect(mark).toBeVisible();
     await mark.click();
+    await page.getByRole('button', { name: 'SAVE' }).click();
     await expect(page.getByRole('button', { name: /^Undo: Credit card not paid/ }).first()).toBeVisible();
   });
 

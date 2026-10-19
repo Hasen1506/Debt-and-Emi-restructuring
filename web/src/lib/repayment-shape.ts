@@ -26,7 +26,7 @@ export const MORATORIUM_REPAY_MONTHS = 120;
 
 /** The chips for a loan type, or null when it has none (cards, pay later). */
 export function shapeChoices(loanType: LoanType, country: string): Array<[RepayShape, string]> | null {
-  if (loanType === 'credit_card' || loanType === 'bnpl') return null;
+  if (loanType === 'credit_card' || loanType === 'bnpl' || loanType === 'people_loan') return null;
   const regular: [RepayShape, string] = ['emi', country === 'US' ? 'Monthly payments' : 'EMI'];
   if (loanType === 'gold_loan') return [regular, ['interest_only', 'Interest only'], ['bullet', 'All at the end']];
   if (loanType === 'education_loan') return [regular, ['interest_only', country === 'US' ? 'Interest only for now' : 'Moratorium (interest only for now)']];
@@ -48,7 +48,8 @@ export function isMoratorium(loan: Pick<LoanPayload, 'loan_type' | 'repayment' |
 }
 
 /** Setup shows its EMI box for an EMI loan, and for a moratorium (the EMI after it). */
-export function shapeNeedsEmi(loan: Pick<LoanPayload, 'loan_type' | 'repayment' | 'pre_emi_months_remaining'>, endMonth: string | undefined): boolean {
+export function shapeNeedsEmi(loan: Pick<LoanPayload, 'loan_type' | 'repayment' | 'pre_emi_months_remaining'> & Partial<Pick<LoanPayload, 'people_repay'>>, endMonth: string | undefined): boolean {
+  if (loan.loan_type === 'people_loan') return loan.people_repay === 'emi';
   return shapeOf(loan) === 'emi' || isMoratorium(loan, endMonth);
 }
 
@@ -72,6 +73,8 @@ export function emiOptional(loan: LoanPayload, endMonth: string | undefined): bo
 
 /** What's wrong with the shape's answers, or null. */
 export function shapeError(loan: LoanPayload, endMonth: string | undefined, thisMonth: string): string | null {
+  // A loan from a person sets its own due month (people_due). Setup's end-month box is not shown.
+  if (loan.loan_type === 'people_loan') return null;
   const shape = shapeOf(loan);
   if (shape === 'emi' || !(Number(loan.outstanding) > 0)) return null;
   const end = (endMonth ?? '').trim();
@@ -84,6 +87,9 @@ export function shapeError(loan: LoanPayload, endMonth: string | undefined, this
 
 /** The loan as saved for its shape. `endMonth` is 'YYYY-MM' or blank. */
 export function finishShape(loan: LoanPayload, endMonth: string | undefined, thisMonth: string, ccy: 'INR' | 'USD'): Partial<LoanPayload> {
+  // peoplePatch already stored the rate, the EMI and the due month. The end-month
+  // box is empty for these loans, and reading it would wipe a lump-sum's tenure.
+  if (loan.loan_type === 'people_loan') return {};
   const shape = shapeOf(loan);
   const end = (endMonth ?? '').trim();
   const months = end && MONTH.test(end) && end > thisMonth ? monthsBetween(thisMonth, end) : 0;

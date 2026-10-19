@@ -11,6 +11,8 @@ const METHODS: Record<string, string[]> = {
   'auth/logout': ['POST'],
   'auth/me': ['GET'],
   'user/state': ['GET', 'PUT', 'PATCH'],
+  'user/share': ['GET', 'POST'],
+  'user/share/revoke': ['POST'],
   // "Your data" page (grill #51): download everything, delete the account.
   'auth/account/export': ['GET'],
   'auth/account/delete': ['POST'],

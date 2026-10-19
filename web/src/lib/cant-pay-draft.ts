@@ -86,10 +86,22 @@ export function readCantPayDraft(): CantPayDraft {
 }
 
 function remember(next: CantPayDraft, _sync: 'soon' | 'now' = 'now'): void {
+  const prev = readCantPayDraft();
   try {
     storage()?.setItem(CANT_PAY_KEY, JSON.stringify(next));
   } catch {
     /* A full disk keeps the page usable; the account copy is unchanged. */
+  }
+  if (JSON.stringify(prev) !== JSON.stringify(next)) {
+    const cleared = (prev.in && !next.in) || (prev.us && !next.us);
+    void import('./change-log').then(({ recordChange }) =>
+      recordChange({
+        kind: 'letter',
+        what: cleared ? 'Can’t-pay letter reset' : 'Can’t-pay letter saved',
+        before: JSON.stringify(prev.in?.letter ?? prev.us?.letter ?? {}),
+        after: JSON.stringify(next.in?.letter ?? next.us?.letter ?? {}),
+      }),
+    );
   }
   // Straight away, not after a pause: a refresh in the same moment must
   // still find this copy queued for the account. A frozen test clock never

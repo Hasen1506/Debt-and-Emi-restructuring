@@ -41,6 +41,7 @@ import { payoffBreakdown } from '@/lib/schedule-reconcile';
 import { SET_ASIDE_EVENT, SET_ASIDE_KEY } from '@/lib/this-month-progress';
 import { POT_WHY } from '@/lib/loan-status';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import { CalendarLinks, CalendarOne } from './CalendarLinks';
 
 
 // EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
@@ -276,9 +277,17 @@ export function PayThisMonth({
     setSaid(`${row.name}: back to not paid.`);
   }
 
-  function openOther(row: PayRow) {
+  function dueAmount(row: PayRow): number {
+    const already = statusOf(row);
+    if (already?.tag === 'EMI PAID') return Math.max(0, Math.round(row.amount - already.amount));
+    return Math.round(row.amount);
+  }
+
+  /** MARK PAID and OTHER AMOUNT both open with the amount due filled in.
+   *  The person can pay part of it, more than it, or nothing. */
+  function openAmount(row: PayRow) {
     setOpen(row.key);
-    setAmount('');
+    setAmount(String(dueAmount(row)));
     setError(null);
   }
 
@@ -287,13 +296,13 @@ export function PayThisMonth({
   }
 
   function saveOther(row: PayRow, missed = false) {
-    if (missed) {
+    const paid = Math.round(Number(amount));
+    if (missed || paid === 0) {
       log(row, 'missed', 0);
-      setSaid(`${row.name}: recorded as not paid this month.`);
+      setSaid(`${row.name}: recorded as not paid this month. The plan adds it back as overdue.`);
       setOpen(null);
       return;
     }
-    const paid = Math.round(Number(amount));
     const already = statusOf(row);
     if (already?.tag === 'EMI PAID') {
       if (!(paid > 0)) {
@@ -462,6 +471,9 @@ export function PayThisMonth({
                     {POT_WHY} <DraftLegalMarker id="settlement-pot" />
                   </div>
                 )}
+                {row.loanIndex !== null && loans[row.loanIndex] && (
+                  <div style={{ marginTop: 4 }}><CalendarOne loan={loans[row.loanIndex]} month={month} /></div>
+                )}
                 {reason && reason.key === row.key && !st && (
                   <div style={{ fontSize: 12, color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
                 )}
@@ -492,7 +504,7 @@ export function PayThisMonth({
                   <>
                     <button
                       type="button"
-                      onClick={() => attempt(() => markPaid(row))}
+                      onClick={() => (row.loanIndex === null ? attempt(() => markPaid(row)) : openAmount(row))}
                       aria-label={
                         // R9-2 (WCAG 2.5.3): the spoken name starts with the words on the button.
                         row.loanIndex === null
@@ -512,7 +524,7 @@ export function PayThisMonth({
                     {row.loanIndex !== null && (
                       <button
                         type="button"
-                        onClick={() => openOther(row)}
+                        onClick={() => openAmount(row)}
                         aria-label={`Other amount: paid a different amount on ${row.name}`}
                         style={lPayBtn(false)}
                       >
@@ -628,6 +640,7 @@ export function PayThisMonth({
       <div style={{ marginTop: 10 }}>
         <LBracket href="/plan">WHY THIS ORDER? SEE THE PLAN →</LBracket>
       </div>
+      <CalendarLinks loans={loans} month={month} />
       <PaydayEmail data={data} country={country === 'US' ? 'US' : 'IN'} todayIso={today} />
     </section>
   );

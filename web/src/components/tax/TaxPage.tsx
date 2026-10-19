@@ -63,6 +63,11 @@ export function TaxPage() {
             Law: {TAX.in.law_as_of}. Section numbers are given both ways: the 1961 one you know (24(b), 80C, 80E) and the Income-tax Act 2025 one that replaced it on 1 April 2026.
           </p>
         )}
+        {isIN && (
+          <p style={{ margin: '8px 0 0', fontSize: 13 }}>
+            <LBracket href="/tax/advance">ADVANCE TAX INSTALMENTS →</LBracket>
+          </p>
+        )}
       </header>
 
       <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: L_T.positive, minHeight: said ? undefined : 0 }}>

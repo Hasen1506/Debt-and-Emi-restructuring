@@ -241,7 +241,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
 /** Take-home − spending − due = left. `dues` is the plan's month-1 EMIs
  *  and minimums, so SPEND + DUE matches "This month". `addsSpare` is true
  *  only when Pay this month actually puts that spare on a loan. */
-export function CashFlow({ profile, dues, addsSpare = false }: { profile: StoredProfile; dues?: number; addsSpare?: boolean }) {
+export function CashFlow({ profile, dues, addsSpare = false, spendMonths = 0 }: { profile: StoredProfile; dues?: number; addsSpare?: boolean; spendMonths?: number }) {
   const m = deriveMetrics(profile);
   const u = profile.user;
   const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
@@ -269,7 +269,9 @@ export function CashFlow({ profile, dues, addsSpare = false }: { profile: Stored
       tone: L_T.ink,
       note: noFx
         ? 'Add the exchange rate in Profile'
-        : localTerms(`Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`, profile.user.country),
+        : spendMonths > 0
+          ? localTerms(`Spending ${fc(spend)}, the average of the last ${spendMonths} month${spendMonths === 1 ? '' : 's'} you logged, + EMIs and card minimums ${fc(debts)}`, profile.user.country)
+          : localTerms(`Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`, profile.user.country),
     },
     {
       label: left < 0 ? 'SHORT' : 'LEFT',

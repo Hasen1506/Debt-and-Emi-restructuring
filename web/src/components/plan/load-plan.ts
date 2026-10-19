@@ -49,6 +49,7 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
+import { readSpendAverageServer } from '@/lib/monthly-spend';
 import { paidAtEntryThisMonth, prepareLoanPaymentTiming, rollBalancesForward } from '@/lib/roll-forward';
 import { owedTodayOf } from '@/lib/owed-today';
 import { HORIZON_MONTHS } from '@/lib/horizon';
@@ -242,6 +243,17 @@ export async function loadPlanInputs(
     advanceTaxSchedule = stored && stored.country === adjustedUser.country && fresh && stored.instalments.at(-1)?.dueDate === fresh.instalments.at(-1)?.dueDate
       ? markMissedInstalments(rebaseSchedule(stored, new Decimal(extraTax)), new Date())
       : fresh;
+  }
+
+  // Logged actual spends replace the single figure from setup. The label
+  // on Home names it as an average (PlanData.spendAverage).
+  const spendAverage = await readSpendAverageServer(countryMonthKey(adjustedUser.country));
+  if (spendAverage) {
+    adjustedUser = {
+      ...adjustedUser,
+      fixed_expenses: String(spendAverage.average),
+      variable_expenses: '0',
+    };
   }
 
   // Fold the advance-tax penalty into surplus math so the trajectory
@@ -446,6 +458,7 @@ export async function loadPlanInputs(
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
     advanceTaxNote,
+    spendAverage,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -478,6 +491,7 @@ export async function loadPlan(
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
     advanceTaxNote,
+    spendAverage,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -522,6 +536,7 @@ export async function loadPlan(
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
       advanceTaxNote,
+      spendAverage,
       taxReinvest,
       taxReinvestProjection: [],
       monthlyPayments: [],
@@ -678,6 +693,7 @@ export async function loadPlan(
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
       advanceTaxNote,
+      spendAverage,
       taxReinvest,
       taxReinvestProjection: projectedTaxSavings,
       monthlyPayments: scenarioPayments,

@@ -212,6 +212,28 @@ class AccessLog(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
 
 
+class ShareLink(Base):
+    """A read-only link to a plan, for a spouse or family member.
+
+    The token is the secret. `snapshot` is already stripped: no email, no
+    account number, no UPI id, no PAN. `hide_loans` drops each loan's name
+    and balance as well. Revoking the row makes the public page 404.
+    """
+
+    __tablename__ = "share_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    hide_loans: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class RateBucket(Base):
     """One fixed-window counter: `key` is "<route prefix>|<keyed hash of
     the client address>|<window start, epoch seconds>". The address itself

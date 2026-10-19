@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: [...PUBLIC_PAGES],
-        disallow: ['/api/', '/plan', '/profile', '/activity', '/account', '/goals', '/portfolio', '/onboarding', '/cant-pay', '/tax', '/login', '/welcome.html'],
+        disallow: ['/api/', '/plan', '/profile', '/activity', '/account', '/goals', '/portfolio', '/onboarding', '/cant-pay', '/tax', '/login', '/share', '/welcome.html'],
       },
     ],
     sitemap: `${SITE}/sitemap.xml`,
