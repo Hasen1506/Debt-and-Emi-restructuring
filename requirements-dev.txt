@@ -1,4 +1,4 @@
 -r requirements.txt
 pytest==9.1.1
-hypothesis==6.168.5
+hypothesis==6.170.0
 httpx2==2.13.1
