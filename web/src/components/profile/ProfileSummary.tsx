@@ -146,7 +146,7 @@ export function ProfileSummary({
             [
               'Spending',
               spendVar > 0
-                ? `${money(user.fixed_expenses)} fixed + ${money(user.variable_expenses)} flexible, a month`
+                ? `${money(Number(user.fixed_expenses || 0) + spendVar)} a month (${money(user.fixed_expenses)} fixed + ${money(user.variable_expenses)} flexible)`
                 : `${money(user.fixed_expenses)} a month`,
             ],
             ['Pay rise', phases > 0 ? `${phases} phase${phases > 1 ? 's' : ''} set` : hike > 0 ? `${(hike * 100).toFixed(0)}% a year` : <Muted>None assumed</Muted>],

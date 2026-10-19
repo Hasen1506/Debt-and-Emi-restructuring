@@ -7,7 +7,7 @@
  *  - R6B-9: picking a payoff order offline keeps the page, saves the
  *    choice, says so, and redraws once back online.
  */
-import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offline', async ({ page, context }) => {
   await signIn(page, 'golden-r6b@rightdue.app');
@@ -37,7 +37,7 @@ test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offli
   await expect(page).toHaveURL(/step=plan/);
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 
   // R6B-9: offline, a new order is saved and noted; the page stays put.
   // Audit 80+ B20 (W7): the header switch is a "Payoff order" radio group

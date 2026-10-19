@@ -19,6 +19,7 @@ import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type Schedule
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears, owedAtStart, owedNowAtStart, owedNowByLoan } from './plan-milestones';
+import { balanceByMonth } from '@/lib/schedule-chart';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -123,7 +124,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const events = scheduleEvents(plan, short);
 
-  const trajByMonth = new Map<number, number>(plan.trajectory.map((p) => [p.month, p.avalanche]));
+  const trajByMonth = balanceByMonth(plan);
   const interestByMonth = new Map<number, number | undefined>(plan.trajectory.map((p) => [p.month, p.interest]));
 
   const allRows: ScheduleCsvRow[] = plan.monthlyPayments.map((row) => {

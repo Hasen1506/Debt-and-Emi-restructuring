@@ -158,6 +158,8 @@ export interface LTrajPoint {
   t: number;
   av: number;
   min: number;
+  /** Exact balance at this point, same words as the schedule cell. */
+  tip?: string;
 }
 
 export interface LTrajMilestone {
@@ -204,7 +206,9 @@ export function LTrajectory({
   const [w, ref] = useWidth(800);
   const narrow = w < 480;
   const h = narrow ? 220 : 260;
-  const left = narrow ? 58 : 76;
+  // Whole-rupee axis labels ("₹35,80,000") need more room than a compact scale.
+  const yWidth = Math.max(0, ...(yLabels ?? []).map((g) => g.l.length));
+  const left = Math.max(narrow ? 64 : 84, Math.ceil(yWidth * 6.2) + 12);
   const right = 14;
   const top = 34;
   const bottom = 26;
@@ -268,6 +272,13 @@ export function LTrajectory({
         {area && <path d={area} fill={L_T.highlight} opacity="0.55" />}
         <path d={path('min')} stroke={L_T.muted} strokeWidth="1.4" fill="none" strokeDasharray="5 4" />
         <path d={path('av')} stroke={L_T.ink} strokeWidth="2.2" fill="none" />
+        {points.map((p, i) =>
+          p.tip ? (
+            <circle key={`tip-${i}`} cx={toX(p.t)} cy={toY(p.av)} r={7} fill="transparent">
+              <title>{p.tip}</title>
+            </circle>
+          ) : null,
+        )}
         <line x1={left} x2={w - right} y1={toY(0)} y2={toY(0)} stroke={L_T.ink} strokeWidth={1.2} />
         {minimumsNote && note && (
           <text

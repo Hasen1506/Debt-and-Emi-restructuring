@@ -10,7 +10,7 @@
  *  - R6-4: 0 months unpaid says nothing is unpaid.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test, continueToPlan } from './fixtures';
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
@@ -84,7 +84,7 @@ test('R6-2/R6-3/R6-4: touch targets at 390px, the lump-sum placeholder and 0 mon
   await makeSetupChoices(page);
   await expectTargets(page, 'Setup step 3');
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 
   // Plan, with the what-if open (the +N YRS buttons and the lump-sum box).
   // UI revert 2: the longer-tenure card is open under the table again (4bc3dc8).

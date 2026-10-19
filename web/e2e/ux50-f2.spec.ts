@@ -9,7 +9,7 @@
  *    both Home lists number the card the same.
  *  - B-12: marking the card paid moves its balance and the total.
  */
-import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, planPreviewSettled, signIn, test, continueToPlan } from './fixtures';
 
 const shots = process.env.FIX4_SHOTS;
 
@@ -53,7 +53,7 @@ test('UX50 B-35/B-10/B-02/B-11/B-01/B-12: Setup keeps its place, Home says what 
   await makeSetupChoices(page);
   if (shots) await page.screenshot({ path: `${shots}/after-ux50-setup3-1366.png`, fullPage: true });
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 
   // B-02 + B-11: Home right after Setup.
   await page.goto('/');

@@ -87,19 +87,17 @@ jobs:
           out python "$([ "$py" -gt 0 ] && echo true || echo false)"
 
   health:
-    name: Size budget (lines per file, production total)
+    name: Founder records
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      # E14/E21: no new source file over 1,500 lines, grandfathered giants may
-      # only shrink, production lines may grow 1% before someone says why.
-      - run: python3 scripts/size_report.py --check
-      - run: python3 scripts/size_report.py
       # Round 2: every workflow the app relies on has an entry in
       # docs/FOUNDER-RECORDS.md section (c) "Always running".
+      # The line-count gate (size_report.py) was removed 19 Oct 2026.
+      # First-load JS stays in the web job (route-size-budget.mjs).
       - run: python3 scripts/check_founder_records.py
 
   python:

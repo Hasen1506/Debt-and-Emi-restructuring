@@ -1,7 +1,7 @@
 /**
  * Client for POST /api/complaints/us (audit 80+ D11; round 2 page
- * /cant-pay/us-letters). Its own module so lib/api.ts (grandfathered in
- * scripts/size_budget.json, may only shrink) doesn't grow.
+ * /cant-pay/us-letters). Its own module so lib/api.ts stays about the
+ * plan's own types.
  */
 import { postWithFieldErrors, type ComplaintMilestone } from './api';
 

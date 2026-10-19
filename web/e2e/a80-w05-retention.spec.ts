@@ -15,7 +15,7 @@
  * the UI, not the sender (api/tests/test_a80_w05_notify.py covers that).
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 /**
  * Answer the browser's /api/notify calls inside the page: window.fetch is
@@ -84,7 +84,7 @@ test.describe('A80 W5 retention at 390px', () => {
     await expect(page).toHaveURL(/step=plan/);
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
 
     await page.goto('/');
     // A12: the honest label, and the old promise is gone.

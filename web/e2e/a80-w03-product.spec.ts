@@ -6,7 +6,7 @@
  * Unit-level renders of the same cards: web/tests/a80-w03-product.cjs.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -38,7 +38,7 @@ test('A5 at 390: short this month, the gap is the headline on Setup and Home', a
 
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await expect(page.locator('#main').getByText('₹34,515/MO SHORT').first()).toBeVisible();
 
   await page.goto('/');
@@ -77,7 +77,7 @@ test('A1 A2 A6 A4 + offer check at 390: the persona', async ({ page }) => {
     await expect(page.getByTestId('order-ask')).toHaveCount(0);
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
   });
 
   await test.step('Plan: prepay, keep or split once only the 7.2% home loan is left', async () => {

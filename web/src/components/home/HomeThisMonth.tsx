@@ -5,7 +5,7 @@
  *  payments are logged this month, it says what's paid and what's left
  *  (lib/this-month-progress), read the same way as the list below. */
 import { useEffect, useState } from 'react';
-import { LBracket, L_T, Reserve, lStrip } from '@/components/ledger/primitives';
+import { LBracket, L_T, Reserve, lNotice, lStrip } from '@/components/ledger/primitives';
 import type { ThisMonthLine } from '@/lib/home-this-month';
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -25,6 +25,10 @@ export interface ThisMonthProgressInput {
 
 export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progress?: ThisMonthProgressInput }) {
   const [text, setText] = useState(line.text);
+  // All paid replaces the instruction with a note the user can close.
+  // The unpaid strip (the first paint) stays as it is.
+  const [paidNote, setPaidNote] = useState<{ month: string; text: string } | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (!progress || line.tone === 'short') return;
     const { rows, loans, country, total } = progress;
@@ -39,7 +43,13 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
         ticked = [];
       }
       const p = thisMonthProgress(rows, alignToLoans(readActivityClient(), loans), ticked, month);
-      setText(progressLine(p, total, money, line.text));
+      if (p.allPaid) {
+        setPaidNote({ month, text: progressLine(p, total, money, line.text) });
+        try { setDismissed(window.sessionStorage.getItem(`rd_paid_notice:${month}`) === '1'); } catch { setDismissed(false); }
+      } else {
+        setPaidNote(null);
+        setText(progressLine(p, total, money, line.text));
+      }
     };
     read();
     const onStorage = (e: StorageEvent) => {
@@ -61,6 +71,23 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
   const ghosts = progress && line.tone !== 'short'
     ? [progressLine({ allPaid: false, touched: 1, paidUser: progress.total }, progress.total * 2, m, line.text), progressLine({ allPaid: true, touched: 1, paidUser: progress.total }, progress.total, m, line.text)].map((g) => `${g} [ ${line.link} ]`)
     : [];
+  if (paidNote && !dismissed) {
+    return (
+      <section aria-label="This month" data-testid="home-this-month" className="rd-this-month" style={lNotice('positive')}>
+        <span>{paidNote.text}</span>
+        <LBracket
+          onClick={() => {
+            try { window.sessionStorage.setItem(`rd_paid_notice:${paidNote.month}`, '1'); } catch { /* private mode */ }
+            setDismissed(true);
+          }}
+          label="Dismiss this month's paid note"
+        >
+          DISMISS
+        </LBracket>
+      </section>
+    );
+  }
+  if (paidNote && dismissed) return null;
   return (
     <section
       aria-label="This month"

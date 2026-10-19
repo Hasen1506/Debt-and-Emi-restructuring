@@ -4,7 +4,7 @@
  * terms changes.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -125,7 +125,7 @@ test('signed in, USA: More → Help offers US letters and opens the page', async
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Main' });
   const more = nav.getByRole('button', { name: /^More/ });

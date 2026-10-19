@@ -218,6 +218,18 @@ export async function makeSetupChoices(page: Page) {
   await planPreviewSettled(page);
 }
 
+/** SAVE · OPEN MY PLAN lands on Home. The journeys still open the plan,
+ *  through the first-session nudge. */
+export async function continueToPlan(page: Page) {
+  await page.waitForURL((u) => u.pathname === '/');
+  // Home also links "WHY THIS ORDER? SEE THE PLAN". The nudge is the one
+  // the first session is for.
+  const plan = page.getByTestId('first-session').getByRole('link', { name: /SEE THE PLAN/ });
+  await expect(plan).toBeVisible();
+  await plan.click();
+  await page.waitForURL('**/plan');
+}
+
 /** Profile: open one part of the form with its [EDIT] and check it opened.
  *  /profile draws its summary again once the account copy arrives (session
  *  hydration remounts the editor), and the rows can move while it does. A

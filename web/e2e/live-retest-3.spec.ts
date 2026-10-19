@@ -9,7 +9,7 @@
  *    the tax rate is pre-filled as 15.6-style one decimal, like everywhere.
  *  - R3-5: the open mobile menu is left-aligned.
  */
-import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 import type { Page } from '@playwright/test';
 
 const shots = process.env.FIX3_SHOTS;
@@ -39,7 +39,7 @@ async function setup(page: Page, email: string, takeHome: string) {
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 }
 
 test('R3-1: the what-if chart summary keeps "never clears"', async ({ page }) => {

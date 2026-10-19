@@ -8,7 +8,7 @@
  *  - R7-7: a US borrower's Setup says "monthly payment", not EMI, and offers
  *    no gold loan.
  */
-import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 test('R7-4/R7-5/R7-6: print view, Sell to repay rate, New debt score', async ({ page }) => {
   await signIn(page, 'golden-r7-fixes@rightdue.app');
@@ -21,7 +21,7 @@ test('R7-4/R7-5/R7-6: print view, Sell to repay rate, New debt score', async ({ 
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   const main = page.locator('#main');
   await expect(main.locator('table').first()).toBeAttached();
 

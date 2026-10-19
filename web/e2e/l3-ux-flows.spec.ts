@@ -3,7 +3,7 @@
  * #1, end to end (rightdue-live-test.md). The persona is the live test's:
  * Chennai, a floating-rate home loan and an HDFC card at 42%.
  */
-import { expect, fillLoan, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices, openProfileSection, continueToPlan } from './fixtures';
 
 const EMAIL = 'golden-l3-ux@rightdue.app';
 
@@ -19,7 +19,7 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
   });
 
   await test.step('#1: a signed-in visitor is never asked to start fresh', async () => {

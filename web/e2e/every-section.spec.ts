@@ -5,7 +5,7 @@
  * balance and not the card. A page that does not show the household's
  * loans must not invent their total.
  */
-import { expect, fillLoan, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
 const ROUTES = [
   '/',
@@ -41,7 +41,7 @@ test('seeded balances and the EMI match on every screen that shows them', async 
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
   await expect(page.getByText('₹35,00,000').first()).toBeVisible();
 
   const text = new Map<string, string>();

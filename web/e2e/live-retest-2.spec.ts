@@ -9,7 +9,7 @@
  *  - NEW-17: at 390 px the header is one row with a MENU button.
  *  - NEW-6: at 390 px no chart label overlaps another or the minimums note.
  */
-import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test } from './fixtures';
+import { expect, fillLoan, loanBlocks, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function setup(page: Page, email: string, takeHome: string, rateText?: string) {
@@ -38,7 +38,7 @@ async function setup(page: Page, email: string, takeHome: string, rateText?: str
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-  await page.waitForURL('**/plan');
+  await continueToPlan(page);
 }
 
 const huge = /₹\s?\d{1,3}(,\d{2,3}){6,}/; // ₹ with 13+ digits

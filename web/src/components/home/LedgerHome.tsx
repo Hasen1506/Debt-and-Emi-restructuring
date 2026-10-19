@@ -19,7 +19,7 @@ import { taxRateLabel } from '@/lib/tax-profile';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
-import { cashFlowForMonth, deriveMetrics, type DerivedMetrics } from '@/lib/derived';
+import { cashFlowForMonth, deriveMetrics, monthlySpending, type DerivedMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
 import { dueVsAffordable } from '@/lib/plan-gap';
 import { dec } from '@/lib/safe-decimal';
@@ -66,8 +66,12 @@ interface HomeProps {
   /** Re-test 10: this month's interest from the plan (as Plan and its CSV
    *  show it), streamed in by the page. */
   interest?: { v: ReactNode; s: ReactNode };
-  /** Audit 80+ A1/A5/A6: the plan-insight cards, first on the page. */
+  /** Audit 80+ A1/A5/A6: the plan-insight cards, under the loans. */
   insights?: ReactNode;
+  /** Months shaved and the share card, after the loans. */
+  progress?: ReactNode;
+  /** Just finished setup: point at the pay list, the loans, then the plan. */
+  firstSession?: boolean;
   /** UX2B-8: the cash flow and the loans' EMIs + minimums total with this
    *  month's dues from the plan (the figure "This month" and the offers
    *  use), streamed in by the page; until then, the profile's estimate. */
@@ -80,11 +84,22 @@ export function LedgerHome(props: HomeProps) {
   useEffect(() => {
     setTone(readLedgerTone());
   }, []);
+  useEffect(() => {
+    if (!props.firstSession || window.location.hash !== '#home-pay') return;
+    const id = window.setInterval(() => {
+      const el = document.getElementById('home-pay');
+      if (!el) return;
+      el.scrollIntoView({ block: 'start' });
+      window.clearInterval(id);
+    }, 100);
+    const stop = window.setTimeout(() => window.clearInterval(id), 3000);
+    return () => { window.clearInterval(id); window.clearTimeout(stop); };
+  }, [props.firstSession]);
   if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={props.profile} oneStep={props.oneStep} />;
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights, cashFlow, dues }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights, cashFlow, dues, progress, firstSession }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -112,13 +127,20 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
       >
         {/* What this page is for, in one line (each tab opens with one) */}
         <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
-          Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
+          Your month on one page: what to pay now, what comes in and goes out, and every loan you have.
         </FirstVisitIntro>
         {thisMonth}
-        {/* UI revert 2 (Vijay, 18 Oct 2026): the 4bc3dc8 order. The month's
-            one line, the plan-from line, the cash flow and where you stand
-            come first; the pay list, progress and the loans follow; the
-            newer insight cards sit under the loans. */}
+        {/* Owner, 19 Oct 2026: pay this month first, then cash flow and where
+            you stand, then the loans, then progress. */}
+        {firstSession && (
+          <p data-testid="first-session" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+            Start here: mark what has already gone out, check each loan, then open the plan.{' '}
+            <LBracket href="#positions">CHECK EACH LOAN</LBracket>{' '}
+            <LBracket href="/plan">SEE THE PLAN →</LBracket>
+          </p>
+        )}
+        <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
+        {register}
         <ContextLine profile={profile} />
         {cashFlow ?? <CashFlow profile={profile} />}
 
@@ -158,11 +180,8 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
           />
         </section>
 
-        {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
-        <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
-        {register}
-
         <OpenPositions profile={profile} m={m} dues={dues} />
+        {progress}
 
         {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan;
             under the loans they never push the first screen down (E10). */}
@@ -228,7 +247,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
   const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
   const today = getCountryToday(u.country);
   const income = Number(u.monthly_income || 0);
-  const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
+  const spend = monthlySpending(u);
   const current = cashFlowForMonth(profile, m);
   const debts = dues ?? Number(current.emiBurden.toFixed(0));
   const left = dues != null ? Math.round(income - spend - dues) : Number(current.surplus.toFixed(0));
@@ -244,7 +263,7 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
       note: streams > 0 ? `From ${streams} income sources, after tax` : 'A month, after tax',
     },
     {
-      label: 'COSTS',
+      label: 'SPEND + DUE',
       sign: '−',
       value: noFx ? '—' : fc(spend + debts),
       tone: L_T.ink,
@@ -260,9 +279,9 @@ export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: num
       note: noFx
         ? 'Needs the exchange rate'
         : left > 0
-          ? 'For extra payments and savings'
+          ? `Take-home ${fc(income)} − spending ${fc(spend)} − due ${fc(debts)}. Pay this month adds this ${fc(left)} (extra and set-aside) on top of the ${fc(debts)} due. It is not cash left after that payment.`
           : left < 0
-            ? 'Costs and minimums are more than income'
+            ? 'Spending and the amount due are more than take-home'
             : 'Nothing spare this month',
     },
   ];

@@ -11,7 +11,7 @@
  *    with NEXT_PUBLIC_DISABLE_AUTH=true (how production served guests
  *    during the live test). CI builds the signed-in app, so they skip there.
  */
-import { expect, fillLoan, landedOnOnboarding, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
+import { expect, fillLoan, landedOnOnboarding, signIn, test, makeSetupChoices, openProfileSection, continueToPlan } from './fixtures';
 import { setUpPersona } from './persona';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
@@ -292,7 +292,7 @@ test.describe('L2 short month (signed in)', () => {
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
   });
   test('L#15 [L2] no extra payment lands in a month that is short', async ({ page }) => {
     await page.goto('/plan');

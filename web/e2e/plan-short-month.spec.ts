@@ -10,7 +10,7 @@
  *  - #24: "due" beside what the month can cover, on Plan and on Home;
  *  - #26: a longer-tenure what-if runs the engine and shows the new EMI.
  */
-import { expect, fillLoan, isSetupPlanCall, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
 
 const EMAIL = 'golden-short-month@rightdue.app';
 
@@ -50,7 +50,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
   await test.step('Plan: both dates named, due beside what the month covers', async () => {
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await page.waitForURL('**/plan');
+    await continueToPlan(page);
     // The page's text, not the server's streamed copy of it: until React
     // reveals it, the plan arrives in a hidden <div id="S:0"> at the end of
     // <body>, and when the account copy's refresh renders the plan into

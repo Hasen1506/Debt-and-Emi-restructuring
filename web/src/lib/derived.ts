@@ -22,6 +22,12 @@ import { HORIZON_MONTHS } from './horizon';
 import { monthsToClear } from './amortization';
 import { emiOffTakeHome } from './loan-status-core';
 
+/** Spending a month, without EMIs: fixed plus flexible. One figure everywhere
+ *  the word spending or expenses means household costs. */
+export function monthlySpending(user: { fixed_expenses?: string | number | null; variable_expenses?: string | number | null }): number {
+  return Number(user.fixed_expenses || 0) + Number(user.variable_expenses || 0);
+}
+
 export interface LoanWithEffective {
   loan: LoanPayload;
   nominal: Decimal;

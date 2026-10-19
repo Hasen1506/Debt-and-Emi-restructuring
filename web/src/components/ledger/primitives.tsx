@@ -255,6 +255,23 @@ export function lStrip(tone: 'accent' | 'negative' | 'positive' | 'ink' = 'accen
   return { boxShadow: `inset 3px 0 0 ${c}` };
 }
 
+/** The closeable note used by What if's toast: a left rule on paper, not a boxed strip. */
+export function lNotice(tone: 'positive' | 'negative' | 'accent' = 'positive'): CSSProperties {
+  const c = tone === 'negative' ? L_T.negative : tone === 'accent' ? L_T.accent : L_T.positive;
+  return {
+    margin: 0,
+    padding: '8px 12px',
+    borderLeft: `2px solid ${c}`,
+    background: L_T.paper,
+    fontSize: 12,
+    lineHeight: 1.6,
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'flex-start',
+  };
+}
+
 // ─── LExpandRow ─────────────────────────────────────────────────────────
 // The panel that opens under a table row.
 export function LExpandRow({

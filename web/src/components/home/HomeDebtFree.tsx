@@ -237,9 +237,6 @@ export async function HomePayThisMonth() {
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
-  // G7: progress under the register (months shaved, share card, prompts).
-  const open = plan.user.loans.filter((l) => Number(l.outstanding) > 0);
-  const datedPlan = plan.live && plan.shortfall <= 0 && !plan.futureShortfall ? plan.debtFreeMonth : null;
   return (
     <>
       {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
@@ -261,6 +258,23 @@ export async function HomePayThisMonth() {
         reason={reason}
         alert={alert}
       />
+    </>
+  );
+}
+
+/** Progress (months shaved, share card) after the loan list, not inside the pay list. */
+export async function HomeProgressSection() {
+  const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0 || !plan.live) return null;
+  const data = payThisMonth(plan);
+  if (!data || data.rows.length === 0) return null;
+  const country = plan.user.country;
+  const today = getCountryToday(country);
+  const monthLabel = formatMonth(today.getFullYear(), today.getMonth(), 'long');
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(country));
+  const open = plan.user.loans.filter((l) => Number(l.outstanding) > 0);
+  const datedPlan = plan.live && plan.shortfall <= 0 && !plan.futureShortfall ? plan.debtFreeMonth : null;
+  return (
       <HomeProgress
         country={country}
         todayIso={localIsoDate(today)}
@@ -287,7 +301,6 @@ export async function HomePayThisMonth() {
         monthLabel={monthLabel}
         {...retentionInputs(plan.user.loans, data, country)}
       />
-    </>
   );
 }
 

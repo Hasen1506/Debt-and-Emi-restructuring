@@ -16,7 +16,7 @@
  * which is why the page-overflow sweeps didn't catch it.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, makeSetupChoices, openProfileSection, signIn, test } from './fixtures';
+import { expect, fillLoan, makeSetupChoices, openProfileSection, signIn, test, continueToPlan } from './fixtures';
 
 interface Fit { panel: string; outside: string[]; docW: number; vw: number }
 
@@ -82,7 +82,7 @@ for (const width of [320, 390]) {
       await expect(page).toHaveURL(/step=plan/);
       await makeSetupChoices(page);
       await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-      await page.waitForURL('**/plan');
+      await continueToPlan(page);
 
       // Profile → Loans → credit report, with the Experian guide open too.
       await page.goto('/profile');
