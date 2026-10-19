@@ -51,6 +51,7 @@ LOAN_NAME = {
     LoanType.CREDIT_CARD: "credit card", LoanType.EDUCATION: "education loan",
     LoanType.LAP: "loan against property", LoanType.HOME_TOPUP: "home loan top-up",
     LoanType.TWO_WHEELER: "two-wheeler loan", LoanType.MEDICAL: "medical loan",
+    LoanType.PEOPLE: "loan from a person",
 }
 
 

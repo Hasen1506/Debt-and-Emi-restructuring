@@ -11,6 +11,7 @@
  * cookie (lib/lifecycle-events). Every save re-runs the plan.
  */
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
+import { ChangeLogPanel } from '@/components/activity/ChangeLogPanel';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 import { smoothOrAuto } from '@/lib/motion';
@@ -204,22 +205,8 @@ export function ActivityPage({
   function act(row: HistoryRow, action: Act) {
     const r = row.ref;
     try {
-      if (r.kind === 'due' && action === 'paid') {
-        const current = loadProfileClient().user;
-        const original = user.loans[r.loanIndex];
-        const index = currentLoanIndex({loanIndex:r.loanIndex,loanId:original?.id}, original, current.loans);
-        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.configuredMinimum ?? r.minimum ?? r.amount))
-          throw new Error('The loan or payment changed. Reload before marking it paid.');
-        saveEntries(
-          addActivityEntry(
-            readActivityClient(),
-            dueEntry(r, index, current.loans[index].id, today),
-            current.loans,
-          ),
-          `${row.target}: ${row.planned} paid.`,
-        );
-      } else if (r.kind === 'due' && action === 'other') {
-        setDialog({ type: 'payment', loanIndex: r.loanIndex, status: 'part' });
+      if (r.kind === 'due' && (action === 'paid' || action === 'other')) {
+        setDialog({ type: 'payment', loanIndex: r.loanIndex, status: 'full' });
       } else if (r.kind === 'entry' && action === 'edit') {
         const entry = entries.find((e) => e.id === r.id);
         if (entry) setDialog({ edit: entry });
@@ -296,6 +283,7 @@ export function ActivityPage({
       <FirstVisitIntro id="activity" style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', color: L_T.inkSoft, lineHeight: 1.6 }}>
         What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
       </FirstVisitIntro>
+      <ChangeLogPanel />
       <section aria-labelledby="activity-h">
         <LSectionHeader right={<LBracket accent href="/activity?log=entry" onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
           {/* Audit 80 B25: no "0 entries" above "2 to log". */}

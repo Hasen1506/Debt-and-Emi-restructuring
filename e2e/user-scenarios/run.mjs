@@ -1883,6 +1883,8 @@ async function markAllPaid(browser, persona) {
       const btn = page.getByRole('button', { name: /Mark paid/i }).first();
       if (!(await btn.isVisible().catch(() => false))) break;
       await btn.click();
+      const save = page.getByRole('button', { name: 'SAVE', exact: true });
+      if (await save.isVisible().catch(() => false)) await save.click();
       await page.waitForTimeout(400);
     }
     const text = (await pageFacts(page)).text;

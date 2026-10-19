@@ -55,8 +55,18 @@ export function AdvanceTaxPanel({
 
   function payOrdinal(ordinal: number, amountStr: string) {
     if (!amountStr || Number(amountStr) <= 0) return;
+    const prev = schedule.instalments.find((inst) => inst.ordinal === ordinal);
     const next = markPaid(schedule, ordinal, amountStr, todayIso);
     writeScheduleClient(next);
+    void import('@/lib/change-log').then(({ recordChange }) =>
+      recordChange({
+        kind: 'tax',
+        what: `Advance tax instalment ${ordinal}`,
+        before: prev?.paidAmount || '0',
+        after: amountStr,
+        month: todayIso.slice(0, 7),
+      }),
+    );
     setDrafts((d) => ({ ...d, [ordinal]: '' }));
     startTransition(() => router.refresh());
   }

@@ -150,7 +150,7 @@ export function isCantPay(pathname: string): boolean {
  *  (DPDP Act s.5: the notice comes before consent), and "Your data", which
  *  also lets a guest clear this browser; it checks the session itself. */
 export function isPublicPage(pathname: string): boolean {
-  return pathname === '/privacy' || pathname === '/terms' || pathname === '/account';
+  return pathname === '/privacy' || pathname === '/terms' || pathname === '/account' || pathname === '/share' || pathname.startsWith('/share/');
 }
 
 export const config = {

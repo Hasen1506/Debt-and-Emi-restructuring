@@ -150,9 +150,12 @@ export function LogDialog({
   }, [edit, loan, country, planPay, loanIndex, date, today]);
   const [status, setStatus] = useState<PayStatus>(edit ? STATUS_OF[edit.kind] : initial.status ?? 'full');
   const [amount, setAmount] = useState(() => {
-    if (!edit) return '';
-    if (edit.kind === 'paid_extra') return new Decimal(edit.amount).sub(planned).toFixed(2);
-    return edit.amount;
+    if (edit) {
+      if (edit.kind === 'paid_extra') return new Decimal(edit.amount).sub(new Decimal(edit.scheduledEmi || 0)).toFixed(2);
+      return edit.amount;
+    }
+    const due = planPay?.[loanIndex]?.amount;
+    return due != null && due > 0 && (initial.status ?? 'full') !== 'extra' ? String(Math.round(due)) : '';
   });
   const [newBalance, setNewBalance] = useState(edit?.newOutstanding ?? '');
   const [fee, setFee] = useState(edit?.penaltyOverride ?? '');
@@ -168,6 +171,15 @@ export function LogDialog({
     status === 'full' && !typed ? planned
     : status === 'off' && !typed ? new Decimal(loan?.outstanding || 0)
     : new Decimal(Number(typed) || 0);
+  // A typed total on "Paid in full" can be part, the EMI, more, or zero.
+  // The kind follows the number. The extra chip still means "amount above the EMI".
+  const resolved: PayStatus =
+    status !== 'full' ? status
+    : !typed || amt.eq(planned) ? 'full'
+    : amt.lte(0) ? 'missed'
+    : planned.gt(0) && amt.lt(planned) ? 'part'
+    : planned.gt(0) && amt.gt(planned) ? 'extra'
+    : 'full';
   const fmt = (v: Decimal.Value) => formatCurrencyWhole(new Decimal(v).toFixed(0), lccy);
   const usual = card ? `Minimum ${fmt(planned)}` : `${country === 'US' ? 'Payment' : 'EMI'} ${fmt(planned)}`;
 
@@ -177,9 +189,8 @@ export function LogDialog({
     timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? localTerms('The first EMI is not due yet. Choose “Paid extra” for an early prepayment.', country) : null,
     loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
     amount:
-      status === 'missed' ? null
+      resolved === 'missed' ? null
       : !amt.isFinite() || !amt.gt(0) ? 'Enter the amount.'
-      : status === 'full' && planned.gt(0) && !amt.eq(planned) ? 'For a different amount, choose “Paid part of it” or “Paid extra”.'
       : status === 'off' && amt.lt(new Decimal(loan?.outstanding || 0)) ? 'That does not clear the balance. Choose a partial or extra payment.'
       : status === 'part' && planned.gt(0) && amt.gte(planned) ? `That's the full ${card ? 'minimum' : paymentWords(country).one} or more: pick “Paid in full” or “Paid extra”.`
       : null,
@@ -213,9 +224,9 @@ export function LogDialog({
   }
 
   function paymentDraft(base: RunResult | null = baseResult.current): Omit<ActivityEntry, 'id' | 'loggedAt'> {
-    const kind = KIND_OF[status];
+    const kind = KIND_OF[resolved];
     const plannedExtra = plannedExtraFrom(base);
-    const paid = status === 'missed' ? new Decimal(0) : status === 'extra' ? planned.add(amt) : amt;
+    const paid = resolved === 'missed' ? new Decimal(0) : status === 'extra' ? planned.add(amt) : amt;
     return {
       loanIndex,
       ...(loan?.id ? { loanId: loan.id } : {}),

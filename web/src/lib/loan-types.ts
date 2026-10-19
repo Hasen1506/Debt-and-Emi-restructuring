@@ -19,6 +19,7 @@ export const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   home_topup: 'top-up',
   two_wheeler_loan: 'two-wheeler',
   medical_loan: 'medical',
+  people_loan: 'person',
 };
 
 /** Full name for sentences: "HDFC credit card", "SBI home loan". */
@@ -35,6 +36,7 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   home_topup: 'home loan top-up',
   two_wheeler_loan: 'two-wheeler loan',
   medical_loan: 'medical loan',
+  people_loan: 'loan from a person',
 };
 
 /** Round 3 (#10): the type the tax rules see. A loan against property or a
@@ -102,6 +104,7 @@ const AUTO_LABEL: Record<LoanType, string> = {
   home_topup: 'Top-up',
   two_wheeler_loan: 'Two-wheeler loan',
   medical_loan: 'Medical loan',
+  people_loan: 'Loan from a person',
 };
 
 /**

@@ -43,6 +43,10 @@ class LoanType(str, Enum):
     HOME_TOPUP = "home_topup"
     TWO_WHEELER = "two_wheeler_loan"
     MEDICAL = "medical_loan"
+    # A loan from a person, family, a chit fund or an informal lender. A
+    # credit report never lists it. Interest and repayment are whatever was
+    # agreed (engine treats them as EMI, interest-only or bullet).
+    PEOPLE = "people_loan"
 
 
 # A loan against property or a home-loan top-up is taxed as a home loan only

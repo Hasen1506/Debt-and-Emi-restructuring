@@ -127,6 +127,7 @@ const TIER_OF: Record<LoanType, ProtectTier> = {
   home_topup: 'secured',
   two_wheeler_loan: 'secured',
   medical_loan: 'unsecured',
+  people_loan: 'unsecured',
 };
 const TIER_RANK: Record<ProtectTier, number> = { secured: 0, card_minimum: 1, unsecured: 2 };
 /** Inside the secured group: the home before the car before the gold. */

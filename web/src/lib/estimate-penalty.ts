@@ -34,6 +34,7 @@ const IN_DEFAULTS: Record<LoanType, Defaults> = {
   home_topup: { flatFee: '500', penalRateAnnual: '0.02' },
   two_wheeler_loan: { flatFee: '500', penalRateAnnual: '0.24' },
   medical_loan: { flatFee: '500', penalRateAnnual: '0.24' },
+  people_loan: { flatFee: '0', penalRateAnnual: '0' },
 };
 
 const US_DEFAULTS: Record<LoanType, Defaults> = {
@@ -48,6 +49,7 @@ const US_DEFAULTS: Record<LoanType, Defaults> = {
   home_topup: { flatFee: '0', penalRateAnnual: '0.05' },
   two_wheeler_loan: { flatFee: '25', penalRateAnnual: '0.05' },
   medical_loan: { flatFee: '25', penalRateAnnual: '0.05' },
+  people_loan: { flatFee: '0', penalRateAnnual: '0' },
 };
 
 

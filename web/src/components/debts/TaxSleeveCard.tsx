@@ -115,7 +115,8 @@ export function TaxSleeveCard({
         <ThemedDetail>
           The next cycle starts on{' '}
           <strong>{country === 'IN' ? 'June 15' : 'April 15'}</strong> next
-          fiscal year. We&apos;ll surface the reminder then.
+          fiscal year. We&apos;ll surface the reminder then.{' '}
+          <a href="/tax/advance">Advance tax instalments</a>
         </ThemedDetail>
       </Shell>
     );
@@ -167,6 +168,9 @@ export function TaxSleeveCard({
             to land on target by {next.label}.
           </div>
         )}
+        <div style={{ marginTop: 6 }}>
+          <a href="/tax/advance">Open the advance tax instalments</a>
+        </div>
         <div
           style={{
             marginTop: 10,

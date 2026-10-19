@@ -14,6 +14,7 @@ import { notifySessionChanged } from '@/lib/session-events';
 import { PRIVACY_PATH, RETENTION } from '@/lib/privacy-facts';
 import { listDevices, signOutDevice, signOutEverywhere, type DeviceSession } from '@/lib/consent';
 import { formatMonthDate } from '@/lib/today';
+import { FamilyShare } from '@/components/account/FamilyShare';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -202,6 +203,8 @@ export default function AccountDataPage() {
             </form>
           </>
         )}
+
+        <FamilyShare />
 
         <h2 style={H2}>THIS BROWSER</h2>
         <p style={P}>

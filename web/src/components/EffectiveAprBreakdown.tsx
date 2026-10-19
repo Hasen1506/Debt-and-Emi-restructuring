@@ -62,7 +62,9 @@ export function EffectiveAprBreakdown({
           fontStyle: 'italic',
         }}
       >
-        Enter the rate on your statement to see what this loan costs a year.
+        {loan.loan_type === 'people_loan'
+          ? 'No interest, so extra payments go to a costlier loan first.'
+          : 'Enter the rate on your statement to see what this loan costs a year.'}
       </div>
     );
   }

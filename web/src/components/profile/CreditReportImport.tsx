@@ -18,10 +18,13 @@ import { bytesToBase64 } from '@/lib/kfs';
 import {
   BUREAU_LINKS,
   EXPERIAN_STEPS,
+  PASSWORD_HINTS,
   loanFromAccount,
   matchExistingLoan,
+  mergeCreditReports,
   mergePatch,
   missingSentence,
+  reportAccountKey,
   type CreditReportReadResponse,
 } from '@/lib/credit-report';
 import { loanLabel } from '@/lib/loan-types';
@@ -81,8 +84,10 @@ export function CreditReportImport({
   const [file, setFile] = useState<Uint8Array | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CreditReportReadResponse | null>(null);
+  const [reports, setReports] = useState<CreditReportReadResponse[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [edits, setEdits] = useState<Record<string, { lender?: string; outstanding?: string; emi?: string; rate?: string }>>({});
+  const result = reports.length ? mergeCreditReports(reports) : null;
 
   function reset() {
     setText('');
@@ -90,9 +95,10 @@ export function CreditReportImport({
     setNeedsPassword(false);
     setFile(null);
     setError(null);
-    setResult(null);
+    setReports([]);
     setPicked(new Set());
     setChoice({});
+    setEdits({});
     setNoAccounts(false);
   }
 
@@ -109,12 +115,15 @@ export function CreditReportImport({
     setError(null);
     try {
       const res = await api.creditReportRead({ ...req, as_of: todayIso });
-      setResult(res);
+      const next = [...reports, res];
+      const merged = mergeCreditReports(next);
+      setReports(next);
       // Pre-tick only accounts that aren't already in the list (UX50 D-03).
-      setPicked(new Set(res.accounts
+      setPicked(new Set(merged.accounts
         .map((a, i) => (a.loan && matchExistingLoan(a.loan, existing) < 0 ? i : -1))
         .filter((i) => i >= 0)));
-      setPassword(''); // used once; not kept in the form either
+      setPassword(''); // used once; never kept
+      setFile(null); // the PDF is dropped as soon as it has been read
     } catch (e) {
       if (e instanceof ApiFieldError && e.field === 'password') setNeedsPassword(true);
       const msg = e instanceof Error ? e.message : 'The report could not be read.';
@@ -136,13 +145,27 @@ export function CreditReportImport({
     await read({ pdf_base64: bytesToBase64(bytes) });
   }
 
+  function withEdits(accountKey: string, loan: LoanPayload): LoanPayload {
+    const edit = edits[accountKey];
+    if (!edit) return loan;
+    const next = { ...loan };
+    if (edit.lender?.trim()) next.bank = edit.lender.trim();
+    if (edit.outstanding?.trim()) next.outstanding = edit.outstanding.replace(/,/g, '').trim();
+    if (edit.emi?.trim()) next.scheduled_emi = edit.emi.replace(/,/g, '').trim();
+    if (edit.rate?.trim()) {
+      const n = Number(edit.rate);
+      if (Number.isFinite(n) && n >= 0) next.nominal_rate = String(n / 100);
+    }
+    return next;
+  }
+
   function add() {
     if (!result) return;
     const loans: LoanPayload[] = [];
     result.accounts.forEach((a, i) => {
       if (!a.loan) return;
       const m = matches[i];
-      const incoming = loanFromAccount(a.loan, blankLoan(), todayIso);
+      const incoming = withEdits(reportAccountKey(a), loanFromAccount(a.loan, blankLoan(), todayIso));
       if (m >= 0) {
         const c = choice[i] ?? 'skip';
         if (c === 'new') loans.push(incoming);
@@ -156,6 +179,16 @@ export function CreditReportImport({
       }
     });
     onAdd(loans);
+    const added = loans.length + Object.values(choice).filter((c) => c === 'update').length;
+    if (added > 0) {
+      void import('@/lib/change-log').then(({ recordChange }) =>
+        recordChange({
+          kind: 'import',
+          what: 'Credit report imported',
+          after: `${added} account${added === 1 ? '' : 's'} from ${reports.map((r) => r.bureau_name || 'a report').join(', ')}`,
+        }),
+      );
+    }
     reset();
     setOpen(false);
   }
@@ -177,7 +210,7 @@ export function CreditReportImport({
       style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-        <strong>Credit report PDF <span className="muted" style={{ fontSize: 11 }}>Works with most CIBIL and Experian PDFs. Check each loan before saving.</span></strong>
+        <strong>Credit report PDF <span className="muted" style={{ fontSize: 11 }}>CIBIL, Experian, Equifax and CRIF High Mark. Check each loan before saving.</span></strong>
         <button type="button" className="btn-ghost" data-testid="cr-close" onClick={close}>
           Close
         </button>
@@ -188,6 +221,15 @@ export function CreditReportImport({
         rules, then deleted: never stored or shared. Your name, PAN and date of birth are not read into the app.
       </p>
 
+      <div data-testid="cr-bureaus" style={{ fontSize: 12, lineHeight: 1.5 }}>
+        Free annual report:{' '}
+        {BUREAU_LINKS.map((b, i) => (
+          <span key={b.name}>
+            {i > 0 && ' · '}
+            <a href={b.url} target="_blank" rel="noreferrer">{b.name}</a> ({b.note})
+          </span>
+        ))}
+      </div>
       <div style={{ fontSize: 12 }}>
         <button type="button" className="btn-ghost" data-testid="cr-guide-open" aria-expanded={guide} onClick={() => setGuide(!guide)}>
           Don&apos;t have it? Get it free from Experian in about 3 minutes
@@ -260,6 +302,9 @@ export function CreditReportImport({
                 The bureau&apos;s download page or email says which format it uses. It is used once to open the
                 file and never kept.
               </span>
+              <ul data-testid="cr-password-hints" style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+                {PASSWORD_HINTS.map((h) => <li key={h.bureau}><strong>{h.bureau}.</strong> {h.hint}</li>)}
+              </ul>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -306,6 +351,21 @@ export function CreditReportImport({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {result && needsPassword && file && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+            The PDF&apos;s password
+            <input type={showPw ? 'text' : 'password'} autoComplete="off" data-testid="cr-password" value={password} maxLength={64} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <ul data-testid="cr-password-hints" style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+            {PASSWORD_HINTS.map((h) => <li key={h.bureau}><strong>{h.bureau}.</strong> {h.hint}</li>)}
+          </ul>
+          <button type="button" className="btn btn-primary" data-testid="cr-unlock" disabled={busy || !password} onClick={() => read({ pdf_base64: bytesToBase64(file), password })}>
+            {busy ? 'Opening…' : 'Open the report'}
+          </button>
         </div>
       )}
 
@@ -399,9 +459,21 @@ export function CreditReportImport({
                 {a.loan && missingSentence(a.loan) && (
                   <span className="muted" style={{ fontSize: 12 }}>{missingSentence(a.loan)}</span>
                 )}
+                {a.is_open && a.loan && (
+                  <span data-testid="cr-edit" style={{ display: 'grid', gap: 4, fontSize: 12 }}>
+                    <label>Lender <input aria-label={`Lender for ${f.lender?.value || 'account'}`} defaultValue={f.lender?.value || ''} onChange={(e) => setEdits((cur) => ({ ...cur, [reportAccountKey(a)]: { ...cur[reportAccountKey(a)], lender: e.target.value } }))} /></label>
+                    <label>Balance <input aria-label={`Balance for ${f.lender?.value || 'account'}`} defaultValue={a.loan.outstanding || ''} onChange={(e) => setEdits((cur) => ({ ...cur, [reportAccountKey(a)]: { ...cur[reportAccountKey(a)], outstanding: e.target.value } }))} /></label>
+                    <label>EMI <input aria-label={`EMI for ${f.lender?.value || 'account'}`} defaultValue={a.loan.emi || ''} onChange={(e) => setEdits((cur) => ({ ...cur, [reportAccountKey(a)]: { ...cur[reportAccountKey(a)], emi: e.target.value } }))} /></label>
+                    <label>Rate % a year <input aria-label={`Rate for ${f.lender?.value || 'account'}`} defaultValue={a.loan.nominal_rate ? String(Math.round(Number(a.loan.nominal_rate) * 10000) / 100) : ''} onChange={(e) => setEdits((cur) => ({ ...cur, [reportAccountKey(a)]: { ...cur[reportAccountKey(a)], rate: e.target.value } }))} /></label>
+                  </span>
+                )}
               </label>
             );
           })}
+          <label style={{ fontSize: 13 }}>
+            Add another bureau&apos;s PDF{' '}
+            <input type="file" accept="application/pdf,.pdf" aria-label="Another credit report PDF" data-testid="cr-file-more" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} />
+          </label>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-primary" data-testid="cr-add" disabled={!adds && !updates} onClick={add}>
               {adds ? `Add ${adds} to my loans` : ''}

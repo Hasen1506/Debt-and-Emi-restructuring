@@ -59,6 +59,14 @@ export interface CreditReportReadResponse {
  *  Experian first: its consumer portal gives a free report any time (DPIIT B-Ready
  *  FAQ), CIBIL one free a year (UX50 D-13). Links go to the consumer pages, not
  *  the corporate home pages. */
+/** Usual PDF passwords, as each bureau publishes them. The download page wins when it disagrees. */
+export const PASSWORD_HINTS: { bureau: string; hint: string }[] = [
+  { bureau: 'CIBIL', hint: 'Often the first 4 letters of your name in capitals, then the day and month of your date of birth (DDMM). The download email also states it.' },
+  { bureau: 'Experian', hint: 'Shown on the download page or in the email. Often your date of birth as DDMMYYYY.' },
+  { bureau: 'Equifax', hint: 'Shown when you download the report. Often your date of birth as DDMMYYYY.' },
+  { bureau: 'CRIF High Mark', hint: 'Often the first 4 letters of your first name in capitals, then your date of birth as DDMMYYYY.' },
+];
+
 export const BUREAU_LINKS: { name: string; url: string; note: string }[] = [
   { name: 'Experian', url: 'https://consumer.experian.in/ECV-OLN/view/angular/', note: 'free any time, about 3 minutes, OTP on your mobile' },
   { name: 'TransUnion CIBIL', url: 'https://www.cibil.com/freecibilscore', note: 'free once a year' },
@@ -173,4 +181,67 @@ export function mergePatch(loan: LoanPayload, incoming: LoanPayload): { field: k
     out.push({ field: k, from: String(from ?? ''), to: String(to) });
   }
   return out;
+}
+
+function last4Of(account: CrAccount): string {
+  const raw = account.loan?.account_last4 || account.fields.account_number?.value || '';
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : '';
+}
+
+/** Same loan across bureau reports: type plus the last four digits when the
+ *  report has them, otherwise type, lender and open date. */
+export function reportAccountKey(account: CrAccount): string {
+  const type = account.loan_type || '';
+  const last4 = last4Of(account);
+  if (last4) return `${type}|${last4}`;
+  const lender = lenderKey(account.loan?.lender || account.fields.lender?.value);
+  const opened = account.loan?.opened || account.fields.opened?.value || '';
+  return `${type}|${lender}|${opened}`;
+}
+
+function filled(account: CrAccount): number {
+  const loan = account.loan;
+  if (!loan) return 0;
+  return [loan.outstanding, loan.emi, loan.nominal_rate, loan.tenure_months, loan.sanctioned_amount, loan.account_last4].filter((v) => v != null && v !== '').length;
+}
+
+/** One list from several bureau reports. The same account (same key) is kept
+ *  once. A later report's balance replaces the earlier one. */
+export function mergeCreditReports(reports: CreditReportReadResponse[]): CreditReportReadResponse {
+  if (reports.length === 0) {
+    return { bureau: null, bureau_name: null, score: null, report_date: null, accounts: [], open_loans: 0, warnings: [], source: '', source_url: '' };
+  }
+  if (reports.length === 1) return reports[0];
+  const chosen = new Map<string, CrAccount>();
+  const order: string[] = [];
+  const names: string[] = [];
+  for (const report of reports) {
+    if (report.bureau_name && !names.includes(report.bureau_name)) names.push(report.bureau_name);
+    const seen = new Set<string>();
+    report.accounts.forEach((account, index) => {
+      let key = reportAccountKey(account);
+      if (seen.has(key)) key = `${key}#${index}`;
+      seen.add(key);
+      const prev = chosen.get(key);
+      if (!prev) {
+        order.push(key);
+        chosen.set(key, account);
+        return;
+      }
+      const newerBalance = account.loan?.outstanding ?? prev.loan?.outstanding ?? null;
+      const base = filled(account) >= filled(prev) ? account : prev;
+      const loan = base.loan ? { ...base.loan, outstanding: newerBalance } : base.loan;
+      chosen.set(key, { ...base, loan });
+    });
+  }
+  const accounts = order.map((key) => chosen.get(key)!);
+  const first = reports[0];
+  return {
+    ...first,
+    bureau_name: names.join(', ') || first.bureau_name,
+    accounts,
+    open_loans: accounts.filter((a) => a.is_open && a.loan).length,
+    warnings: [...new Set(reports.flatMap((r) => r.warnings))],
+  };
 }

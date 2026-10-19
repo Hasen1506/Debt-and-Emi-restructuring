@@ -24,6 +24,7 @@ const BALANCE: Record<Ccy, Record<LoanType, string>> = {
     home_topup: 'e.g. 5,00,000 or 5L',
     two_wheeler_loan: 'e.g. 80,000',
     medical_loan: 'e.g. 1,50,000',
+    people_loan: 'e.g. 50,000',
   },
   USD: {
     credit_card: 'e.g. 5,000',
@@ -37,6 +38,7 @@ const BALANCE: Record<Ccy, Record<LoanType, string>> = {
     home_topup: 'e.g. 40,000',
     two_wheeler_loan: 'e.g. 3,000',
     medical_loan: 'e.g. 4,000',
+    people_loan: 'e.g. 2,000',
   },
 };
 
@@ -53,6 +55,7 @@ const EMI: Record<Ccy, Record<LoanType, string>> = {
     home_topup: 'e.g. 6,000',
     two_wheeler_loan: 'e.g. 3,500',
     medical_loan: 'e.g. 7,000',
+    people_loan: 'e.g. 2,000',
   },
   USD: {
     credit_card: '',
@@ -66,6 +69,7 @@ const EMI: Record<Ccy, Record<LoanType, string>> = {
     home_topup: 'e.g. 400',
     two_wheeler_loan: 'e.g. 120',
     medical_loan: 'e.g. 150',
+    people_loan: 'e.g. 100',
   },
 };
 

@@ -50,6 +50,7 @@ test('unset debt total: spare cash, spending and pay-this-month agree', async ({
   // Mark the only payment. The paid note has to appear; seeded data used to
   // stop one payment short of it.
   await page.getByRole('button', { name: /Mark paid/i }).click();
+  await page.getByRole('button', { name: 'SAVE' }).click();
   await expect(month).toContainText(/all paid/i);
 });
 

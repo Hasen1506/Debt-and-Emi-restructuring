@@ -42,7 +42,7 @@ const STORED_AT = 'x-rightdue-landing-stored-at';
 // web/src/app/robots.ts. Change all three together (the web test checks).
 export const SITE = 'https://rightdue.app';
 export const PUBLIC_PAGES = ['/', '/tools/loan-check', '/rbi-decision', '/glossary', '/privacy', '/terms'];  // W4 A19 MPC page
-export const ROBOTS_DISALLOW = ['/api/', '/plan', '/profile', '/activity', '/account', '/goals', '/portfolio', '/onboarding', '/cant-pay', '/tax', '/login', '/welcome.html'];
+export const ROBOTS_DISALLOW = ['/api/', '/plan', '/profile', '/activity', '/account', '/goals', '/portfolio', '/onboarding', '/cant-pay', '/tax', '/login', '/share', '/welcome.html'];
 export const CRAWL_PATHS = new Set(['/robots.txt', '/sitemap.xml']);
 
 export function robotsTxt() {

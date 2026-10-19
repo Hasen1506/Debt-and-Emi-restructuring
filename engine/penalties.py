@@ -50,6 +50,8 @@ _IN_DEFAULTS: dict[LoanType, _DefaultPenalty] = {
     LoanType.EDUCATION: _DefaultPenalty(flat_fee=D("250"), penal_rate_annual=D("0.02")),
     LoanType.GOLD: _DefaultPenalty(flat_fee=D("0"), penal_rate_annual=D("0.02")),
     LoanType.BNPL: _DefaultPenalty(flat_fee=D("200"), penal_rate_annual=D("0.36")),
+    # A person, family or chit is not a bank: no statutory late fee.
+    LoanType.PEOPLE: _DefaultPenalty(flat_fee=D("0"), penal_rate_annual=D("0")),
 }
 
 _US_DEFAULTS: dict[LoanType, _DefaultPenalty] = {
@@ -61,6 +63,7 @@ _US_DEFAULTS: dict[LoanType, _DefaultPenalty] = {
     # GOLD + BNPL are India-centric; provide reasonable fallbacks anyway.
     LoanType.GOLD: _DefaultPenalty(flat_fee=D("0"), penal_rate_annual=D("0.05")),
     LoanType.BNPL: _DefaultPenalty(flat_fee=D("15"), penal_rate_annual=D("0.30")),
+    LoanType.PEOPLE: _DefaultPenalty(flat_fee=D("0"), penal_rate_annual=D("0")),
 }
 
 # Round 3 (#10): the newer kinds take the defaults of the nearest older one.

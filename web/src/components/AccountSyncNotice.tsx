@@ -35,6 +35,7 @@ const SLICE_NAMES: Record<string, string> = {
   payoff_rules: 'your payoff rules',
   cash_events: 'spare-cash entries',
   monthly_spend: 'monthly spending',
+  change_log: 'the change log',
   decisions: 'decisions',
   cant_pay: 'what you typed on Can\'t pay',
   decision_log: 'the decision log',

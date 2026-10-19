@@ -57,6 +57,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   goals:             { kind: 'localStorage', name: 'rightdue_goals' },
   goal_contributions:{ kind: 'localStorage', name: 'rightdue_goal_contributions' },
   monthly_spend:     { kind: 'localStorage', name: 'rightdue_monthly_spend' },
+  change_log:        { kind: 'localStorage', name: 'rightdue_change_log' },
   decisions:         { kind: 'localStorage', name: 'rightdue_decisions' },
   cant_pay:          { kind: 'localStorage', name: 'rightdue_cant_pay' },
   ef_split:          { kind: 'cookie',       name: 'rightdue_ef_split' },

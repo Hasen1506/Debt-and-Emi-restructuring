@@ -313,7 +313,17 @@ export function readGoalsClient(): Goal[] {
 
 export function writeGoalsClient(goals: Goal[]) {
   if (typeof localStorage === 'undefined') return;
+  const before = readGoalsClient();
   persistGoalSlices([goalSliceWrite(goals)]);
+  if (JSON.stringify(before) === JSON.stringify(goals)) return;
+  void import('./change-log').then(({ recordChange }) =>
+    recordChange({
+      kind: 'goal',
+      what: goals.length >= before.length ? 'Goals updated' : 'Goal removed',
+      before: String(before.length),
+      after: goals.map((g) => `${g.label} ${g.amount}`).join('; ') || 'none',
+    }),
+  );
 }
 
 export function goalSliceWrite(goals: Goal[]): GoalSliceWrite {

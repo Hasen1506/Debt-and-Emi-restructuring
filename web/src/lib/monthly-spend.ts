@@ -16,6 +16,7 @@
  */
 
 import { syncSliceToServer } from './server-sync';
+import { recordChange } from './change-log';
 
 export interface MonthlySpendEntry {
   id: string;
@@ -70,6 +71,16 @@ export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
     document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
   }
   void syncSliceToServer('monthly_spend', entries);
+  const latest = entries[0];
+  if (latest) {
+    recordChange({
+      kind: 'spend',
+      what: 'Logged spending',
+      after: latest.spent,
+      month: latest.monthIso,
+      refId: latest.id,
+    });
+  }
 }
 
 export function newMonthlySpendId(): string {
@@ -106,4 +117,44 @@ export function latestByMonth(
     if (Number.isFinite(v) && v >= 0) out[month] = v;
   }
   return out;
+}
+
+/** The plan's spending figure when the person has logged what they
+ *  actually spent: the mean of the latest figure for each of the last
+ *  `months` calendar months up to and including `asOfMonth` ('YYYY-MM').
+ *  Months with no entry are skipped, so two logged months out of three
+ *  still average those two. Null when nothing has been logged. */
+export function recentSpendAverage(
+  entries: MonthlySpendEntry[],
+  asOfMonth: string,
+  months = 3,
+): { average: number; count: number; months: string[] } | null {
+  const by = latestByMonth(entries);
+  const [y, m] = asOfMonth.split('-').map(Number);
+  if (!y || !m) return null;
+  const used: string[] = [];
+  for (let i = 0; i < months; i++) {
+    const k = y * 12 + (m - 1) - i;
+    const key = `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
+    if (by[key] != null) used.push(key);
+  }
+  if (used.length === 0) return null;
+  const average = Math.round(used.reduce((s, key) => s + by[key], 0) / used.length);
+  return { average, count: used.length, months: used };
+}
+
+/** Read the digest cookie the plan's server render uses. */
+export async function readSpendAverageServer(asOfMonth: string): Promise<{ average: number; count: number; months: string[] } | null> {
+  const { cookies } = await import('next/headers');
+  const raw = (await cookies()).get(DIGEST_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) as Record<string, number>;
+    const entries: MonthlySpendEntry[] = Object.entries(parsed).map(([monthIso, spent]) => ({
+      id: monthIso, monthIso, spent: String(spent), loggedAt: `${monthIso}-01T00:00:00.000Z`,
+    }));
+    return recentSpendAverage(entries, asOfMonth);
+  } catch {
+    return null;
+  }
 }

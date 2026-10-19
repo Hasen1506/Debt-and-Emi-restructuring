@@ -2011,6 +2011,54 @@
     "status": "unknown",
     "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
    }
+  },
+  {
+   "in": {
+    "loan_type": "people_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "people_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "people_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "people_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
   }
  ],
  "goal_rule": [

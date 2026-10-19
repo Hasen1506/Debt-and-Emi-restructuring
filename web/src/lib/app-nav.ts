@@ -58,7 +58,7 @@ export function moreGroups(user: NavUser): MoreGroup[] {
       links: [
         { label: 'Goals & tools', href: '/goals', sub: 'What you’re saving for, and how much goes to it' },
         { label: 'Assets & tax', href: '/portfolio', sub: 'What you own, and tax on your loans' },
-        { label: 'Advance tax', href: '/plan#advance-tax-h', sub: india ? 'Instalments for income without TDS' : 'Quarterly estimated tax' },
+        { label: 'Advance tax', href: '/tax/advance', sub: india ? 'Instalments for income without TDS' : 'Quarterly estimated tax' },
       ],
     },
     {
