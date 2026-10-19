@@ -24,7 +24,6 @@ import TAX from './tax-tables.json';
 import { getCountryToday, localIsoDate } from './today';
 import { usMortgageMarginalRate } from './us-loans';
 import { fullCap24, taxType } from '@/lib/loan-types';
-import { effectivePrepaymentPct, prepaymentBarred } from './prepayment-fee';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -33,8 +32,6 @@ const D = (v: string | number | Decimal) => new Decimal(v);
  *  lock-in has ended stops being ranked last. */
 function lockLeft(loan: LoanPayload, country: string): number {
   const c = (country === 'US' ? 'US' : 'IN') as Parameters<typeof getCountryToday>[0];
-  // RBI 2025 para 5(iii): no lock-in on a loan the no-charge rule covers, from 2026.
-  if (prepaymentBarred(loan, c) && (loan.sanction_year ?? 0) >= 2026) return 0;
   return lockInMonthsLeft(loan, localIsoDate(getCountryToday(c)).slice(0, 7));
 }
 
@@ -215,7 +212,7 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
       total, homeDebt, 1, india,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    const mc = marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(effectivePrepaymentPct(l, own), marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), lockLeft(l, own));
+    const mc = marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), lockLeft(l, own));
     out.set(i, withFx(mc, fxAdjust(l, user, mc.annualCost, Number(l.tenure_months_remaining || 0))));
   }
   return out;
@@ -265,8 +262,7 @@ export function loanMarginalCost(
   const total = country === 'IN' && taxType(loan) === 'home_loan' ? indiaOwnInterest(loan) : interest;
   const shield = own ? marginalShield(taxType(loan), country, marginalRate, regime, share.gt(0), share, total, D(loan.outstanding || 0), 1, india) : D(0);
   const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
-  const market = country === 'US' ? 'US' : 'IN';
-  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(effectivePrepaymentPct(loan, market), marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), lockLeft(loan, country));
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), lockLeft(loan, country));
 }
 
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;

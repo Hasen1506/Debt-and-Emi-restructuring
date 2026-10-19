@@ -114,7 +114,7 @@ export function lenderFeeTypeFromName(bank?: string): string | undefined {
 }
 
 type FeeLoan = Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency'> &
-  Partial<Pick<LoanPayload, 'bank' | 'lender_type' | 'business_purpose' | 'sanction_year' | 'sanctioned_amount' | 'prepayment_penalty_pct' | 'kfs_fields'>>;
+  Partial<Pick<LoanPayload, 'bank' | 'lender_type' | 'business_purpose' | 'sanction_year' | 'sanctioned_amount' | 'prepayment_penalty_pct' | 'prepay_lock_in_months' | 'kfs_fields'>>;
 
 export function feeContextOf(loan: FeeLoan): FeeContext {
   return {
@@ -129,6 +129,15 @@ export function feeContextOf(loan: FeeLoan): FeeContext {
  *  A typed figure does not override the rule. */
 export function prepaymentBarred(loan: FeeLoan, country: Country): boolean {
   return prepaymentFeeDefault(loan.loan_type, loan.rate_type, loanMarket(loan, country), feeContextOf(loan)).status === 'assumed';
+}
+
+/** A copy whose fee (and, from 2026, lock-in) is what the law allows. */
+export function withChargeableFee<T extends FeeLoan>(loan: T, country: Country): T {
+  if (!prepaymentBarred(loan, country)) return loan;
+  const lock = (loan.sanction_year ?? 0) >= 2026 ? 0 : loan.prepay_lock_in_months;
+  const raw = (loan.prepayment_penalty_pct ?? '').trim();
+  if ((raw === '' || raw === '0') && lock === loan.prepay_lock_in_months) return loan;
+  return { ...loan, prepayment_penalty_pct: '0', prepay_lock_in_months: lock };
 }
 
 /** The percent the plan should use: '0' where the law forbids a charge. */

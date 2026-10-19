@@ -21,7 +21,7 @@ import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { costLines } from '@/lib/cost-lines';
 import { loanMarginalCost, type MarginalCost } from '@/lib/marginal-cost';
-import { effectivePrepaymentPct } from '@/lib/prepayment-fee';
+import { effectivePrepaymentPct, withChargeableFee } from '@/lib/prepayment-fee';
 import { trueApr, trueAprInputsFromBreakdown } from '@/lib/true-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -67,7 +67,8 @@ export function EffectiveAprBreakdown({
     );
   }
 
-  const mc = cost ?? loanMarginalCost(loan, country, marginalTaxRate, taxRegime ?? 'new', itemises ?? true);
+  const priced = withChargeableFee(loan, country);
+  const mc = cost ?? loanMarginalCost(priced, country, marginalTaxRate, taxRegime ?? 'new', itemises ?? true);
   // From the statement rate, each line adds or takes something off, with
   // its arithmetic and source (live test #13/#32: every addend named).
   const { lines: feeLines } = computeBreakdown(loan, marginalTaxRate, country, taxRegime, itemises ?? true);

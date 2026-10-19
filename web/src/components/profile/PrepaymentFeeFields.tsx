@@ -117,10 +117,12 @@ export function PrepaymentFeeFields({
 
 /** Drop a stored fee (and, from 2026, a lock-in) the law does not allow. */
 export function withStatutoryPrepayment<T extends LoanPayload>(loan: T, country: Country): T {
-  if (!prepaymentBarred(loan, country)) return loan;
-  const raw = (loan.prepayment_penalty_pct ?? '').trim();
-  const fee = raw !== '' && Number(raw) !== 0 ? '0' : loan.prepayment_penalty_pct;
-  const lock = (loan.sanction_year ?? 0) >= 2026 && (loan.prepay_lock_in_months ?? 0) > 0 ? 0 : loan.prepay_lock_in_months;
-  if (fee === loan.prepayment_penalty_pct && lock === loan.prepay_lock_in_months) return loan;
-  return { ...loan, prepayment_penalty_pct: fee, prepay_lock_in_months: lock };
+  const named = !loan.lender_type ? lenderFeeTypeFromName(loan.bank) : undefined;
+  const base = named ? { ...loan, lender_type: named as T['lender_type'] } : loan;
+  if (!prepaymentBarred(base, country)) return base;
+  const raw = (base.prepayment_penalty_pct ?? '').trim();
+  const fee = raw !== '' && Number(raw) !== 0 ? '0' : base.prepayment_penalty_pct;
+  const lock = (base.sanction_year ?? 0) >= 2026 && (base.prepay_lock_in_months ?? 0) > 0 ? 0 : base.prepay_lock_in_months;
+  if (fee === base.prepayment_penalty_pct && lock === base.prepay_lock_in_months && base === loan) return loan;
+  return { ...base, prepayment_penalty_pct: fee, prepay_lock_in_months: lock };
 }

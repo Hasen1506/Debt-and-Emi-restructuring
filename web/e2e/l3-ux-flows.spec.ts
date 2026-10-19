@@ -46,6 +46,8 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
     await expect(purpose.getByText(/Not answered yet/)).toBeVisible();
     await purpose.getByRole('button', { name: 'Yes, for a business' }).click();
     await expect(purpose.getByRole('button', { name: 'Yes, for a business' })).toHaveAttribute('aria-pressed', 'true');
+    // A business loan can still carry a charge, so the fee is under More options.
+    await page.getByTestId('loan-more-options').first().click();
     await expect(page.getByPlaceholder('Not known').first()).toBeVisible();
     // The card's yearly cost, line by line: 42% + 9.11% compounding + 11.41% GST.
     await expect(page.getByText(/42\.00% ÷ 12 = 3\.500% a month/).first()).toBeVisible();
