@@ -16,7 +16,6 @@ import {
   feeShown,
   lenderFeeTypeFromName,
   prepaymentBarred,
-  prepaymentFeeDefault,
 } from '@/lib/prepayment-fee';
 import { loanMarket } from '@/lib/currency';
 
@@ -124,14 +123,4 @@ export function withStatutoryPrepayment<T extends LoanPayload>(loan: T, country:
   const lock = (loan.sanction_year ?? 0) >= 2026 && (loan.prepay_lock_in_months ?? 0) > 0 ? 0 : loan.prepay_lock_in_months;
   if (fee === loan.prepayment_penalty_pct && lock === loan.prepay_lock_in_months) return loan;
   return { ...loan, prepayment_penalty_pct: fee, prepay_lock_in_months: lock };
-}
-
-/** The rule's own reading, for tests that want the reason next to the note. */
-export function barredReason(loan: LoanPayload, country: Country): string {
-  return prepaymentFeeDefault(loan.loan_type, loan.rate_type, loanMarket(loan, country), {
-    lenderType: loan.lender_type || lenderFeeTypeFromName(loan.bank),
-    businessPurpose: loan.business_purpose,
-    sanctionYear: loan.sanction_year,
-    sanctionedAmount: loan.sanctioned_amount,
-  }).reason;
 }
