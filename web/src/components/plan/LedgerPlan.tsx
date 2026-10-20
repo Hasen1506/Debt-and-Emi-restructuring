@@ -18,6 +18,7 @@ import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { CompareResponse } from '@/lib/api';
 import { planWithWhatIf } from '@/lib/trajectory';
@@ -35,7 +36,9 @@ import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
 import { PlanPace } from './PlanPace';
 import { RateDecisions } from './RateDecisions';
-import { WhatIfPanel } from '@/components/WhatIfPanel';
+const WhatIfPanel = dynamic(() => import('@/components/WhatIfPanel').then((m) => m.WhatIfPanel), {
+  loading: () => <p style={{ margin: '8px 0', fontSize: 12, color: 'var(--muted)' }}>Loading what-if…</p>,
+});
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
