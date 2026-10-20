@@ -54,12 +54,20 @@ const inr = (v: string | number) => formatCurrency(String(v), 'INR');
 
 /** The three choices a rise gives the borrower, as table rows. */
 export function impactRows(im: RateMoveImpact): { option: string; monthly: string; months: string; interest: string }[] {
-  const extraInterest = (total: string | null) =>
-    total == null ? '—' : `${Number(total) >= Number(im.interest_before) ? '+' : '−'}${inr(Math.abs(Number(total) - Number(im.interest_before)))}`;
+  const extraInterest = (total: string | null) => {
+    if (total == null) return '—';
+    const delta = Number(total) - Number(im.interest_before);
+    if (delta > 0) return `+${inr(delta)}`;
+    if (delta < 0) return `${inr(Math.abs(delta))} less`;
+    return inr(0);
+  };
+  const emiDelta = Number(im.emi_change);
   const rows = [
     {
-      option: 'Raise the EMI, keep the end date',
-      monthly: `${inr(im.emi_after)} (${Number(im.emi_change) >= 0 ? '+' : '−'}${inr(Math.abs(Number(im.emi_change)))})`,
+      option: emiDelta < 0 ? 'Keep the end date (level EMI is lower)' : 'Raise the EMI, keep the end date',
+      monthly: emiDelta < 0
+        ? `${inr(im.emi_after)} (${inr(Math.abs(emiDelta))} less)`
+        : `${inr(im.emi_after)} (+${inr(emiDelta)})`,
       months: `${im.months_before} left (same)`,
       interest: extraInterest(im.interest_emi_option),
     },
@@ -81,6 +89,22 @@ export function impactRows(im: RateMoveImpact): { option: string; monthly: strin
     });
   }
   return rows;
+}
+
+/** Scenario line: a rise's new EMI, with a lower level EMI said as "less". */
+export function scenarioEmi(im: RateMoveImpact): string {
+  const delta = Number(im.emi_change);
+  if (delta < 0) return `EMI ${inr(im.emi_after)} (${inr(Math.abs(delta))} less a month)`;
+  return `EMI ${inr(im.emi_after)} (+${inr(im.emi_change)} a month)`;
+}
+
+export function scenarioTenure(im: RateMoveImpact): string {
+  if (!im.tenure_option_possible || im.months_change == null) {
+    return ', and keeping the EMI would no longer cover the interest';
+  }
+  if (im.months_change > 0) return `, or ${im.months_change} more months at today's EMI`;
+  if (im.months_change < 0) return `, or ${-im.months_change} fewer months at today's EMI`;
+  return `, or the same number of months at today's EMI`;
 }
 
 /** "0.25%" for a move, with its direction in words. */

@@ -139,12 +139,23 @@ test('R10-3: WebKit navigation noise is filtered in the reporter and the E2E wat
   m.filename = path.join(__dirname, '../e2e/browser-noise.ts');
   m.paths = Module._nodeModulePaths(path.dirname(m.filename));
   m._compile(out, m.filename);
-  const { isWebKitNavigationNoise } = m.exports;
+  const { isWebKitNavigationNoise, isCutOffChunk, isAbortedChunkError } = m.exports;
   assert.equal(isWebKitNavigationNoise('/rightdue.app/api/rates/central due to access control checks.'), true);
   assert.equal(isWebKitNavigationNoise('/rightdue.app/activity?_rsc=1p-R due to access control checks.'), true);
   assert.equal(isWebKitNavigationNoise('Load failed'), false);
   assert.equal(isWebKitNavigationNoise('https://evil.example/x due to access control checks.'), false);
   assert.equal(isWebKitNavigationNoise('ReferenceError: x is not defined'), false);
+  const planChunk = 'Loading chunk 6624 failed.\n(error: http://localhost:3100/_next/static/chunks/app/plan/page-abc.js)';
+  assert.equal(isCutOffChunk(planChunk, '/'), true);
+  assert.equal(isCutOffChunk('pageerror: ' + planChunk, '/'), true);
+  assert.equal(isCutOffChunk(planChunk, '/plan'), false);
+  assert.equal(isCutOffChunk('Loading chunk 931 failed.', '/'), false);
+  const shared = 'Loading chunk 4434 failed.\n(error: http://localhost:3100/_next/static/chunks/4434-abc.js)';
+  const aborted = new Set(['http://localhost:3100/_next/static/chunks/4434-abc.js']);
+  assert.equal(isAbortedChunkError(shared, aborted), true);
+  assert.equal(isAbortedChunkError('pageerror: ' + shared, aborted), true);
+  assert.equal(isAbortedChunkError(shared, new Set()), false);
+  assert.equal(isAbortedChunkError('TypeError: x', aborted), false);
   assert.match(fs.readFileSync(path.join(__dirname, '../e2e/a11y.spec.ts'), 'utf8'), /if \(isWebKitNavigationNoise\(e\.message\)\) return;/);
   // ChunkLoadError: one reload, never a loop, never while leaving.
   assert.equal(isChunkLoadError('ChunkLoadError', 'Loading chunk 931 failed.'), true);

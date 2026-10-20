@@ -307,6 +307,16 @@ def _inr(amount: Decimal) -> str:
     return f"{sign}₹{s}"
 
 
+def _delta_words(amount: Decimal, more: str, less: str, same: str) -> str:
+    """A signed rupee gap in words: '₹779 more a month', never '-₹779'."""
+    n = int(amount.quantize(D("1"), rounding=ROUND_HALF_UP))
+    if n > 0:
+        return f"{_inr(D(n))} {more}"
+    if n < 0:
+        return f"{_inr(D(-n))} {less}"
+    return same
+
+
 def _round_money(x: Decimal) -> Decimal:
     return x.quantize(D("1"), rounding=ROUND_HALF_UP)
 
@@ -636,6 +646,85 @@ def rate_rise(
     )
 
 
+def _emi_option_sentence(im: RateMoveImpact) -> str:
+    """Keep-the-end-date sentence. A rate rise raises a level EMI. When the
+    EMI entered is already above the level payment for the months it takes
+    (the last instalment is smaller), the new level EMI can be lower than
+    what is paid today and total interest higher. That gap is real; it is
+    not the rise itself cutting the EMI, and it is never written as '-₹'."""
+    interest = _delta_words(
+        im.interest_emi_option - im.interest_before,
+        "more interest over the loan", "less interest over the loan",
+        "the same interest over the loan",
+    )
+    if im.emi_change < 0:
+        return (
+            f"Keep the same end date and a level EMI is {_inr(im.emi_after)}, "
+            f"{_inr(-im.emi_change)} less than the {_inr(im.emi_before)} you pay now. "
+            f"Today's EMI is already above a level payment for these {im.months_before} months, "
+            f"so this rise does not push the EMI up. Paying that level EMI means {interest}."
+        )
+    change = _delta_words(im.emi_change, "more a month", "less a month", "unchanged a month")
+    return (
+        f"Keep the same end date and your EMI goes from {_inr(im.emi_before)} to "
+        f"{_inr(im.emi_after)} ({change}), with {interest}."
+    )
+
+
+def _tenure_option_sentence(im: RateMoveImpact) -> str:
+    n = im.months_change or 0
+    if n > 1:
+        span = f"the loan runs {n} months longer"
+    elif n == 1:
+        span = "the loan runs 1 month longer"
+    elif n == 0:
+        span = "the loan still ends in the same month"
+    elif n == -1:
+        span = "the loan runs 1 month shorter"
+    else:
+        span = f"the loan runs {-n} months shorter"
+    interest = _delta_words(
+        (im.interest_tenure_option or D("0")) - im.interest_before,
+        "more interest", "less interest", "the same interest",
+    )
+    premium = im.tenure_premium or D("0")
+    if premium > 0:
+        return f" Keep the same EMI and {span}, with {interest}: {_inr(premium)} more than raising the EMI."
+    if premium < 0:
+        gap = (im.interest_tenure_option or D("0")) - im.interest_before
+        if gap > 0:
+            lead = f"with {_inr(gap)} more interest than at today's rate"
+        elif gap < 0:
+            lead = f"with {_inr(-gap)} less interest than at today's rate"
+        else:
+            lead = "with the same interest as today"
+        return (
+            f" Keep the same EMI and {span}, {lead}. "
+            f"That is {_inr(-premium)} less than dropping to the level EMI."
+        )
+    return f" Keep the same EMI and {span}, with {interest}: the same interest as the level EMI."
+
+
+def _choice_alternative(action: BankAction, im: RateMoveImpact) -> str:
+    if action == BankAction.EMI_RAISED and im.tenure_option_possible:
+        n = im.months_change or 0
+        if n > 0:
+            return f" Had it asked, the other choice was: keep the EMI and run {n} months longer"
+        if n < 0:
+            return f" Had it asked, the other choice was: keep the EMI and finish {-n} months sooner"
+        return " Had it asked, the other choice was: keep the EMI and the same end date"
+    if action == BankAction.TENURE_EXTENDED and im.tenure_premium:
+        if im.tenure_premium > 0:
+            saving = f"saving {_inr(im.tenure_premium)} of interest"
+        else:
+            saving = f"which costs {_inr(-im.tenure_premium)} more interest than keeping the EMI"
+        return (
+            f" Had it asked, the other choice was: keep the end date and pay "
+            f"{_inr(im.emi_after)} a month, {saving}"
+        )
+    return ""
+
+
 def _rate_rise_finding(rr: RateRise, name: Optional[str], kind_of: LenderType, benchmark: Benchmark) -> Finding:
     im = rr.impact
     delta = rr.repo_to - rr.repo_from
@@ -662,25 +751,16 @@ def _rate_rise_finding(rr: RateRise, name: Optional[str], kind_of: LenderType, b
             f"Your {who} does not have to follow the repo rate, but most move with it. If it "
             f"passes on the full {_pct(delta)}: {_pct(im.rate_before)} to {_pct(im.rate_after)}."
         )
-    emi_txt = (
-        f"Keep the same end date and your EMI goes from {_inr(im.emi_before)} to "
-        f"{_inr(im.emi_after)} ({'+' if im.emi_change >= 0 else ''}{_inr(im.emi_change)} a month), "
-        f"with {_inr(im.interest_emi_option - im.interest_before)} more interest over the loan."
-    )
+    emi_txt = _emi_option_sentence(im)
     if im.tenure_option_possible:
-        ten_txt = (
-            f" Keep the same EMI and the loan runs {im.months_change} month"
-            f"{'s' if im.months_change != 1 else ''} longer, with "
-            f"{_inr(im.interest_tenure_option - im.interest_before)} more interest: "
-            f"{_inr(im.tenure_premium)} more than raising the EMI."
-        )
+        ten_txt = _tenure_option_sentence(im)
         best = (
             f" If you can afford the extra {_inr(im.emi_change)} a month, raising the EMI is "
             f"the cheaper choice by {_inr(im.tenure_premium)}; if cash is tight, the longer "
             f"tenure keeps your monthly outgo the same. Many banks extend the tenure unless "
             f"you ask, and cap it at an age limit in your loan terms, after which the EMI "
             f"has to rise."
-        ) if im.tenure_premium and im.tenure_premium > 0 else ""
+        ) if im.tenure_premium and im.tenure_premium > 0 and im.emi_change > 0 else ""
     else:
         ten_txt = (
             f" Keeping the same EMI is not possible: at {_pct(im.rate_after)} it would not "
@@ -745,14 +825,7 @@ def _choice_finding(
     numbers = ""
     if rr is not None:
         im = rr.impact
-        alt = (
-            f" Had it asked, the other choice was: keep the EMI and run "
-            f"{im.months_change} months longer"
-            if inp.bank_action == BankAction.EMI_RAISED and im.tenure_option_possible else
-            f" Had it asked, the other choice was: keep the end date and pay "
-            f"{_inr(im.emi_after)} a month, saving {_inr(im.tenure_premium)} of interest"
-            if inp.bank_action == BankAction.TENURE_EXTENDED and im.tenure_premium else ""
-        )
+        alt = _choice_alternative(inp.bank_action, im)
         numbers = (
             f" This follows the RBI's {rr.decided:%d %b %Y} rise ({_pct(rr.repo_from)} to {_pct(rr.repo_to)})."
             f"{alt + '.' if alt else ''}"

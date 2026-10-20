@@ -4,24 +4,24 @@ Taken on the founder's behalf during the review of #90 and #93, and shipped in #
 
 ## 1. A blank "Is this loan for a business?" answer
 
-**Decision.** A blank answer still means a personal loan for home, auto, personal, education, two-wheeler, medical, home top-up and pay-later loans, so a floating-rate loan from an RBI-regulated lender is charged 0. For a **loan against property** and a **gold loan** a blank answer is "not known": the form asks, and a typed or Key Facts Statement fee is kept.
+**Decision.** A blank answer still means a personal loan for home, auto, personal, education, two-wheeler, medical, home top-up and pay-later loans, so a floating-rate loan from an RBI-regulated lender is charged 0. For a **loan against property** and a **gold loan** a blank answer is "not known" when the purpose can change the fee: the form asks, and a typed or Key Facts Statement fee is kept. When the law is 0 whichever way the question is answered, the fee is 0 and a stored figure is ignored.
 
-**Why.** Most people using the app have personal loans, and asking everyone would undo "ask each fact once". A loan against property or a gold loan is often taken for a business, where RBI lets many lenders charge, so silently zeroing a stored fee there would be wrong.
+**Why.** Most people using the app have personal loans, and asking everyone would undo "ask each fact once". A loan against property or a gold loan is often taken for a business, where RBI lets many lenders charge, so silently zeroing a stored fee there would be wrong. That exception stops where both answers are already 0: a commercial bank from 2026 (Directions para 5(i) and 5(ii)(a)), a regional rural bank or co-operative bank before 2026 (the May 2014 circulars below, which were not limited to non-business loans), and a small finance bank, regional rural bank or HFC from 2026 when the sanctioned amount is ₹50 lakh or less (para 5(ii)(b)).
 
 **Code.** `BUSINESS_CAPABLE_TYPES` in `engine/prepayment_fee.py` and `web/src/lib/prepayment-fee.ts`.
 
 ## 2. Floating-rate personal loans sanctioned before 2026
 
-**Decision.** 0 for commercial banks, small finance banks, NBFCs, HFCs and an unknown lender. **Asked** for regional rural banks and co-operative banks when the loan was sanctioned before 2026 or the year is not given. From 2026 every one of them is 0 (2025 Directions, para 4).
+**Decision.** 0 for commercial banks, small finance banks, NBFCs, HFCs, regional rural banks, co-operative banks and an unknown lender. From 2026 every one of them is still 0 for a personal loan (2025 Directions, para 5(i), which applies to every entity in para 4).
 
-**Why.**
-- Banks: DBOD.Dir.BC.No.110/13.03.00/2013-14, 7 May 2014. It excludes regional rural banks.
-- NBFCs: DNBS(PD).CC.No.399/03.10.42/2014-15, 14 July 2014.
-- HFCs: NHB 2012 instructions.
-- Co-operative banks and RRBs: no earlier instruction was found that clearly covers them, so the app does not assume the charge is barred.
-- An unknown lender stays at 0 because nearly every loan in the app is from a bank, NBFC or HFC.
+**Why.** Checked against the circulars RBI still publishes, and against the annex of the 2 July 2025 Directions (the annex is what stays in force for loans sanctioned before 2026).
+- Commercial banks, excluding regional rural banks: DBOD.Dir.BC.No.110/13.03.00/2013-14, 7 May 2014, no foreclosure charge on any floating-rate term loan to an individual borrower. DBR.Dir.BC.No.08/13.03.00/2019-20, 2 August 2019, addressed to scheduled commercial banks excluding RRBs, small finance banks and local area banks, limits that bar to purposes other than business. A personal loan stays at 0.
+- NBFCs: DNBS(PD).CC.No.399/03.10.42/2014-15, 14 July 2014, the same "all floating-rate term loans to individual borrowers" rule. DNBR (PD) CC.No.101/03.10.001/2019-20, 2 August 2019, limits it to purposes other than business. A personal loan stays at 0.
+- HFCs: the rule now in force before 2026 is paragraph 85.7 of the HFC Master Direction: no foreclosure charge on a floating-rate term loan sanctioned for purposes other than business to an individual borrower. That replaced NHB(ND)/DRS/Policy Circular No.63/2014-15, 14 August 2014 (all floating-rate term loans to individual borrowers; clarified by Policy Circular 66, 3 September 2014). The 2010–2012 NHB housing-loan instructions (Pol-No.36/2010, Pol.No.43/2011-12, Pol.No.51/2012-13) cover housing loans only. Citing "NHB 2012" as the reason every HFC personal loan is 0 was too narrow; the outcome for a personal loan is still 0.
+- Regional rural banks, and state and central co-operative banks: RPCD.CO.RCBD.RRB.BC.No.102/07.51.013/2013-14, 27 May 2014. Urban co-operative banks: UBD.CO.BPD.PCB.Cir.No.64/12.05.001/2013-14, 26 May 2014. Both say the bank will not be permitted to charge foreclosure charges on all floating-rate term loans sanctioned to individual borrowers. The 2 August 2019 non-business clarification was not addressed to them, and the 2025 annex still lists these May 2014 circulars rather than a later narrowing. Asking, on the footing that no instruction covered them, was wrong. A personal loan is 0, including when the sanction year is missing. A business-purpose loan to an individual from one of these lenders is 0 before 2026 for the same reason; from 2026 it follows para 5(ii).
+- An unknown lender stays at 0 because every RBI-regulated type above is 0 for a personal floating loan. A lender marked as outside RBI's directions stays "not known".
 
-**Code.** `PRE_2026_UNCOVERED` in both rule files.
+**Code.** `PRE_2026_ALL_INDIVIDUAL` in both rule files. The old `PRE_2026_UNCOVERED` set is gone.
 
 ## 3. One "spare" figure
 

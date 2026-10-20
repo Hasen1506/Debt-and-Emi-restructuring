@@ -26,7 +26,7 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { setUpPersona } from './persona';
-import { isWebKitNavigationNoise } from './browser-noise';
+import { isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const APP = path.resolve(__dirname, '../src/app');
 
@@ -124,6 +124,7 @@ test.describe('E17 guards: every page', () => {
     });
     page.on('pageerror', (err) => {
       if (browserName === 'webkit' && isWebKitNavigationNoise(err.message)) return;
+      if (isCutOffChunk(err.message, new URL(page.url()).pathname)) return;
       errors.push(`${current}: ${err.message.slice(0, 200)}`);
     });
     await setUpPersona(page, 'golden-guards-console@rightdue.app');

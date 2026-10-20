@@ -165,6 +165,17 @@ def rate_move(
         best, why = ("raise_emi",
                      f"At {_pct(rate_to)} your current EMI no longer covers the month's interest, so the "
                      f"tenure can't absorb this: the EMI has to go up (or prepay part of the loan).")
+    elif hike and e_new < e:
+        # The entered EMI is already above a level payment for the months it
+        # takes, so the level EMI at the higher rate can be lower. Say that
+        # in words; a minus before the rupee sign reads as a negative amount.
+        best, why = ("raise_emi",
+                     f"A level EMI that keeps your end date is {_money(e_new)}, "
+                     f"{_money(e - e_new)} less than the {_money(e)} you pay now, because today's EMI is "
+                     f"already above a level payment. Keeping {_money(e)} still clears the loan"
+                     + (f" {n - (keep_e.months or n)} months sooner" if keep_e.months and keep_e.months < n else
+                        " on the same date" if keep_e.months == n else "")
+                     + " and costs less interest than dropping to that level EMI.")
     elif hike:
         best, why = ("raise_emi",
                      f"Paying {_money(e_new - e)} more a month keeps your end date and costs "
@@ -225,8 +236,14 @@ def email_lines(m: RateMove) -> list[str]:
         lines[-1] += (", or, if the bank keeps your EMI, the loan would barely reduce (it would run past "
                       f"{MAX_MONTHS // 12} years): ask the bank to raise the EMI or prepay part of it.")
     else:
-        lines[-1] += (f", or the EMI stays {_money(m.emi_now)} and the loan runs "
-                      f"{abs(m.months_change or 0)} months {'longer' if (m.months_change or 0) > 0 else 'shorter'}.")
+        change = m.months_change or 0
+        if change > 0:
+            tail = f"the loan runs {change} months longer"
+        elif change < 0:
+            tail = f"the loan runs {-change} months shorter"
+        else:
+            tail = "the loan still ends on the same date"
+        lines[-1] += f", or the EMI stays {_money(m.emi_now)} and {tail}."
     lines.append(f"Best for you: {m.best_why}")
     if m.is_hike:
         lines.append("Your bank must tell you of any rise in EMI or tenure and let you choose a higher EMI, "

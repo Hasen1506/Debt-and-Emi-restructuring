@@ -635,15 +635,33 @@ def reset_choice_letter(
     ]
     if rr is not None:
         im = rr.impact
-        figures = (
-            f"On the present balance, keeping the same end date means an EMI of about "
-            f"{_inr(im.emi_after)} instead of {_inr(im.emi_before)}"
-        )
-        if im.tenure_option_possible:
-            figures += (
-                f"; keeping the EMI means about {im.months_change} more instalments and "
-                f"about {_inr(im.tenure_premium)} more interest than raising the EMI"
+        if im.emi_change < 0:
+            emi_bit = (
+                f"a level EMI of about {_inr(im.emi_after)}, {_inr(-im.emi_change)} less than "
+                f"the {_inr(im.emi_before)} paid now, because that EMI is already above a level "
+                f"payment for the months it takes"
             )
+        else:
+            emi_bit = (
+                f"an EMI of about {_inr(im.emi_after)} instead of {_inr(im.emi_before)}"
+            )
+        figures = f"On the present balance, keeping the same end date means {emi_bit}"
+        if im.tenure_option_possible:
+            n = im.months_change or 0
+            if n > 0:
+                instalments = f"about {n} more instalment{'s' if n != 1 else ''}"
+            elif n < 0:
+                instalments = f"about {-n} fewer instalment{'s' if n != -1 else ''}"
+            else:
+                instalments = "the same number of instalments"
+            premium = im.tenure_premium or D("0")
+            if premium > 0:
+                cost = f"about {_inr(premium)} more interest than raising the EMI"
+            elif premium < 0:
+                cost = f"about {_inr(-premium)} less interest than the level EMI"
+            else:
+                cost = "about the same interest as the level EMI"
+            figures += f"; keeping the EMI means {instalments} and {cost}"
         figures += ". These are the borrower's own estimates; the lender's figures are requested below."
         paras.append(figures)
 

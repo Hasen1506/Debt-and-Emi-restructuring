@@ -149,8 +149,21 @@ export function LBracket({
     );
   }
   if (onClick || as === 'button') {
+    // WebKit drops the click when the press also blurs a focused field: the
+    // blur re-renders between mousedown and mouseup, so the button never
+    // runs (Can't pay, RESET TO DRAFT, while the letter still has focus).
+    // Keeping the press from moving focus lets that click land. A key press
+    // still activates the button.
     return (
-      <button type="button" className="l-hit" onClick={onClick} disabled={disabled} style={base} aria-label={label}>
+      <button
+        type="button"
+        className="l-hit"
+        onMouseDown={onClick ? (e) => e.preventDefault() : undefined}
+        onClick={onClick}
+        disabled={disabled}
+        style={base}
+        aria-label={label}
+      >
         {inner}
       </button>
     );

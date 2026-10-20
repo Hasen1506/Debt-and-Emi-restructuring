@@ -81,6 +81,32 @@ def test_golden_rate_move_impact_50_lakh_7_90_to_8_15():
     assert im.prepay_to_keep_both == D("92057")
 
 
+def test_oversized_emi_does_not_print_a_negative_rupee_amount():
+    """A payment already above the level EMI can be lower after a rise.
+
+    ₹23,45,000 at 7.47% paid at ₹78,250 clears in 34 months (the last
+    instalment is smaller). A level EMI for those 34 months at 7.72% is
+    about ₹77,009, so the EMI falls and interest rises. That is the
+    payment shape, not the rise cutting the EMI, and the sentence must
+    not print it as '-₹1,241'.
+    """
+    r = check_loan(loan(
+        loan_start=date(2019, 1, 1), start_rate=D("0.0869"), current_rate=D("0.0747"),
+        outstanding=D("2345000"), tenure_months_remaining=309, emi=D("78250"),
+        benchmark=Benchmark.BASE_RATE, as_of=date(2026, 10, 19),
+    ))
+    f = next(f for f in r.findings if f.kind == "rate_rise")
+    assert r.rate_rise.impact.emi_change < 0
+    assert r.rate_rise.impact.interest_emi_option > r.rate_rise.impact.interest_before
+    assert "-₹" not in f.detail and "₹-" not in f.detail and "−₹" not in f.detail
+    assert "₹78,250" in f.detail and "₹77,009" in f.detail
+    assert "₹1,241 less" in f.detail
+    assert "already above a level payment" in f.detail
+    assert "more interest" in f.detail
+    assert "0 months longer" not in f.detail
+    assert "still ends in the same month" in f.detail
+
+
 def test_rate_rise_finding_pending_before_the_reset_reaches_the_loan():
     # The audit's live case: SBI repo-linked, 9.15% in Jun 2023, now 7.90%,
     # i.e. the 7 Oct rise has not reached it yet.

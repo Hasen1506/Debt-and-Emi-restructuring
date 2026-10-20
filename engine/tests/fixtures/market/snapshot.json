@@ -1,0 +1,75 @@
+{
+  "about": "Market figures the app quotes: what safe savings earn, and the inflation forecasts the plan grows costs by. Rates are fractions (0.0625 = 6.25%). Entries with \"how\": \"auto\" are re-read every week by scripts/refresh_market_data.py from the source named; \"by_hand\" entries have no page a script can read reliably, and the weekly run opens an issue once one is older than max_age_days.",
+  "updated": "2026-10-10",
+  "safe": {
+    "fd_in": {
+      "rate": "0.0625",
+      "as_of": "2026-10-10",
+      "source": "1-yr FD rate at SBI (6.25%) and HDFC Bank (6.25%)",
+      "url": "https://sbi.co.in/web/interest-rates/deposit-rates/retail-domestic-term-deposits",
+      "how": "auto"
+    },
+    "tax_free_bond_in": {
+      "rate": "0.0550",
+      "as_of": "2026-10-09",
+      "source": "median yield of tax-free bonds traded on NSE (NHAI, NHPC, NTPC, NHB, HUDCO, IREDA)",
+      "url": "https://www.nseindia.com/market-data/bonds-traded-in-capital-market",
+      "how": "by_hand",
+      "max_age_days": 120
+    },
+    "gsec_in": {
+      "rate": "0.0629",
+      "as_of": "2026-10-08",
+      "source": "cut-off at RBI’s last 364-day T-bill auction",
+      "url": "https://www.rbi.org.in/",
+      "how": "auto"
+    },
+    "liquid_in": {
+      "rate": "0.0557",
+      "as_of": "2026-10-08",
+      "source": "cut-off at RBI’s last 91-day T-bill auction, about what a liquid fund earns before its fees",
+      "url": "https://www.rbi.org.in/",
+      "how": "auto"
+    },
+    "hysa_us": {
+      "rate": "0.0350",
+      "as_of": "2026-10-09",
+      "source": "APY at Marcus by Goldman Sachs (Ally: 3.10%)",
+      "url": "https://www.marcus.com/us/en/savings/high-yield-savings",
+      "how": "by_hand",
+      "max_age_days": 45
+    },
+    "treasury_us": {
+      "rate": "0.0447",
+      "as_of": "2026-10-09",
+      "source": "US Treasury 1-yr yield",
+      "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve",
+      "how": "auto"
+    }
+  },
+  "inflation": {
+    "IN": {
+      "rate": "0.052",
+      "who": "RBI",
+      "what": "forecast for 2026–27",
+      "as_of": "2026-10-07",
+      "url": "https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+      "how": "auto"
+    },
+    "US": {
+      "rate": "0.023",
+      "who": "the Fed",
+      "what": "median forecast for 2027 (PCE prices)",
+      "as_of": "2026-09-16",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20260916.htm",
+      "how": "auto"
+    }
+  },
+  "us_mortgage_30y": {
+    "rate": "0.0740",
+    "as_of": "2026-10-08",
+    "source": "Freddie Mac PMMS 30-year fixed average",
+    "url": "https://fred.stlouisfed.org/series/MORTGAGE30US",
+    "how": "auto"
+  }
+}
