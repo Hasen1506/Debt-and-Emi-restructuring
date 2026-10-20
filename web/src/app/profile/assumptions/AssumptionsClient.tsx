@@ -151,7 +151,9 @@ export function AssumptionsClient() {
             <span style={{ fontSize: 12 }}>{cover}</span>
             <LBracket href="/profile?step=savings&focus=efund" label="Edit emergency fund target">EDIT</LBracket>
           </span>,
-          'The target is set beside your savings in Profile',
+          spend > 0
+            ? `The target is months × monthly spending (${formatCurrencyWhole(Math.round(spend), ccy)}). Edit it beside savings in Profile.`
+            : 'The target is set beside your savings in Profile',
         )}
         {row(
           'Fixed monthly top-up',
