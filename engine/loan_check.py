@@ -1275,7 +1275,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             m = start
             prev = None
             while m <= as_of_month:
-                e = inp.start_rate + (_repo_reference(_month_end(m)) - repo_start) + spread_delta
+                e = inp.start_rate + (_repo_reference(min(_month_end(m), inp.as_of)) - repo_start) + spread_delta
                 if prev is not None and e != prev:
                     window_start = m
                 prev = e
@@ -1290,7 +1290,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
         monthly: list[OverchargeMonth] = []
         m = window_start
         while m < as_of_month:
-            e_m = inp.start_rate + (_repo_reference(_month_end(m)) - repo_start) + spread_delta
+            e_m = inp.start_rate + (_repo_reference(min(_month_end(m), inp.as_of)) - repo_start) + spread_delta
             g_m = inp.current_rate - e_m
             if g_m > TOLERANCE:
                 monthly.append(OverchargeMonth(

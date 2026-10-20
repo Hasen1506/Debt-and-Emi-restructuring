@@ -80,6 +80,13 @@ LOAN_TYPES = {"home_loan", "auto_loan", "personal_loan", "credit_card", "educati
 # secured too; the user says so with `secured=True`.
 SECURED_IN = {"home_loan", "auto_loan", "gold_loan"}
 VEHICLE = {"auto_loan"}
+# The app's other loan types, read as the closure rule they fall under.
+LOAN_TYPE_ALIASES = {
+    "loan_against_property": "home_loan",
+    "home_topup": "home_loan",
+    "two_wheeler_loan": "auto_loan",
+    "medical_loan": "personal_loan",
+}
 LENDER_KINDS = {"bank", "nbfc", "hfc", "small_finance_bank", "cooperative_bank", "unknown"}
 
 CIRCULAR_2023 = (
@@ -211,6 +218,9 @@ def closure_letter(
         raise ClosureInputError("Market should be IN or US.")
     if lender_kind not in LENDER_KINDS:
         raise ClosureInputError("Unknown lender type.")
+    loan_type = LOAN_TYPE_ALIASES.get(loan_type, loan_type)
+    if loan_type == "people_loan":
+        raise ClosureInputError("A loan from a person has no lender rules to cite; ask them for a written note instead.")
     if loan_type not in LOAN_TYPES:
         raise ClosureInputError("Unknown loan type.")
     if closed_on > today:

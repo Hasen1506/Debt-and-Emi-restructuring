@@ -895,7 +895,7 @@ def _simulate_plan(
 
         # UX2B-5: a promo rate ends; the card's own rate applies from here.
         for ln in loans:
-            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.promo_months + 1:
+            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.first_payment_month + ln.promo_months:
                 ln.nominal_rate = ln.rate_after_promo
         # Auto floating-rate resets: when m hits next_reset_month the rate moves
         # by rate_drift_annualized × frequency/12 (+50bps/yr with a 12mo reset
@@ -1472,15 +1472,22 @@ def _simulate_plan(
                     break
                 if top.outstanding <= 0 or id(top) not in worth_ids or not _can_part_pay(top, m):
                     continue
-                add_principal = from_user_currency(cascade_surplus, top, user)
+                # Same prepayment fee and part-payment cadence as the month's main extra.
+                pct = prepayment_fee_with_gst(top.prepayment_penalty_pct, loan_market(top, user.country) == Country.IN)
+                cash = from_user_currency(cascade_surplus, top, user)
+                add_principal = cash * (D("1") - pct)
                 if add_principal >= top.outstanding:
                     add_principal = top.outstanding
+                    cash = add_principal / (D("1") - pct) if pct < 1 else add_principal
                     if id(top) not in cleared:
                         cleared.append(id(top))
                 top.outstanding -= add_principal
-                used = to_user_currency(add_principal, top, user)
+                fee_user = to_user_currency(cash - add_principal, top, user)
+                prepay_penalty_paid += fee_user
+                used = to_user_currency(cash, top, user)
                 cascade_surplus -= used
-                principal_paid += used
+                principal_paid += used - fee_user
+                last_part_payment_month[id(top)] = m
                 # Reflect the cascade in the per-loan payment dict so the UI
                 # can show the real amount the user sends to that bank.
                 payments[id(top)] = payments.get(id(top), D("0")) + add_principal
@@ -1522,15 +1529,21 @@ def _simulate_plan(
                         break
                     if not _can_part_pay(target, m):
                         continue
-                    add = from_user_currency(left, target, user)
+                    pct = prepayment_fee_with_gst(target.prepayment_penalty_pct, loan_market(target, user.country) == Country.IN)
+                    cash = from_user_currency(left, target, user)
+                    add = cash * (D("1") - pct)
                     if add >= target.outstanding:
                         add = target.outstanding
+                        cash = add / (D("1") - pct) if pct < 1 else add
                         if id(target) not in cleared:
                             cleared.append(id(target))
                     target.outstanding -= add
-                    used = to_user_currency(add, target, user)
+                    fee_user = to_user_currency(cash - add, target, user)
+                    prepay_penalty_paid += fee_user
+                    used = to_user_currency(cash, target, user)
                     left -= used
-                    principal_paid += used
+                    principal_paid += used - fee_user
+                    last_part_payment_month[id(target)] = m
                     payments[id(target)] = (
                         payments.get(id(target), D("0")) + add
                     )

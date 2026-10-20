@@ -93,6 +93,8 @@ def _check_order(sent_on: date, received_on: Optional[date], reply_on: Optional[
     if reply_on is not None:
         if reply_on < sent_on:
             raise TimelineInputError("The reply date is before the complaint was sent.")
+        if reply_on < received:
+            raise TimelineInputError("The reply date is before the bank received the complaint.")
         if reply_on > today:
             raise TimelineInputError("The reply date is in the future.")
     return received

@@ -164,7 +164,7 @@ def period(s: str) -> Optional[tuple[date, date]]:
     if m:
         a = date(_year(m.group(2)), _MON[m.group(1).lower()[:3]], 1)
         b_m, b_y = _MON[m.group(3).lower()[:3]], _year(m.group(4))
-        if (b_y * 12 + b_m) - (a.year * 12 + a.month) == 2:
+        if (b_y * 12 + b_m) - (a.year * 12 + a.month) == 2 and a.month in (1, 4, 7, 10):
             return a, _month_end(b_y, b_m)
         return None
     # "quarter ended June 30th, 2026", "Quarter ended on June-2026"

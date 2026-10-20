@@ -381,6 +381,12 @@ def _interest(lines: list[str], res: KfsResult) -> None:
         res.fields["rate_type"] = Found(k, _src(line))
 
 
+_DATE_IN_ROW = re.compile(
+    r"(?i)(?<!\d)(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|"
+    r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+\d{4})(?!\d)"
+)
+
+
 def _floating(lines: list[str], res: KfsResult) -> None:
     """Annex A row 7: Reference Benchmark | Benchmark rate (B) | Spread (S) | Final rate R = B + S | reset."""
     for i, line in enumerate(lines):
@@ -391,10 +397,13 @@ def _floating(lines: list[str], res: KfsResult) -> None:
             if re.search(r"(?i)\bspread\b.*\(s\)|reset|impact of change|periodicity", cand) and not \
                     re.search(r"\d+\.\d+", cand):
                 continue
+            # A date in the row ("as on 01.04.2025") is not the rate, spread or final rate.
+            cand = _DATE_IN_ROW.sub(" ", cand)
             nums = [n for n in _bare_numbers(cand) if n <= D("40")]
             m = re.match(r"\s*([A-Za-z][A-Za-z0-9 ()\-./]*?)\s*[:|]?\s*(\d)", cand)
             if len(nums) >= 3 and m and not re.search(r"(?i)^\s*(reference|benchmark)\s*$", m.group(1)):
                 name = re.sub(r"(?i)^(reference benchmark|benchmark)\s*[:|-]?\s*", "", m.group(1)).strip(" :|-")
+                name = re.sub(r"(?i)\s+as\s+(?:on|of)\s*$", "", name)
                 b, s, r = nums[0], nums[1], nums[2]
                 if name:
                     res.fields["benchmark"] = Found(name, _src(cand))
@@ -453,6 +462,15 @@ def _fee(lines: list[str], key: str, sanctioned: Optional[Decimal]) -> Optional[
         return Found("0", _src(line), "Nil"), D("0")
     amt = _money(rest)
     pct = _pct(rest)
+    capped = pct is not None and amt is not None and re.search(
+        r"(?i)\b(max(?:imum)?|cap(?:ped)?|up\s*to|not\s+exceeding|subject\s+to)\b", rest)
+    if capped:
+        # "2% of the loan, max Rs 10,000": the % fee, capped at the amount.
+        if not sanctioned:
+            return None
+        rupees = min((sanctioned * pct).quantize(D("1"), ROUND_HALF_UP), amt)
+        return Found(_fmt(rupees, "0.01"), _src(line),
+                     f"{_fmt(pct * 100, '0.01')}% of the loan, capped at {_fmt(amt, '0.01')}"), rupees
     if amt is None and pct is not None and sanctioned:
         rupees = (sanctioned * pct).quantize(D("1"), ROUND_HALF_UP)
         return Found(_fmt(rupees, "0.01"), _src(line), f"{_fmt(pct * 100, '0.01')}% of the loan"), rupees

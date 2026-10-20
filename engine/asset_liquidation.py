@@ -1448,6 +1448,7 @@ def rank_liquidations(
     surplus_reinvestment_yield: Decimal = D("0.07"),
     pre_filter_margin: Decimal = D("0.01"),
     state: Optional[str] = None,
+    resident: bool = True,
 ) -> dict:
     """Loop every (asset, debt) pair → return ranked recommendations.
 
@@ -1474,7 +1475,7 @@ def rank_liquidations(
         # The user's own selling cost for this type, unless the asset has one.
         if asset.selling_cost_pct is None and asset.asset_type in user.liquidation_costs:
             asset = dc_replace(asset, selling_cost_pct=user.liquidation_costs[asset.asset_type])
-        asset_return = asset.expected_return_pct or lookup_asset_return(
+        asset_return = asset.expected_return_pct if asset.expected_return_pct is not None else lookup_asset_return(
             asset.asset_type, country, user.asset_returns
         )
         # Tax-exempt muni-bond funds: recast their nominal yield to
@@ -1499,6 +1500,7 @@ def rank_liquidations(
             state=state,
             filing_status=filing_status,
             state_marginal_rate=state_marginal_rate,
+            resident=resident,
         )
 
         for li, loan in enumerate(user.loans):
@@ -1567,7 +1569,9 @@ def rank_liquidations(
             # asset value to net the debt balance (sale is partial when the
             # asset is bigger than the debt). Holding cost is on the *sold*
             # portion only — the rest keeps earning at asset_return.
-            debt_cleared = min(proceeds.net_proceeds, loan.outstanding)
+            # Proceeds are in the user's currency; an NRI's INR loan is not.
+            from engine.surplus import to_user_currency
+            debt_cleared = min(proceeds.net_proceeds, to_user_currency(loan.outstanding, loan, user))
             if proceeds.net_proceeds > 0:
                 asset_value_sold = (
                     debt_cleared * asset.current_market_value / proceeds.net_proceeds

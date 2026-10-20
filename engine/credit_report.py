@@ -548,7 +548,7 @@ def _account(block: list[tuple[str, str, str]], as_of: Optional[date]) -> Option
 
 _SCORE_RE = re.compile(
     r"(?:cibil\s*(?:trans\s*union\s*)?score|credit\s*score|experian\s*credit\s*score|perform\s*consumer[\w .]*score|"
-    r"equifax\s*risk\s*score[\w .]*|score)\s*(?:\(.*?\))?\s*[:\-]?\s*(\d{3})\b",
+    r"equifax\s*risk\s*score[\w .]*|score)\s*(?:\(.*?\))?\s*[:\-]?\s*(\d{3})\b(?!\s*(?:-|–|to)\s*\d{3})",
     re.IGNORECASE,
 )
 _REPORT_DATE_RE = re.compile(r"(?:date\s*of\s*report|report\s*date|date\s*of\s*issue|report\s*generated\s*on)\s*[:\-]?\s*(.+)", re.IGNORECASE)
