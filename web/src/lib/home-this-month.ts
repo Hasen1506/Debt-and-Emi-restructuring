@@ -75,9 +75,16 @@ function homeThisMonthLineIn(
   // minimums only". That is not the same as having nothing left.
   const spare = Math.round(data.leftOver || 0);
   if (spare >= 1) {
+    // Same figure as cash flow's LEFT (take-home − spending − due): the
+    // set-aside is part of it, so name both rather than show a smaller "spare".
+    const gross = spare + (setAside >= 1 ? Math.round(setAside) : 0);
     const why = data.budgetChoice === 'all'
-      ? `${money(spare)} stays with you: no open loan costs more than a safe return.`
-      : `${money(spare)} is spare after the amount due and is not added on top.`;
+      ? (setAside >= 1
+        ? `${money(gross)} is spare after the amount due: ${money(setAside)} is set aside and ${money(spare)} stays with you, as no open loan costs more than a safe return.`
+        : `${money(spare)} stays with you: no open loan costs more than a safe return.`)
+      : (setAside >= 1
+        ? `${money(gross)} is spare after the amount due: ${money(setAside)} is set aside and ${money(spare)} is not added on top.`
+        : `${money(spare)} is spare after the amount due and is not added on top.`);
     return {
       tone: 'ok',
       text: `This month: pay every EMI and card minimum, ${money(dues)}${aside}. ${why}`,

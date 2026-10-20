@@ -107,3 +107,16 @@ test('cash flow LEFT names the reason that matches the monthly total', () => {
   assert.match(cashFlowLeftNote({ ...base, budgetChoice: 'unset' }), /only the EMIs and minimums/);
   assert.match(cashFlowLeftNote(base), /only the EMIs and minimums/);
 });
+
+test('Home names the same spare figure as cash flow when part is set aside', () => {
+  const { homeThisMonthLine } = lib('home-this-month.ts');
+  const data = {
+    rows: [
+      { key: 'h', loanIndex: 0, name: 'Home loan', kind: 'emi', card: false, amount: 21696, amountUser: 21696, minimum: 21696, extra: 0 },
+      { key: 'ef', loanIndex: null, name: 'Emergency fund', kind: 'aside', card: false, amount: 8304, amountUser: 8304, minimum: 0, extra: 0 },
+    ],
+    total: 30000, leftOver: 20000, extraUser: 0, duesUser: 21696, budget: 0, budgetChoice: 'unset',
+  };
+  const line = homeThisMonthLine(data, 0, inr, 'IN');
+  assert.match(line.text, /₹28,304 is spare after the amount due: ₹8,304 is set aside and ₹20,000 is not added on top/);
+});

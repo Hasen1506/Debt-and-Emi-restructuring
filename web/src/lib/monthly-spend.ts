@@ -64,6 +64,8 @@ export function readMonthlySpendClient(): MonthlySpendEntry[] {
 
 export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
   if (typeof localStorage === 'undefined') return;
+  // Only a newly added entry is logged; a delete or re-save is not "Logged spending".
+  const before = new Set(safeParse(localStorage.getItem(STORAGE_KEY)).map((e) => e.id));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   if (typeof document !== 'undefined') {
     const digest = latestByMonth(entries);
@@ -72,7 +74,7 @@ export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
   }
   void syncSliceToServer('monthly_spend', entries);
   const latest = entries[0];
-  if (latest) {
+  if (latest && !before.has(latest.id)) {
     recordChange({
       kind: 'spend',
       what: 'Logged spending',

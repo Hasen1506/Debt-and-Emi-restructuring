@@ -129,6 +129,21 @@ OTHER_LENDER_REASON = (
     "Not known: RBI's no-prepayment-charge rule covers banks, co-operative banks and NBFCs/HFCs, "
     "not other lenders. Check your loan agreement."
 )
+BUSINESS_UNANSWERED_REASON = (
+    "Not known: a loan against property or a gold loan is often taken for a business, and RBI's "
+    "rule differs for business loans. Answer \"Is this loan for a business?\" or check your Key Facts Statement."
+)
+OLDER_LENDER_REASON = (
+    "Not known: before 2026 RBI's floating-rate rule was issued to commercial banks, NBFCs and HFCs, "
+    "not regional rural or co-operative banks. Check your loan agreement or Key Facts Statement."
+)
+# A blank business answer is read as personal except for these, which are
+# commonly taken for a business: there a stored fee is kept, not zeroed.
+BUSINESS_CAPABLE_TYPES = frozenset({"loan_against_property", "gold_loan"})
+# Lenders the pre-2026 circulars (2012 NHB, 2014 banks excl. RRBs, 2014
+# NBFCs, 2019) did not clearly reach. From 2026 para 4 covers them all.
+PRE_2026_UNCOVERED = frozenset({"regional_rural_bank", "cooperative_bank"})
+
 UNKNOWN_REASON = (
     "Not known, so no fee is assumed. If you can, check your loan agreement or "
     "Key Facts Statement for a prepayment charge."
@@ -188,11 +203,15 @@ def prepayment_fee_default(
         return FeeDefault(Decimal("0"), "unknown", UNKNOWN_REASON)
     if lender == "other":
         return FeeDefault(Decimal("0"), "unknown", OTHER_LENDER_REASON)
+    new_rule = sanction_year is not None and sanction_year >= RULE_START_YEAR
+    if business_purpose is None and lt in BUSINESS_CAPABLE_TYPES:
+        return FeeDefault(Decimal("0"), "unknown", BUSINESS_UNANSWERED_REASON)
     # 2012 home loans, 2014 term loans, 2019 non-business clarification, 2025 para 5(i).
     if not business_purpose:
+        if lender in PRE_2026_UNCOVERED and not new_rule:
+            return FeeDefault(Decimal("0"), "unknown", OLDER_LENDER_REASON)
         return FeeDefault(Decimal("0"), "assumed", ASSUMED_REASON)
     # A business loan: para 5(ii), loans sanctioned or renewed from 2026 only.
-    new_rule = sanction_year is not None and sanction_year >= RULE_START_YEAR
     if new_rule and lender in _COMMERCIAL:
         return FeeDefault(Decimal("0"), "assumed", BUSINESS_BANK_REASON)
     cap_reason = _CAP_50.get(lender or "")
