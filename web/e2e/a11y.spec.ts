@@ -7,15 +7,23 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
-import { isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
+import { isAbortedChunkError, isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
 type Violation = { id: string; impact: string | null; help: string; nodes: { target: string[] }[] };
 
 /** Watch a page for hydration and runtime errors from here on. */
-function watchErrors(page: Page): string[] {
+function watchErrors(page: Page): { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => void } {
   const errors: string[] = [];
+  const aborted = new Set<string>();
+  let abortedThisNavigation = 0;
+  page.on('requestfailed', (req) => {
+    const why = req.failure()?.errorText ?? '';
+    if (!/abort|cancel/i.test(why)) return;
+    abortedThisNavigation += 1;
+    if (req.url().includes('/_next/static/chunks/')) aborted.add(req.url());
+  });
   page.on('pageerror', (e) => {
     // WebKit reports the page being left's requests, cut off by the next
     // navigation, as "…?_rsc=… due to access control checks" (link
@@ -23,7 +31,6 @@ function watchErrors(page: Page): string[] {
     // page catches, such as Plan's rate-decision dates).
     // R10-3: the same rule the app's error reporter uses.
     if (isWebKitNavigationNoise(e.message)) return;
-    if (isCutOffChunk(e.message, new URL(page.url()).pathname)) return;
     errors.push(`pageerror: ${e.message}`);
   });
   page.on('console', (m) => {
@@ -31,7 +38,21 @@ function watchErrors(page: Page): string[] {
     const t = m.text();
     if (/hydrat|did not match|Minified React error #(418|423|425)/i.test(t)) errors.push(`hydration: ${t.slice(0, 300)}`);
   });
-  return errors;
+  return {
+    errors,
+    beginNavigation() { abortedThisNavigation = 0; },
+    dropCutOffChunks() {
+      const path = (() => { try { return new URL(page.url()).pathname; } catch { return '/'; } })();
+      for (let i = errors.length - 1; i >= 0; i--) {
+        const line = errors[i];
+        // A bare "Load failed" is also what WebKit says for a request the
+        // navigation aborted. Drop it only when this navigation did abort
+        // a request; a Load failed on its own is still a failure.
+        const bareLoadFailed = /^pageerror: (TypeError: )?Load failed$/i.test(line) && abortedThisNavigation > 0;
+        if (bareLoadFailed || isAbortedChunkError(line, aborted) || isCutOffChunk(line, path)) errors.splice(i, 1);
+      }
+    },
+  };
 }
 
 async function axe(page: Page): Promise<string[]> {
@@ -47,24 +68,27 @@ async function axe(page: Page): Promise<string[]> {
     .map((v) => `${v.id} (${v.impact}): ${v.help} · ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
 }
 
-async function check(page: Page, path: string, errors: string[]) {
-  errors.length = 0;
+async function check(page: Page, path: string, watched: { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => void }) {
+  watched.errors.length = 0;
+  watched.beginNavigation();
   await page.goto(path, { waitUntil: 'load' });
   // Client data (profile, plan runs) settles after load; 'networkidle'
-  // never came on pages that poll.
+  // never came on pages that poll. The wait also lets an aborted chunk
+  // request record its failure before the assertion drops it.
   await page.waitForTimeout(2500);
   const found = await axe(page);
+  watched.dropCutOffChunks();
   expect.soft(found, `axe on ${path}`).toEqual([]);
-  expect.soft(errors, `errors on ${path}`).toEqual([]);
+  expect.soft(watched.errors, `errors on ${path}`).toEqual([]);
 }
 
 test('signed out: landing, sign-in and Loan Check pass axe with no hydration errors', async ({ page }) => {
-  const errors = watchErrors(page);
-  for (const path of ['/', '/login', '/tools/loan-check']) await check(page, path, errors);
+  const watched = watchErrors(page);
+  for (const path of ['/', '/login', '/tools/loan-check']) await check(page, path, watched);
 });
 
 test('signed in: every tab and tool passes axe with no hydration errors', async ({ page }) => {
-  const errors = watchErrors(page);
+  const watched = watchErrors(page);
   await signIn(page, 'a11y@rightdue.app');
   await page.getByLabel(/Take-home pay a month/).fill('150000');
   await page.getByLabel(/Spending a month/).fill('40000');
@@ -90,14 +114,14 @@ test('signed in: every tab and tool passes axe with no hydration errors', async 
     '/tools/invest-vs-prepay',
     '/tools/loan-check',
   ]) {
-    await check(page, path, errors);
+    await check(page, path, watched);
   }
 });
 
 // Live re-test 7 R7-3: with no floating-rate loan the WHAT IF rate row is
 // disabled, and its explanation used to be faded to 2.63:1 with it.
 test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', async ({ page }) => {
-  const errors = watchErrors(page);
+  const watched = watchErrors(page);
   await signIn(page, 'a11y-fixed@rightdue.app');
   await page.getByLabel(/Take-home pay a month/).fill('95000');
   await page.getByLabel(/Spending a month/).fill('41000');
@@ -122,5 +146,6 @@ test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', asy
   expect(faded, 'the disabled row\'s explanation sits inside a faded wrapper').toBe(false);
   const found = await axe(page);
   expect(found, 'axe on /plan (fixed-rate loans, WHAT IF open)').toEqual([]);
-  expect.soft(errors, 'errors on /plan').toEqual([]);
+  watched.dropCutOffChunks();
+  expect.soft(watched.errors, 'errors on /plan').toEqual([]);
 });

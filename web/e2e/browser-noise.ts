@@ -25,3 +25,21 @@ export function isCutOffChunk(message: string, currentPath: string): boolean {
   const here = (currentPath.split('?')[0].replace(/\/$/, '') || '/');
   return here !== theirs;
 }
+
+/** A chunk error whose script request the browser aborted (ERR_ABORTED,
+ *  NS_BINDING_ABORTED). A 404 is not an abort, so a chunk the open page
+ *  cannot load is still reported. Shared numbered chunks
+ *  (`/chunks/4434-….js`) have no route in the name; the abort is the
+ *  only signal that the navigation cut them off. */
+export function isAbortedChunkError(message: string, abortedUrls: ReadonlySet<string>): boolean {
+  if (!isChunkLoadError('', message)) return false;
+  const url = message.match(/https?:\/\/[^)\s]+/)?.[0];
+  if (!url || abortedUrls.has(url)) return !!url && abortedUrls.has(url);
+  try {
+    const path = new URL(url).pathname;
+    for (const aborted of abortedUrls) if (new URL(aborted).pathname === path) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
