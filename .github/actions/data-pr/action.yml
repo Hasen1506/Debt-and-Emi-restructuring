@@ -84,6 +84,12 @@ runs:
         if ! gh workflow run ci.yml --ref "$branch"; then
           echo "::warning::Could not start CI on $branch; auto-merge will wait for the required checks."
         fi
+        # checkout is one commit of the workflow ref. gh pr merge looks up
+        # the local base, and a dispatch from any other ref has no
+        # origin/$BASE yet: "fatal: 'origin/main' is not a commit"
+        # (rate-disclosures and market-data, 20 Oct 2026). Fetch it before
+        # asking GitHub to auto-merge.
+        git fetch --depth=1 origin "$BASE"
         # GitHub merges once the required checks pass (branch protection).
         if ! gh pr merge "$branch" --auto --squash --delete-branch; then
           echo "::error::Auto-merge was refused. Tick Settings > General > 'Allow auto-merge' and protect $BASE with the CI checks (audit80 D17). The PR stays open."
