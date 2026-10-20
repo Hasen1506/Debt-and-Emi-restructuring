@@ -147,3 +147,25 @@ def test_class_invariants(salary, extra, more, kind, regime):
         assert a.instalments == [] and a.interest_if_unpaid == 0
     sched = schedule(D(extra), 2026)
     assert [i.cumulative_share for i in sched] == [D("0.15"), D("0.45"), D("0.75"), D("1.00")]
+
+
+def test_marginal_relief_counts_share_gains_but_never_reduces_their_tax():
+    """s.87A marginal relief, new regime (docs/decisions section 7): tax on total income,
+    gains included, is capped at the income above Rs 12L; the relief never exceeds the slab
+    tax (Finance Act 2025 second proviso), so the special-rate tax itself is never cut."""
+    # Salary Rs 12.25L gross - 75k = Rs 11.5L slab income (tax 55,000) + equity STCG Rs 1L (20% = 20,000).
+    # Total Rs 12.5L: 75,000 before relief, capped at Rs 50,000 above 12L -> 50,000 x 1.04 = 52,000.
+    r = salaried_advance_tax(D("1225000"), [OtherIncome("capital_gains", D("100000"), cg_kind="equity_stcg")],
+                             TaxRegimeIN.NEW, TODAY)
+    assert r.tax_total == D("52000")
+    # Gains tax above the excess: salary 11.95L gross (slab 11.2L) + STCG 4L (tax 80,000).
+    # Excess over 12L is 3.2L, which is above all tax, so relief is zero: (52,000 + 80,000) x 1.04.
+    r = salaried_advance_tax(D("1195000"), [OtherIncome("capital_gains", D("400000"), cg_kind="equity_stcg")],
+                             TaxRegimeIN.NEW, TODAY)
+    assert r.tax_total == D("137280")
+    # Special-rate tax larger than the excess: slab 11.95L (tax 59,500) + STCG 1L... excess just 15k,
+    # but the 20,000 gains tax is never relieved: tax = 20,000 x 1.04 = 20,800.
+    r = salaried_advance_tax(D("1270000"), [OtherIncome("capital_gains", D("20000"), cg_kind="equity_stcg")],
+                             TaxRegimeIN.NEW, TODAY)
+    # slab 11.95L tax 59,500; STCG 4,000; total 12.15L; excess 15,000 > 4,000 -> tax 15,000 x 1.04
+    assert r.tax_total == D("15600")
