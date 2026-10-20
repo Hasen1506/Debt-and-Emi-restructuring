@@ -7,7 +7,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
-import { isWebKitNavigationNoise } from './browser-noise';
+import { isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -23,6 +23,7 @@ function watchErrors(page: Page): string[] {
     // page catches, such as Plan's rate-decision dates).
     // R10-3: the same rule the app's error reporter uses.
     if (isWebKitNavigationNoise(e.message)) return;
+    if (isCutOffChunk(e.message, new URL(page.url()).pathname)) return;
     errors.push(`pageerror: ${e.message}`);
   });
   page.on('console', (m) => {

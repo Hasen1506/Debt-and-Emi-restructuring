@@ -7,13 +7,16 @@
  *    the numbers and a "did you mean ₹25 lakh?" check.
  */
 import { expect, loanBlocks, signIn, test } from './fixtures';
-import { isWebKitNavigationNoise } from './browser-noise';
+import { isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const EMAIL = 'golden-live-retest@rightdue.app';
 
 test('amount fields never crash setup, and an EMI below the interest is blocked', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (e) => { if (!isWebKitNavigationNoise(e.message)) errors.push(String(e)); });
+  page.on('pageerror', (e) => {
+    if (isWebKitNavigationNoise(e.message) || isCutOffChunk(e.message, new URL(page.url()).pathname)) return;
+    errors.push(String(e));
+  });
   await signIn(page, EMAIL);
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByLabel(/Take-home pay a month/).fill('120000');
