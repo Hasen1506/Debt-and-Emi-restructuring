@@ -1,6 +1,8 @@
 """POST /api/windfall · /api/new-debt · /api/quick-recompute · /api/cash-yield · /api/asset-liquidation
 
 (/api/right-time-to-borrow was retired with the Right time tool, roadmap PR I.)"""
+from api.schemas import today_ist
+
 from copy import deepcopy
 from dataclasses import replace
 from datetime import date
@@ -263,7 +265,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         # indexation and surcharge bands don't apply to a US sale.
         sold = compute_liquidation_proceeds(
             replace(asset, current_market_value=req.sale_price),
-            today=date.today(),
+            today=today_ist(),
             country=Country.US,
             taxable_income=req.taxable_income,
             filing_status=req.filing_status or FilingStatusUS.SINGLE,
@@ -290,7 +292,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         )
         sold = compute_liquidation_proceeds(
             replace(asset, current_market_value=req.sale_price),
-            today=date.today(),
+            today=today_ist(),
             country=Country.IN,
             taxable_income=req.taxable_income,
             marginal_rate=marginal,
@@ -373,7 +375,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
     if req.country == Country.IN and asset.asset_type == "real_estate":
         try:
             bd = sale_cost_breakdown(
-                asset, sale_price=req.sale_price, today=date.today(),
+                asset, sale_price=req.sale_price, today=today_ist(),
                 taxable_income=req.taxable_income, marginal_rate=req.marginal_rate,
                 resident=req.seller_resident, purchase_fy=req.purchase_fy,
                 current_fy=req.current_fy, brokerage_rate=req.brokerage_rate,

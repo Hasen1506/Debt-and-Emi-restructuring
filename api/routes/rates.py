@@ -19,6 +19,8 @@ to write the calendar file on the container's disk, lost on every deploy:
 grill #61). It does not change the rate history: corrections to that go
 in the verified table, where they are reviewed.
 """
+from api.schemas import today_ist
+
 
 import hmac
 import json
@@ -144,7 +146,7 @@ async def get_central_rates() -> CentralRatesResponse:
     Clients should cache for ~1 hour; meeting decisions land 6-8x/year
     per central bank so the data is intentionally slow-moving."""
     cal = await _with_outcomes(_load_calendar())
-    today = date.today()
+    today = today_ist()
     return CentralRatesResponse(
         last_updated=cal.get("last_updated", ""),
         IN=_country_entry(Country.IN, cal, today),

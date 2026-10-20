@@ -6,6 +6,8 @@ engine.advice_check's per-claim verdicts. Deterministic: no model is called.
 """
 from __future__ import annotations
 
+from api.schemas import today_ist
+
 from datetime import date
 from decimal import Decimal
 from typing import Any, Literal, Optional
@@ -43,7 +45,7 @@ def advice_check(body: AdviceIn) -> dict[str, Any]:
     loans = [ac.AdviceLoan(l.loan_type.value, l.outstanding, l.rate, l.emi or None, l.months_left, l.rate_type,
                            " ".join(l.bank.split())) for l in body.loans]
     target = body.extra_target if body.extra_target is not None and body.extra_target < len(loans) else None
-    rep = ac.check(body.text, loans, ac.PlanFacts(target, body.strategy, body.country, body.regime, date.today()))
+    rep = ac.check(body.text, loans, ac.PlanFacts(target, body.strategy, body.country, body.regime, today_ist()))
     return {
         "headline": rep.headline,
         "counts": rep.counts,

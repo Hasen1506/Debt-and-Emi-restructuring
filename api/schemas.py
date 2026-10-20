@@ -138,6 +138,12 @@ def current_month() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m")
 
 
+def today_ist() -> date:
+    """Today's date in India time (the app's default zone); the container runs on UTC."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
+
+
 Amount = Annotated[Decimal, AfterValidator(_amount)]
 Rate = Annotated[Decimal, AfterValidator(_rate)]
 LoanRate = Annotated[Decimal, AfterValidator(_loan_rate)]

@@ -647,7 +647,8 @@ async def inbound_reply(request: Request) -> dict[str, Any]:
     if sub is None or not sub.get("last_sent_month"):
         return {"ok": True, "ignored": "unknown"}
     try:
-        received = inbound.fetch_received(str(data.get("email_id", "")))
+        import asyncio
+        received = await asyncio.to_thread(inbound.fetch_received, str(data.get("email_id", "")))
     except Exception:
         log.exception("could not fetch received email")
         raise HTTPException(502, "Could not read the reply.") from None

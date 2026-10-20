@@ -44,12 +44,12 @@ from api.auth.dependencies import current_user, session_token_condition
 from api.auth.devices import public_session_id
 from api.auth.session import AUTH_LOG_RETENTION, LEGACY_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME, utc_now
 from api.db.database import get_db
-from api.db.models import AccessLog, AuthLogTombstone, OtpChallenge, OtpCode, Session, User, UserState
+from api.db.models import AccessLog, AuthLogTombstone, OtpChallenge, OtpCode, Session, ShareLink, User, UserState
 from api.privacy_facts import NOTICE_VERSION, TERMS_VERSION, shared_with
 
 router = APIRouter(prefix="/auth/account", tags=["account"])
 
-EXPORT_FORMAT_VERSION = 2  # 2: consent, devices, access log, payday email, live processor list (audit80 D5)
+EXPORT_FORMAT_VERSION = 3  # 3: family share links. 2: 2: consent, devices, access log, payday email, live processor list (audit80 D5)
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:
@@ -87,6 +87,9 @@ async def export_my_data(
         select(AccessLog).where(AccessLog.user_id == user.id).order_by(AccessLog.at)
     )).scalars().all()
     payday = await _notify_records(str(user.id))
+    shares = (await db.execute(
+        select(ShareLink).where(ShareLink.user_id == user.id).order_by(ShareLink.created_at)
+    )).scalars().all()
     body: dict[str, Any] = {
         "format_version": EXPORT_FORMAT_VERSION,
         "exported_at": utc_now().isoformat(),
@@ -120,6 +123,13 @@ async def export_my_data(
         },
         # Payday and deadline emails you switched on (audit80 D5).
         "payday_email": payday,
+        # Read-only family links: what each one shows (the link secret is left out).
+        "share_links": [
+            {"active": not s.revoked, "hide_loans": s.hide_loans, "snapshot": s.snapshot,
+             "created_at": s.created_at.isoformat() if s.created_at else None,
+             "updated_at": s.updated_at.isoformat() if s.updated_at else None}
+            for s in shares
+        ],
         # DPDP Rules r.6(1)(c): every read or change of your saved data.
         "access_log": [
             {"action": a.action, "route": a.route, "outcome": a.outcome, "at": _iso(a.at)} for a in accesses
@@ -178,6 +188,7 @@ async def delete_my_account(
     # users (ON DELETE CASCADE), but this does not depend on that.
     removed = {
         "saved_plan": (await db.execute(delete(UserState).where(UserState.user_id == user.id))).rowcount or 0,
+        "share_links": (await db.execute(delete(ShareLink).where(ShareLink.user_id == user.id))).rowcount or 0,
         "sessions": (await db.execute(delete(Session).where(Session.user_id == user.id))).rowcount or 0,
         "sign_in_codes": (
             ((await db.execute(delete(OtpCode).where(OtpCode.user_id == user.id))).rowcount or 0)

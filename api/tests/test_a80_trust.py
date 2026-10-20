@@ -270,7 +270,7 @@ def test_export_lists_every_record_kind_and_live_processors(harness, monkeypatch
     for key in ("account", "saved_plan", "sign_in_sessions", "sign_in_codes_sent", "consent", "payday_email",
                 "access_log", "shared_with"):
         assert key in body, key
-    assert body["format_version"] == 2
+    assert body["format_version"] == 3
     who = [p["who"] for p in body["shared_with"]]
     assert {"Neon", "Render", "Cloudflare", "Resend", "Google Fonts", "Yahoo Finance", "Sentry"} <= set(who)
     assert "Resend (emails you switch on)" not in who and "Cloudflare Turnstile" not in who

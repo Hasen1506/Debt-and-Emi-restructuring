@@ -5,6 +5,8 @@ and the closure date and gets the draft letter and its dates back.
 """
 from __future__ import annotations
 
+from api.schemas import today_ist
+
 from datetime import date
 from typing import Literal, Optional
 
@@ -30,7 +32,7 @@ class ClosureIn(BaseModel):
 
 @router.post("/closure-letter")
 def closure_letter(body: ClosureIn) -> dict:
-    today = body.today or date.today()
+    today = body.today or today_ist()
     try:
         r = cl.closure_letter(
             market=body.market, loan_type=body.loan_type, lender=body.lender, closed_on=body.closed_on,
