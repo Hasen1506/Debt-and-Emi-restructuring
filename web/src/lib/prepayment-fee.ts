@@ -104,7 +104,8 @@ export function prepaymentFeeDefault(loanType: LoanType, rateType: string, marke
   // A business loan: RBI 2025 Directions para 5(ii), loans sanctioned from 2026 only.
   if (newRule && lender === 'bank') return { pct: '0', status: 'assumed', reason: BUSINESS_BANK_REASON };
   const capReason = lender ? CAP_50_REASON[lender] : undefined;
-  const amt = ctx.sanctionedAmount === undefined || ctx.sanctionedAmount === '' ? NaN : Number(ctx.sanctionedAmount);
+  const rawAmt = ctx.sanctionedAmount as unknown;
+  const amt = rawAmt == null || String(rawAmt).trim() === '' ? NaN : Number(rawAmt);
   if (newRule && capReason && Number.isFinite(amt) && amt <= SMALL_LENDER_BUSINESS_CAP) {
     return { pct: '0', status: 'assumed', reason: capReason };
   }
@@ -134,7 +135,7 @@ type FeeLoan = Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency'> &
 
 export function feeContextOf(loan: FeeLoan): FeeContext {
   return {
-    lenderType: loan.lender_type || lenderFeeTypeFromName(loan.bank),
+    lenderType: canonLender(loan.lender_type) || lenderFeeTypeFromName(loan.bank),
     businessPurpose: loan.business_purpose,
     sanctionYear: loan.sanction_year,
     sanctionedAmount: loan.sanctioned_amount,

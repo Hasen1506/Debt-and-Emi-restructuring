@@ -6,6 +6,7 @@
  */
 import type { LoanPayload } from './api';
 import { loanLabel } from './loan-types';
+import { foldLine } from './ics';
 
 export interface CalendarEvent {
   uid: string;
@@ -64,22 +65,29 @@ export function eventsForLoans(loans: LoanPayload[], todayMonth: string): Calend
   return out;
 }
 
-function vevent(e: CalendarEvent): string {
-  const recur = e.count > 1 ? `\nRRULE:FREQ=MONTHLY;COUNT=${e.count}` : '';
+// RFC 5545: escape text values, CRLF line ends, fold past 75 octets, DTSTAMP = when the file was made.
+const icsEsc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+
+function vevent(e: CalendarEvent, dtstamp: string): string[] {
   return [
     'BEGIN:VEVENT',
     `UID:${e.uid}`,
-    `DTSTAMP:${stamp(e.date)}T000000Z`,
+    `DTSTAMP:${dtstamp}`,
     `DTSTART;VALUE=DATE:${stamp(e.date)}`,
-    `SUMMARY:${e.title.replace(/[\n,;]/g, ' ')}`,
-    `DESCRIPTION:${e.description}`,
-    recur,
+    `SUMMARY:${icsEsc(e.title)}`,
+    `DESCRIPTION:${icsEsc(e.description)}`,
+    ...(e.count > 1 ? [`RRULE:FREQ=MONTHLY;COUNT=${e.count}`] : []),
     'END:VEVENT',
-  ].filter(Boolean).join('\n');
+  ];
 }
 
-export function icsFor(events: CalendarEvent[]): string {
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//RightDue//Loans//EN', 'CALSCALE:GREGORIAN', ...events.map(vevent), 'END:VCALENDAR'].join('\n');
+export function icsFor(events: CalendarEvent[], now: Date = new Date()): string {
+  const dtstamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//RightDue//Loans//EN', 'CALSCALE:GREGORIAN',
+    ...events.flatMap((e) => vevent(e, dtstamp)),
+    'END:VCALENDAR',
+  ].map(foldLine).join('\r\n') + '\r\n';
 }
 
 /** Google Calendar template for one event. All-day, monthly when it repeats. */

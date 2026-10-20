@@ -30,7 +30,8 @@ export function peopleRate(interest: PeopleInterest, input: string, balance: str
   return String((n * 12) / bal);
 }
 
-/** Months from `thisMonth` ('YYYY-MM') until `due` ('YYYY-MM'), at least 1. */
+/** Months from `thisMonth` ('YYYY-MM') until `due` ('YYYY-MM'). 0 when it is this month,
+ *  already past, or either value is malformed; callers that need a term use Math.max(1, …). */
 export function monthsUntil(thisMonth: string, due: string): number {
   if (!/^\d{4}-\d{2}$/.test(due) || !/^\d{4}-\d{2}$/.test(thisMonth)) return 0;
   const [y, m] = thisMonth.split('-').map(Number);
