@@ -14,7 +14,8 @@
  * top-of-page chrome so all six tools share the same masthead.
  */
 
-import { formatMonthDate } from '@/lib/today';
+import { useEffect, useState } from 'react';
+import { formatMonthDate, getCountryToday } from '@/lib/today';
 import { TOOLS, toolInCountry } from '@/lib/tools';
 import { useStoredProfile } from '@/lib/use-profile';
 import { ToolStrip } from '@/components/goals/ToolsList';
@@ -32,7 +33,11 @@ export function LToolPageHeader({
 }) {
   const meta = TOOLS.find((t) => t.id === id);
   const { user } = useStoredProfile();
-  const today = formatMonthDate(new Date(), 'short', true);
+  // Set after mount in the user's country: the server renders on UTC, so a
+  // date during render could differ from the browser's.
+  const [today, setToday] = useState('');
+  const country = user?.country ?? 'IN';
+  useEffect(() => setToday(formatMonthDate(getCountryToday(country), 'short', true)), [country]);
 
   if (!meta) {
     // Defensive — every route id should be in TOOLS. Render children

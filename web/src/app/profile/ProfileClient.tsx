@@ -748,6 +748,11 @@ function ProfileEditor({
               : {}),
             // US-only fields leave with US-market loans only (lib/us-loans).
             ...usLoanFieldsFor(l, country),
+            // The due day the form shows (statement day + grace) is saved too,
+            // not only displayed.
+            ...(l.loan_type === 'credit_card' && l.statement_day != null && l.due_day == null
+              ? { due_day: ((l.statement_day - 1 + suggestedGraceDays(l.bank, country)) % 28) + 1 }
+              : {}),
           };
         }),
       investment_options: [

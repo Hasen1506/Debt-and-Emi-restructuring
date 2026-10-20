@@ -65,11 +65,12 @@ const num = (s: string) => {
 };
 
 /** en-IN grouping for a typed amount ("80000" → "80,000"), left alone if it isn't a plain number (C-06). */
-const groupIN = (s: string) => {
-  const t = String(s).replace(/[,\s₹]/g, '');
+const groupFor = (s: string, country: string = 'IN') => {
+  const t = String(s).replace(/[,\s₹$]/g, '');
   if (!/^\d+(\.\d+)?$/.test(t)) return s;
   const [int, frac] = t.split('.');
-  return Number(int).toLocaleString('en-IN') + (frac ? `.${frac}` : '');
+  // US amounts group in thousands ("$100,000"), not lakhs ("$1,00,000").
+  return Number(int).toLocaleString(country === 'US' ? 'en-US' : 'en-IN') + (frac ? `.${frac}` : '');
 };
 
 /** The ledger's underlined select (as Loan check's LENDER), not the OS grey box (C-07). */
@@ -154,7 +155,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
   const [availableTouched, setAvailableTouched] = useState(false);
   const [epoch, setEpoch] = useState(0);
   const isIN = country === 'IN';
-  const fromProfile = profile.isLive && leftBeforeEmis > 0 ? groupIN(String(Math.round(leftBeforeEmis))) : '';
+  const fromProfile = profile.isLive && leftBeforeEmis > 0 ? groupFor(String(Math.round(leftBeforeEmis)), country) : '';
   useEffect(() => {
     if (!availableTouched) setAvailableText(fromProfile);
   }, [fromProfile, availableTouched]);
@@ -219,7 +220,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
                   onChange={keepAvailable}
                   onBlur={() => {
                     setAvailableText((v) => {
-                      const grouped = groupIN(v);
+                      const grouped = groupFor(v, country);
                       if (isIN) saveIndia({ available: grouped }, 'now');
                       else saveUs({ available: grouped }, 'now');
                       return grouped;
@@ -569,7 +570,7 @@ export function LetterSection({
   // C-06: start from what section 1 says this loan gets: the part paid when
   // it is short, its EMI when covered. The user can change it.
   const suggested = pick.covered === 'full' ? pick.required : pick.pay;
-  const canPay = canPayText ?? (suggested > 0 ? groupIN(String(Math.round(suggested))) : '');
+  const canPay = canPayText ?? (suggested > 0 ? groupFor(String(Math.round(suggested)), country) : '');
   const lender = lenderText ?? pick.bank;
   const today = formatMonthDate(getCountryToday(country), 'long', true);
   const canPayNum = num(canPay);
@@ -653,7 +654,7 @@ export function LetterSection({
           value={canPay}
           onChange={(v) => { setCanPayText(v); commit({ canPay: v }); }}
           onBlur={() => {
-            const grouped = groupIN(letterRef.current.canPay ?? canPay);
+            const grouped = groupFor(letterRef.current.canPay ?? canPay, country);
             setCanPayText(grouped);
             commit({ canPay: grouped }, 'now');
           }}

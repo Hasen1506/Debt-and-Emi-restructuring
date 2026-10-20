@@ -89,6 +89,7 @@ import { formatTaxRate } from '@/lib/tax-profile';
 import { checkSpend, dropDraft, parseDraft, readDraftText, serializeDraft, SETUP_DRAFT_KEY, SETUP_EDIT_DRAFT_MAX_AGE_MS, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
+import { wholeMonthsError, LOCK_IN_RANGE } from '@/lib/r8-inputs';
 import {
   applyRateTypeChoice,
   assumedRateTypeNote,
@@ -1198,6 +1199,8 @@ function LoanBlock({
   onUi: (p: Partial<LoanUi>) => void;
   onRemove: () => void;
 }) {
+  // Lock-in as typed, so a bad entry shows an error instead of clearing.
+  const [lockText, setLockText] = useState<string | null>(null);
   const ccy = loanCurrency(loan, country);
   const card = loan.loan_type === 'credit_card';
   useEffect(() => {
@@ -1447,8 +1450,14 @@ function LoanBlock({
               label="Lock-in, months"
               findIt={find('lockIn')}
               kind="integer"
-              value={loan.prepay_lock_in_months ? String(loan.prepay_lock_in_months) : ''}
-              onChange={(v) => onPatch({ prepay_lock_in_months: Number(v) > 0 ? Math.floor(Number(v)) : undefined })}
+              value={lockText ?? (loan.prepay_lock_in_months ? String(loan.prepay_lock_in_months) : '')}
+              onChange={(v) => {
+                setLockText(v);
+                // Same rule as Profile: whole months in range, else an error rather than a silent clear.
+                if (v.trim() === '') onPatch({ prepay_lock_in_months: undefined });
+                else if (!wholeMonthsError(v, LOCK_IN_RANGE)) onPatch({ prepay_lock_in_months: Number(v) });
+              }}
+              error={lockText != null && lockText.trim() !== '' ? wholeMonthsError(lockText, LOCK_IN_RANGE) : null}
               hint="Months before extra payments are allowed"
             />
           )}

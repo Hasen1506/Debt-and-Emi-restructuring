@@ -16,7 +16,7 @@ import { parseWhatIfBox } from '@/lib/r6b-inputs';
 import Decimal from 'decimal.js';
 import { useRouter } from 'next/navigation';
 import { api, formatCurrency, type CompareResponse, type Strategy, type PlanRunArgs, type UserPayload } from '@/lib/api';
-import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resolveLoanIndex, type LoanRef } from '@/lib/loan-ids';
 import { HORIZON_MONTHS } from '@/lib/horizon';
@@ -378,7 +378,9 @@ export function WhatIfPanel({
         Number(profile.user.fixed_expenses || 0) -
         Number(profile.user.variable_expenses || 0) -
         profile.user.loans.reduce(
-          (s, l) => s + Number(l.scheduled_emi || 0),
+          // In the user's currency: an INR EMI is not taken off a USD income 1:1.
+          // No rate: the EMI can't be placed, so it is left out rather than guessed.
+          (s, l) => s + (loanToUser(Number(l.scheduled_emi || 0), l, profile.user.country, profile.user.fx_to_user_currency) ?? 0),
           0,
         ),
     );
