@@ -63,6 +63,8 @@ export function peoplePatch(
     people_repay: repay,
     people_due: due || undefined,
     nominal_rate: rate,
+    // The engine charges this amount each month instead of rate × balance.
+    fixed_monthly_interest: interest === 'fixed' && Number(input) > 0 ? input : undefined,
   };
   if (repay === 'whenever') {
     return { ...base, repayment: undefined, scheduled_emi: '0', tenure_months_remaining: 0, pre_emi_months_remaining: 0 };

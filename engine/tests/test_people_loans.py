@@ -64,3 +64,14 @@ def test_a_fixed_monthly_amount_accrues_that_interest():
     plan = simulate_plan(_user([loan], D("20000")), Strategy.AVALANCHE, horizon_months=1)
     paid = plan.months[0].payments_by_loan_index[0]
     assert paid >= D("1000")
+
+
+def test_a_fixed_monthly_amount_does_not_shrink_with_the_balance():
+    from engine.formulas import monthly_interest_charge
+    loan = _people(outstanding=D("100000"), nominal_rate=D("0.12"), tenure_months_remaining=3,
+                   scheduled_emi=D("1000"), fixed_monthly_interest=D("1000"))
+    assert monthly_interest_charge(loan, Country.IN) == D("1000")
+    from dataclasses import replace
+    half = replace(loan, outstanding=D("50000"))
+    assert monthly_interest_charge(half, Country.IN) == D("1000")
+    assert monthly_interest_charge(replace(loan, outstanding=D("0")), Country.IN) == D("0")

@@ -68,7 +68,10 @@ export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
   const before = new Set(safeParse(localStorage.getItem(STORAGE_KEY)).map((e) => e.id));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   if (typeof document !== 'undefined') {
-    const digest = latestByMonth(entries);
+    // Only recent months feed the plan (recentSpendAverage); keep the cookie
+    // small so it never nears the 4 KB browser limit.
+    const all = latestByMonth(entries);
+    const digest = Object.fromEntries(Object.keys(all).sort().slice(-24).map((k) => [k, all[k]]));
     const value = btoa(JSON.stringify(digest));
     document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
   }

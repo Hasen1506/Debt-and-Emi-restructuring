@@ -242,6 +242,8 @@ class LoanIn(_In):
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     # Lender's minimum part-payment (grill #30); extra below it is set aside.
     min_prepay_amount: Amount = D("0")
+    # People loans at a fixed amount of interest a month (web/src/lib/people-loan.ts).
+    fixed_monthly_interest: Optional[Amount] = None
     pre_emi_months_remaining: Months = 0
     # Sim month of the first EMI (a loan taken this month: 2). The web
     # derives it from the loan's calendar first EMI month.
@@ -458,6 +460,7 @@ class LoanIn(_In):
             sanctioned_amount=self.sanctioned_amount,
             prepay_lock_in_months=self.lock_in_months_left(),
             min_prepay_amount=self.min_prepay_amount,
+            fixed_monthly_interest=self.fixed_monthly_interest if self.loan_type == "people_loan" else None,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
             first_payment_month=self.first_payment_month,

@@ -220,6 +220,8 @@ export interface LoanPayload {
   people_repay?: 'emi' | 'whenever' | 'lump';
   /** 'YYYY-MM' the lump sum is due. */
   people_due?: string;
+  /** People loans at "A fixed amount": the rupees of interest each month. */
+  fixed_monthly_interest?: string;
   promo_until?: string; rate_after_promo?: string; promo_months?: number; joint_split?: boolean; // UX2B-5/9: lib/promo-rate, lib/joint-share
   /** Audit 80+ C15: a flat-rate loan's original tenure, for its true rate. */
   original_tenure_months?: number;

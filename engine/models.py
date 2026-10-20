@@ -159,6 +159,11 @@ class Loan:
     # reaches this amount (MonthRow.set_aside_for_prepay). 0 = any amount.
     # From the loan agreement / KFS; no lender figure is ever assumed.
     min_prepay_amount: Decimal = Decimal("0")
+    # A loan from a person at a fixed amount of interest a month (people
+    # loans, "A fixed amount"). Charged as that amount while anything is
+    # owed, capped at the interest-free case of a tiny balance; nominal_rate
+    # still holds today's-balance equivalent for ranking. None = use the rate.
+    fixed_monthly_interest: Optional[Decimal] = None
     # Pre-EMI broken-period interest. Used for under-construction home
     # loans: lender disburses tranches before possession, charging
     # interest-only on the disbursed amount until full possession. EMI

@@ -852,6 +852,7 @@ def _simulate_plan(
                  else GAP_LIMIT_MONTHS_OF_PAY * max(D("0"), user.monthly_income))
     total_gap_interest = D("0")
 
+    stop_base = D("1")   # runaway-stop baseline; set from month 1 (was unbound if month 1 was skipped)
     for m in range(1, horizon_months + 1):
         if m > 1 and (simulation_start_month - 1 + m - 1) % 12 + 1 == 4:
             home_prepaid_fy = D("0")     # a new Indian tax year: fresh 80C room

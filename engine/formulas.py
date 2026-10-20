@@ -437,6 +437,11 @@ def monthly_interest_charge(loan: Loan, country: Country) -> Decimal:
     Indian card statements add 18% GST on the finance charge (P2-13); the
     ranking already counted it via `gst_component`, the cash flow did not.
     """
+    fixed = getattr(loan, "fixed_monthly_interest", None)
+    if fixed is not None and fixed > 0:
+        # A fixed rupee amount agreed with a person: it does not shrink as
+        # the balance falls. Nothing is charged once the loan is cleared.
+        return fixed if loan.outstanding > 0 else D("0")
     interest = loan.outstanding * loan.nominal_rate / D("12")
     if loan.loan_type == LoanType.CREDIT_CARD and loan_market(loan, country) == Country.IN:
         interest = interest * (D("1") + GST_ON_CARD_INTEREST_IN)
