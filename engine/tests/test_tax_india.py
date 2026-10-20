@@ -43,9 +43,9 @@ def test_surcharge_bands():
 
 
 def test_surcharge_ltcg_capped():
-    """LTCG surcharge capped at 25% — even for >₹5Cr filers."""
-    assert india.surcharge_rate(D("60000000"), is_ltcg=True) == D("0.25")
-    assert india.surcharge_rate(D("30000000"), is_ltcg=True) == D("0.25")
+    """LTCG surcharge capped at 15% (Finance Act 2022, all LTCG) — even for >₹5Cr filers."""
+    assert india.surcharge_rate(D("60000000"), is_ltcg=True) == D("0.15")
+    assert india.surcharge_rate(D("30000000"), is_ltcg=True) == D("0.15")
     assert india.surcharge_rate(D("15000000"), is_ltcg=True) == D("0.15")
 
 

@@ -224,6 +224,9 @@ def redact(line: str) -> str:
 def _amount(raw: str) -> Optional[Decimal]:
     if not raw or re.fullmatch(r"[-–—\s]*|na|n/a|nil|not reported", raw.strip(), re.IGNORECASE):
         return None
+    # "-12,345" or "12,345 CR": the account is in credit, so nothing is owed.
+    if re.match(r"\s*[-–]\s*[₹\d]", raw) or re.search(r"\d\s*cr\b(?!ore)", raw, re.IGNORECASE):
+        return D("0")
     m = _money(raw)
     if m is not None:
         return m

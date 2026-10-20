@@ -40,7 +40,7 @@ D = Decimal
 FINANCE_ACT_2024_CUTOFF = date(2024, 7, 23)
 LTCG_FLAT_RATE_POST_2024 = D("0.125")
 LTCG_INDEXED_RATE_PRE_2024 = D("0.20")
-LTCG_SURCHARGE_CAP = D("0.25")
+LTCG_SURCHARGE_CAP = D("0.15")   # Finance Act 2022: surcharge on all LTCG capped at 15% from AY 2023-24
 GATE_3_SPREAD = D("0.03")              # 3pp hurdle
 GATE_1_BENEFIT_RATIO = D("0.10")       # net benefit ≥ 10% of asset value
 GATE_0_WEALTH_EDGE_RATIO = D("0.10")   # sell-wealth must beat hold-wealth by ≥ 10% of asset
@@ -335,10 +335,13 @@ def gate_check(
     skip Gate 0 and fall back to the legacy 3-gate behaviour for backward
     compatibility.
     """
-    one_time_drag = (selling_cost_pct + ltcg_effective_rate) / expected_hold_years_post_sale
+    one_time_drag = (
+        (selling_cost_pct + ltcg_effective_rate) / expected_hold_years_post_sale
+        if expected_hold_years_post_sale > 0 else selling_cost_pct + ltcg_effective_rate
+    )
     asset_real_return_net = asset_nominal_return - inflation - holding_cost_rate - one_time_drag
 
-    gate_1 = net_benefit > 0 and (net_benefit / asset_value) >= GATE_1_BENEFIT_RATIO
+    gate_1 = net_benefit > 0 and asset_value > 0 and (net_benefit / asset_value) >= GATE_1_BENEFIT_RATIO
     gate_2 = debt_effective_rate >= high_rate_threshold
     gate_3 = (debt_effective_rate - asset_real_return_net) >= GATE_3_SPREAD
 
@@ -775,6 +778,8 @@ def _proceeds_real_estate(
     purchase_fy = _to_fy(asset.purchase_date)
     current_fy = _to_fy(today)
     is_lt = _held_long_term(asset.purchase_date, today, PROPERTY_LT_HOLD_MONTHS)
+    # The user's own selling cost when set, as for every other asset type.
+    brokerage = _sell_cost(asset, india_selling_cost_pct(state or ""))
 
     try:
         net, tax = india_ltcg_tax(
@@ -784,6 +789,7 @@ def _proceeds_real_estate(
             taxable_income=taxable_income,
             purchase_fy=purchase_fy,
             current_fy=current_fy,
+            brokerage_rate=brokerage,
             marginal_rate=marginal_rate,
             today=today,
             resident=resident,
@@ -802,7 +808,7 @@ def _proceeds_real_estate(
             block_reason=str(e),
         )
 
-    selling_pct = india_selling_cost_pct(state or "")
+    selling_pct = brokerage
     transaction_costs = asset.current_market_value * selling_pct
 
     caveats = [
@@ -983,7 +989,9 @@ def _proceeds_us_cd(asset: Asset, today: date) -> ProceedsResult:
     val = asset.current_market_value
     penalty_pct = (
         asset.fd_premature_penalty_pct
-        if asset.fd_premature_penalty_pct
+        # The Asset default (1%) is India's FD figure, so it means "not set" here;
+        # an entered 0% is kept (it used to fall back to the US default too).
+        if asset.fd_premature_penalty_pct is not None
         and asset.fd_premature_penalty_pct != FD_DEFAULT_PENALTY_PCT
         else US_CD_EARLY_WITHDRAWAL_PENALTY_PCT
     )
@@ -1157,7 +1165,7 @@ def _proceeds_us_real_estate(
 ) -> ProceedsResult:
     """US real estate — §121 primary-residence exclusion if eligible; else LTCG."""
     val = asset.current_market_value
-    selling_pct = us_real_estate_selling_cost_pct(asset.state or "")
+    selling_pct = _sell_cost(asset, us_real_estate_selling_cost_pct(asset.state or ""))
     transaction_costs = val * selling_pct
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
@@ -1685,6 +1693,9 @@ def sale_cost_breakdown(
     of the debt that clears, and the yearly interest that debt costs. The
     caller shows them side by side; this function never chooses."""
     a = dc_replace(asset, current_market_value=sale_price)
+    if a.asset_type == "real_estate" and a.selling_cost_pct is None and country == Country.IN:
+        # One brokerage figure for the headline and the side-by-side options.
+        a = dc_replace(a, selling_cost_pct=brokerage_rate)
     mr = marginal_rate if marginal_rate is not None else india_marginal_rate(taxable_income, TaxRegimeIN.NEW)
     res = compute_liquidation_proceeds(
         a, today=today, country=country, taxable_income=taxable_income, marginal_rate=mr,
@@ -1699,7 +1710,7 @@ def sale_cost_breakdown(
         lt = _held_long_term(a.purchase_date, today, PROPERTY_LT_HOLD_MONTHS)
         holding = "long-term" if lt else "short-term"
         if lt and resident and a.purchase_date < FINANCE_ACT_2024_CUTOFF:
-            gross = sale_price * (D("1") - india_selling_cost_pct(a.state or "", brokerage_rate))  # as india_ltcg_tax
+            gross = sale_price * (D("1") - _sell_cost(a, brokerage_rate))  # as india_ltcg_tax
             pfy, cfy = purchase_fy or _to_fy(a.purchase_date), current_fy or _to_fy(today)
             indexed = a.purchase_price * D(lookup_cii(cfy)) / D(lookup_cii(pfy))
             sur = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)

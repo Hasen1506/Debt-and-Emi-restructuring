@@ -89,15 +89,14 @@ def test_pre_finance_act_picks_lower_of_two_methods():
 
 
 def test_ltcg_surcharge_cap_25_for_super_high_income():
-    """LTCG surcharge is capped at 25% even for >₹5Cr filers (where normal cap is 37%)."""
+    """LTCG surcharge is capped at 15% even for >₹5Cr filers (where normal cap is 37%)."""
     asset = _asset(date(2024, 8, 1), purchase_price=D("5000000"))
     net, tax = india_ltcg_tax(asset, sale_price=D("10000000"),
                                state="Maharashtra", taxable_income=D("60000000"),
                                today=date(2026, 9, 26))
     # gain = 4,850,000; ltcg_base = 606,250
-    # surcharge capped at 25% (NOT 37%)
-    # tax = 606,250 × 1.25 × 1.04
-    expected = D("606250") * D("1.25") * D("1.04")
+    # surcharge capped at 15% (Finance Act 2022, all LTCG), NOT 37%
+    expected = D("606250") * D("1.15") * D("1.04")
     assert tax == expected
 
 
@@ -629,7 +628,7 @@ def test_us_proceeds_gold_collectible_capped_at_28pct():
     # If treated as normal LTCG at $700k income: 20%. Collectible caps at 28% (so 20% applies)
     # NIIT: 700k > 200k → 9400 × 0.038 = 357
     # tax = 9400 × 0.20 + 357 = 1880 + 357 = 2237
-    assert r.tax_owed > D("2200") and r.tax_owed < D("2300")
+    assert r.tax_owed > D("2950") and r.tax_owed < D("3050")   # 9400 x 28% (s.1(h)(4)) + NIIT 357
     assert "collectible" in r.explanation.lower()
 
 

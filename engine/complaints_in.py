@@ -463,6 +463,8 @@ def ombudsman_complaint(
     lender = _lender_name(inp)
     exp = result.expected_rate
     ref = bank_reference.strip() if bank_reference and bank_reference.strip() else BANK_REFERENCE
+    if reply != Reply.NONE and reply_on is None:
+        raise ValueError("Still needed: the date of the bank's reply.")
     if reply == Reply.NONE:
         reply_text = f"No reply within {REPLY_DAYS_IN} days"
     elif reply == Reply.REJECTED:
@@ -617,7 +619,7 @@ def reset_choice_letter(
         " at the last reset of the floating interest rate"
     )
     paras = [
-        f"Home loan account {ACCOUNT} is on a floating interest rate. The rate charged "
+        f"Loan account {ACCOUNT} is on a floating interest rate. The rate charged "
         f"today is {_pct(inp.current_rate)} a year, with {inp.tenure_months_remaining} "
         f"instalments left and an outstanding balance of {_inr(inp.outstanding)}.",
         f"{entity[0].upper()}{entity[1:]} {action}{move}, without first offering the "
