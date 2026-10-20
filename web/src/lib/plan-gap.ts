@@ -264,13 +264,55 @@ export function chartEndMonth(args: {
    *  Past it the figures are paid with money that can't be found, so the
    *  axis ends there. */
   notFundableFrom?: number | null;
+  /** First month the plan's balance reaches a leftover and never moves
+   *  again (a 0% loan the plan leaves alone). The axis stops here instead
+   *  of drawing decades of a flat line. */
+  settledMonth?: number | null;
 }): number {
-  const { planClears, minClear, lastMonth, growingGapFrom, notFundableFrom } = args;
+  const { planClears, minClear, lastMonth, growingGapFrom, notFundableFrom, settledMonth } = args;
   void minClear;
   if (notFundableFrom != null) return Math.max(1, Math.min(lastMonth, notFundableFrom));
   if (!planClears && growingGapFrom) return Math.min(lastMonth, Math.max(24, growingGapFrom + 36));
+  if (!planClears && settledMonth != null) return Math.min(lastMonth, Math.max(1, settledMonth));
   if (!planClears) return lastMonth;
   return Math.min(lastMonth, Math.max(1, planClears));
+}
+
+/**
+ * The first month `balance` reaches its final figure and stays there.
+ * Null when the line is still moving at the horizon, when it finishes at
+ * nothing (that is a payoff month), when it never moved, or when the flat
+ * stretch is shorter than the part that moved. A pay-whenever loan the
+ * plan does not prepay sits at this month for the rest of the 30 years.
+ */
+export function balanceSettledMonth(points: { month: number; balance: number }[], eps = 1): number | null {
+  if (points.length < 2) return null;
+  const final = points[points.length - 1].balance;
+  if (!(final > eps)) return null;
+  let i = points.length - 1;
+  while (i > 0 && Math.abs(points[i - 1].balance - final) <= eps) i--;
+  const start = points[i];
+  if (!start || start.month <= points[0].month) return null;
+  const tail = points[points.length - 1].month - start.month;
+  const active = start.month - points[0].month;
+  if (tail < 12 || active < 1 || tail < active) return null;
+  return start.month;
+}
+
+/** Tick months for the x-axis. Always includes the first and last month,
+ *  and never two ticks on the same month (a 3-month payoff used to print
+ *  one date twice). */
+export function chartAxisMonths(first: number, end: number, slots = 5): number[] {
+  const span = end - first;
+  if (!(span > 0)) return [first];
+  const n = Math.min(Math.max(2, slots), span + 1);
+  const months: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const m = first + Math.round((i * span) / (n - 1));
+    if (months.length === 0 || months[months.length - 1] !== m) months.push(m);
+  }
+  if (months[months.length - 1] !== end) months.push(end);
+  return months;
 }
 
 /**

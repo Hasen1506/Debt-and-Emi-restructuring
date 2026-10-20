@@ -91,6 +91,17 @@ test('#17 (founder 19 Oct 2026): the axis ends at the plan payoff, not a long â‚
   // A gap that only grows: three years of it, not 30.
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360, growingGapFrom: 1 }), 37);
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360 }), 360);
+  // A leftover that stops moving: end there, not at year 30. A growing gap still wins.
+  assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360, settledMonth: 19 }), 19);
+  assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360, growingGapFrom: 1, settledMonth: 19 }), 37);
+  const decline = [];
+  for (let m = 0; m <= 360; m++) decline.push({ month: m, balance: m < 19 ? 2500000 - m * 100000 : 60000 });
+  assert.equal(gap.balanceSettledMonth(decline), 19);
+  assert.equal(gap.balanceSettledMonth(decline.map((p) => ({ ...p, balance: Math.max(0, p.balance - 60000) }))), null, 'a payoff is not a leftover');
+  assert.equal(gap.balanceSettledMonth(decline.map(() => ({ month: 1, balance: 60000 }))), null);
+  assert.deepEqual(gap.chartAxisMonths(0, 3, 5), [0, 1, 2, 3]);
+  assert.deepEqual(gap.chartAxisMonths(0, 19, 5), [0, 5, 10, 14, 19]);
+  assert.equal(new Set(gap.chartAxisMonths(0, 360, 5)).size, 5);
 });
 
 test('#24: due beside what the month can cover (â‚¹70,000 take-home stress case)', () => {

@@ -31,6 +31,8 @@ export function layoutTrajectoryLabels(args: {
   points: LTrajPoint[];
   milestones: LTrajMilestone[];
   minimumsNote?: string;
+  /** Which line the note hangs off. A leftover belongs on the plan line. */
+  noteOn?: 'av' | 'min';
   w: number;
   left: number;
   right: number;
@@ -38,7 +40,7 @@ export function layoutTrajectoryLabels(args: {
   toX: (t: number) => number;
   toY: (v: number) => number;
 }) {
-  const { points, milestones, minimumsNote, w, left, right, top, toX, toY } = args;
+  const { points, milestones, minimumsNote, noteOn = 'min', w, left, right, top, toX, toY } = args;
   const last = points[points.length - 1];
   const lineYAt = (key: 'av' | 'min', x: number): number | null => {
     for (let i = 1; i < points.length; i++) {
@@ -71,7 +73,7 @@ export function layoutTrajectoryLabels(args: {
   if (minimumsNote && last) {
     const nw = minimumsNote.length * CHAR_W;
     const x1 = w - right;
-    const end = toY(last.min);
+    const end = toY(noteOn === 'av' ? last.av : last.min);
     const ys = [end - 6, end - 19, end - 32, end - 45, end + 16, end + 29, end + 42, top - 4, top + 9]
       .filter((y) => y >= 12 && y <= axisY - 4);
     const free = (y: number) => {
@@ -195,6 +197,7 @@ export function LTrajectory({
   yLabels,
   title,
   minimumsNote,
+  noteOn = 'min',
 }: {
   points: LTrajPoint[];
   milestones?: LTrajMilestone[];
@@ -205,6 +208,8 @@ export function LTrajectory({
   /** Shown at the right end of the dashed line when it runs past the
    *  chart ("MINIMUMS: CLEAR DEC 43 →"). */
   minimumsNote?: string;
+  /** 'av' hangs the note on the plan line (a leftover). 'min' hangs it on the dashed line. */
+  noteOn?: 'av' | 'min';
 }) {
   const [w, ref] = useWidth(800);
   const narrow = w < 480;
@@ -232,7 +237,7 @@ export function LTrajectory({
     (_, i, all) => !narrow || i === 0 || i === all.length - 1 || i === Math.floor(all.length / 2),
   );
 
-  const { note, labels } = layoutTrajectoryLabels({ points, milestones, minimumsNote, w, left, right, top, toX, toY });
+  const { note, labels } = layoutTrajectoryLabels({ points, milestones, minimumsNote, noteOn, w, left, right, top, toX, toY });
 
   return (
     <div ref={ref} style={{ border: `2px solid ${L_T.ink}`, padding: '8px 0 4px', background: L_T.paper }}>
@@ -275,13 +280,29 @@ export function LTrajectory({
         {area && <path d={area} fill={L_T.highlight} opacity="0.55" />}
         <path d={path('min')} stroke={L_T.muted} strokeWidth="1.4" fill="none" strokeDasharray="5 4" />
         <path d={path('av')} stroke={L_T.ink} strokeWidth="2.2" fill="none" />
-        {points.map((p, i) =>
-          p.tip ? (
-            <circle key={`tip-${i}`} cx={toX(p.t)} cy={toY(p.av)} r={7} fill="transparent" data-month={p.month} data-balance={p.balance}>
+        {points.map((p, i) => {
+          if (!p.tip) return null;
+          // A column for this month, not a dot on the line: neighbouring
+          // dots used to cover each other, so the tooltip was a nearby month.
+          const x = toX(p.t);
+          const prev = i === 0 ? x : (toX(points[i - 1].t) + x) / 2;
+          const next = i === points.length - 1 ? x : (x + toX(points[i + 1].t)) / 2;
+          const leftEdge = Math.min(prev, next);
+          return (
+            <rect
+              key={`tip-${i}`}
+              x={leftEdge}
+              y={top}
+              width={Math.max(6, Math.abs(next - prev))}
+              height={Math.max(6, toY(0) - top)}
+              fill="transparent"
+              data-month={p.month}
+              data-balance={p.balance}
+            >
               <title>{p.tip}</title>
-            </circle>
-          ) : null,
-        )}
+            </rect>
+          );
+        })}
         <line x1={left} x2={w - right} y1={toY(0)} y2={toY(0)} stroke={L_T.ink} strokeWidth={1.2} />
         {minimumsNote && note && (
           <text
