@@ -147,11 +147,13 @@ test('R10-3: WebKit navigation noise is filtered in the reporter and the E2E wat
   assert.equal(isWebKitNavigationNoise('ReferenceError: x is not defined'), false);
   const planChunk = 'Loading chunk 6624 failed.\n(error: http://localhost:3100/_next/static/chunks/app/plan/page-abc.js)';
   assert.equal(isCutOffChunk(planChunk, '/'), true);
+  assert.equal(isCutOffChunk('pageerror: ' + planChunk, '/'), true);
   assert.equal(isCutOffChunk(planChunk, '/plan'), false);
   assert.equal(isCutOffChunk('Loading chunk 931 failed.', '/'), false);
   const shared = 'Loading chunk 4434 failed.\n(error: http://localhost:3100/_next/static/chunks/4434-abc.js)';
   const aborted = new Set(['http://localhost:3100/_next/static/chunks/4434-abc.js']);
   assert.equal(isAbortedChunkError(shared, aborted), true);
+  assert.equal(isAbortedChunkError('pageerror: ' + shared, aborted), true);
   assert.equal(isAbortedChunkError(shared, new Set()), false);
   assert.equal(isAbortedChunkError('TypeError: x', aborted), false);
   assert.match(fs.readFileSync(path.join(__dirname, '../e2e/a11y.spec.ts'), 'utf8'), /if \(isWebKitNavigationNoise\(e\.message\)\) return;/);

@@ -51,6 +51,9 @@ function watchErrors(page: Page): { errors: string[]; beginNavigation: () => voi
         const bareLoadFailed = /^pageerror: (TypeError: )?Load failed$/i.test(line) && abortedThisNavigation > 0;
         if (bareLoadFailed || isAbortedChunkError(line, aborted) || isCutOffChunk(line, path)) errors.splice(i, 1);
       }
+      if (errors.some((line) => /Loading chunk/.test(line))) {
+        errors.push(`aborted-chunks: ${[...aborted].join(' | ') || '(none)'}`);
+      }
     },
   };
 }

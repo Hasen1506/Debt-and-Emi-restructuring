@@ -18,8 +18,9 @@ export function isWebKitNavigationNoise(message: string): boolean {
  *  chunk for the page that is open, or a chunk error with no route in
  *  it, is still a real miss. */
 export function isCutOffChunk(message: string, currentPath: string): boolean {
-  if (!isChunkLoadError('', message)) return false;
-  const found = message.match(/_next\/static\/chunks\/app\/(.+?)\/page-/);
+  const body = message.replace(/^pageerror:\s*/, '');
+  if (!isChunkLoadError('', body)) return false;
+  const found = body.match(/_next\/static\/chunks\/app\/(.+?)\/page-/);
   if (!found) return false;
   const theirs = '/' + found[1].replace(/\/$/, '');
   const here = (currentPath.split('?')[0].replace(/\/$/, '') || '/');
@@ -32,8 +33,9 @@ export function isCutOffChunk(message: string, currentPath: string): boolean {
  *  (`/chunks/4434-….js`) have no route in the name; the abort is the
  *  only signal that the navigation cut them off. */
 export function isAbortedChunkError(message: string, abortedUrls: ReadonlySet<string>): boolean {
-  if (!isChunkLoadError('', message)) return false;
-  const url = message.match(/https?:\/\/[^)\s]+/)?.[0];
+  const body = message.replace(/^pageerror:\s*/, '');
+  if (!isChunkLoadError('', body)) return false;
+  const url = body.match(/https?:\/\/[^)\s]+/)?.[0];
   if (!url || abortedUrls.has(url)) return !!url && abortedUrls.has(url);
   try {
     const path = new URL(url).pathname;
