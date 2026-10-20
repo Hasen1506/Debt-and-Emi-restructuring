@@ -397,7 +397,9 @@ export function LiquidateTool() {
   const target = targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : undefined;
   const pctText = (f: string) => `${(Number(f) * 100).toFixed(2)}%`;
   const sellingCosts = v ? Number(effectiveSalePrice) - Number(v.ltcg_tax) - Number(v.net_proceeds) : 0;
-  const proceedsInLoan = v && target ? new Decimal(v.net_proceeds).div(loanFx(target) ?? 1).toFixed(2) : null;
+  const targetFx = target ? loanFx(target) : null;
+  // No exchange rate: nothing to log, never 1:1.
+  const proceedsInLoan = v && target && targetFx ? new Decimal(v.net_proceeds).div(targetFx).toFixed(2) : null;
 
   return (
     <LSteps>

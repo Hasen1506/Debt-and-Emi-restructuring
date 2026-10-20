@@ -213,6 +213,7 @@ export function StrategySwitcher({
               {i > 0 && <span style={{ color: 'var(--muted)' }}>·</span>}
               <button
                 type="button"
+                aria-pressed={selected}
                 onClick={() => pick(s)}
                 disabled={pending}
                 style={{

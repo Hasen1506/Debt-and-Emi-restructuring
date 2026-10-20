@@ -223,9 +223,15 @@ async def callback(
         flow = json.loads(base64.urlsafe_b64decode(flow_cookie + "=" * (-len(flow_cookie) % 4))) if flow_cookie else None
     except Exception:
         flow = None
+    if not isinstance(flow, dict):   # a list or string decodes too; treat it as no flow
+        flow = None
     if not flow or not code or not state or not secrets.compare_digest(str(flow.get("s", "")), state):
         return _fail("The sign-in link was not started here or has expired. Try again.")
-    if time.time() - float(flow.get("t", 0)) > FLOW_TTL_S:
+    try:
+        started = float(flow.get("t", 0))
+    except (TypeError, ValueError):
+        return _fail("The sign-in link was not started here or has expired. Try again.")
+    if time.time() - started > FLOW_TTL_S:
         return _fail("The sign-in took too long. Try again.")
     try:
         tokens = await exchange_code(code, str(flow.get("v", "")), s)
@@ -252,7 +258,8 @@ async def callback(
             payload = consent.ConsentIn(notice_version=str(agreed.get("nv") or ""), terms_version=str(agreed.get("tv") or ""),
                                         age_confirmed=agreed.get("age") is True)
             consent.check(payload)
-            await consent.record(db, user, payload, "google")
+            async with db.begin_nested():   # a DB error here must not break the sign-in transaction
+                await consent.record(db, user, payload, "google")
         except Exception:
             # An old page or a missing tick: sign in anyway; /auth/me then
             # reports consent_required and the app asks before going on.

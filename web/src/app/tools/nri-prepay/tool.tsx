@@ -549,7 +549,7 @@ export function NriPrepayTool() {
  *  an Indian home loan's interest deduction is the old regime's for a
  *  self-occupied home (Income-tax Act 2025 s.22; 1961 Act s.24(b)). */
 function NriNotes({ spread, remitPct, loanCurrency, userCurrency }: { spread: number; remitPct: string; loanCurrency: string; userCurrency: string }) {
-  const cost = Number(remitPct) / 100;
+  const cost = Number(remitPct); // already a fraction (percent Field)
   const payback = cost > 0 && spread > 0 ? Math.ceil((cost / spread) * 12) : null;
   return (
     <div style={{ marginTop: 12 }}>

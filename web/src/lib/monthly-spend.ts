@@ -17,6 +17,7 @@
 
 import { syncSliceToServer } from './server-sync';
 import { recordChange } from './change-log';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 export interface MonthlySpendEntry {
   id: string;
@@ -64,15 +65,20 @@ export function readMonthlySpendClient(): MonthlySpendEntry[] {
 
 export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
   if (typeof localStorage === 'undefined') return;
+  // Only a newly added entry is logged; a delete or re-save is not "Logged spending".
+  const before = new Set(safeParse(localStorage.getItem(STORAGE_KEY)).map((e) => e.id));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   if (typeof document !== 'undefined') {
-    const digest = latestByMonth(entries);
+    // Only recent months feed the plan (recentSpendAverage); keep the cookie
+    // small so it never nears the 4 KB browser limit.
+    const all = latestByMonth(entries);
+    const digest = Object.fromEntries(Object.keys(all).sort().slice(-24).map((k) => [k, all[k]]));
     const value = btoa(JSON.stringify(digest));
-    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   void syncSliceToServer('monthly_spend', entries);
   const latest = entries[0];
-  if (latest) {
+  if (latest && !before.has(latest.id)) {
     recordChange({
       kind: 'spend',
       what: 'Logged spending',

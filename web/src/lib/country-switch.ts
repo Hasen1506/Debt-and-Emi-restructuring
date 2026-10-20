@@ -107,6 +107,13 @@ export function convertForCountrySwitch(
     delete out.currency;
     if (l.min_payment_override) out.min_payment_override = c(l.min_payment_override);
     if (l.expected_monthly_spend) out.expected_monthly_spend = c(l.expected_monthly_spend);
+    // Every other money field on the loan moves currency too.
+    for (const k of ['pmi_monthly', 'original_home_value', 'annual_rent', 'sanctioned_amount',
+      'min_prepay_amount', 'fixed_monthly_interest', 'pre_construction_interest_total'] as const) {
+      const v = (l as unknown as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v !== '') (out as unknown as Record<string, unknown>)[k] = c(v);
+    }
+    if (l.people_interest === 'fixed' && l.people_rate_input) out.people_rate_input = c(l.people_rate_input);
     return out;
   });
   const fxRates: Record<string, string> = {};

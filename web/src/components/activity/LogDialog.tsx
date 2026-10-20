@@ -214,7 +214,8 @@ export function LogDialog({
   // An extra from this month's spare cash is money the plan already pays
   // on top of the minimums this month. That part waits until the month is
   // over, as Home's MARK PAID does, so it isn't counted twice.
-  const fromSpareCash = status === 'extra' && source === 'surplus' && date.slice(0, 7) === today.slice(0, 7);
+  // An edit keeps the split the original entry recorded; it never re-asks the engine.
+  const fromSpareCash = !edit && status === 'extra' && source === 'surplus' && date.slice(0, 7) === today.slice(0, 7);
   function plannedExtraFrom(base: RunResult | null): string | undefined {
     if (!fromSpareCash || !base || !(base.extraThisMonth > 0)) return undefined;
     const fx = Number(runArgs?.user.fx_to_user_currency?.[lccy] ?? 0);
@@ -237,9 +238,14 @@ export function LogDialog({
       ...((status === 'part' || status === 'missed') && fee.trim() ? { penaltyOverride: fee.trim() } : {}),
       ...(card && newBalance.trim() ? { newOutstanding: newBalance.trim() } : {}),
       ...(status === 'extra' ? { source } : {}),
-      ...(plannedExtra ? { plannedExtra } : {}),
+      ...(plannedExtra ? { plannedExtra }
+        : edit?.plannedExtra && status === 'extra' ? { plannedExtra: Decimal.min(new Decimal(edit.plannedExtra), amt).toFixed(2) }
+        : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
-      ...(asksPrepay && prepayMode ? prepayFields(prepayMode, loan?.scheduled_emi || 0, lowerEmi) : {}),
+      ...(asksPrepay && prepayMode ? prepayFields(prepayMode, loan?.scheduled_emi || 0, lowerEmi)
+        : edit?.prepayMode && status === 'extra'
+          ? { prepayMode: edit.prepayMode, ...(edit.emiBefore ? { emiBefore: edit.emiBefore } : {}), ...(edit.emiAfter ? { emiAfter: edit.emiAfter } : {}) }
+          : {}),
     };
   }
 

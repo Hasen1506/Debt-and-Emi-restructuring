@@ -689,6 +689,9 @@ def lookup_rate(bank: str, loan_type: LoanType) -> RateRange | None:
     Returns None if the bank/product combination has no populated data yet.
     """
     card = ALL_INSTITUTIONS.get(bank)
+    if card is None:   # same matching as lookup_loan_terms: case-insensitive
+        card = next((c for k, c in ALL_INSTITUTIONS.items()
+                     if k.lower() == (bank or "").lower() or c.name.lower() == (bank or "").lower()), None)
     if card is None:
         return None
     if loan_type == LoanType.HOME:

@@ -82,7 +82,7 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
       ? { processing_fee_amortised: input.processing_fee_amortised }
       : {}),
   };
-  if (!profile.isLive || ![input.outstanding,input.nominal_rate,input.scheduled_emi].every(v => Number.isFinite(Number(v)))
+  if (!profile.isLive || ![input.outstanding,input.nominal_rate,input.scheduled_emi].every(v => String(v ?? '').trim() !== '' && Number.isFinite(Number(v)))
     || Number(input.outstanding) <= 0 || Number(input.nominal_rate) < 0 || Number(input.nominal_rate) > 1
     || Number(input.scheduled_emi) <= 0 || !Number.isInteger(input.tenure_months_remaining)
     || input.tenure_months_remaining < 1 || input.tenure_months_remaining > 480 || profile.user.loans.length >= 50) return null;

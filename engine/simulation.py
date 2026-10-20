@@ -124,6 +124,19 @@ def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int |
     return math.ceil(-math.log(1 - r * p / a) / math.log(1 + r))
 
 
+def _interest_on_minimums(balance: Decimal, r_month: Decimal, payment: Decimal, months: int) -> Decimal:
+    """Interest a balance accrues over at most `months` while only `payment`
+    is paid each month (the prepayment fee gate's minimums-only run)."""
+    b, r, a, total = float(balance), float(r_month), float(payment), 0.0
+    for _ in range(max(0, int(months))):
+        if b <= 0:
+            break
+        i = b * r
+        total += i
+        b = b + i - a
+    return D(str(total))
+
+
 def _home_interest_pool(homes: list[Loan], country: Country) -> Decimal:
     """India: the user's share of a year's interest and pre-construction
     instalments across self-occupied home loans, which share one ₹2L cap
@@ -203,6 +216,11 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     new_rate = max(D("0"), new_rate)
     old_rate = loan.nominal_rate
     loan.nominal_rate = new_rate
+    # An interest-only payment follows the rate both ways (a cut lowers it too).
+    if (loan.loan_type != LoanType.CREDIT_CARD and loan.outstanding > 0
+            and repayment_kind(loan) == "interest_only"):
+        loan.scheduled_emi = loan.outstanding * new_rate / D("12")
+        return None
     if new_rate <= old_rate or loan.loan_type == LoanType.CREDIT_CARD:
         return None
     if loan.outstanding <= 0:
@@ -210,9 +228,6 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     kind = repayment_kind(loan)
     if kind == "bullet":
         return None          # nothing is paid until maturity; interest accrues at the new rate
-    if kind == "interest_only":
-        loan.scheduled_emi = loan.outstanding * new_rate / D("12")
-        return None
     if loan.scheduled_emi <= 0:
         return None
     n_now = _months_to_clear(loan.outstanding, old_rate, loan.scheduled_emi)
@@ -518,6 +533,10 @@ def simulate_plan(
     # A floating-rate loan RBI bars a charge on is prepaid at 0, even when a
     # fee was typed or imported. Done before the fee-aware order search, so
     # a legally zero fee does not move which loan the extra goes to.
+    # Work on copies so the caller's Loan objects (and a typed or KFS fee
+    # stored on them) are left as they were.
+    user = copy(user)
+    user.loans = [copy(ln) for ln in user.loans]
     for ln in user.loans:
         apply_statutory_prepayment(ln, user.country)
     if (strategy != Strategy.AVALANCHE or args or kwargs.get("minimums_only")
@@ -797,7 +816,8 @@ def _simulate_plan(
         freq = loan.part_payment_freq_months
         if freq:
             last = last_part_payment_month.get(id(loan), 0)
-            if last > 0 and (m - last) < freq:
+            # A second payment in the same month is part of the same part-payment.
+            if last > 0 and last != m and (m - last) < freq:
                 return False
         return True
 
@@ -848,6 +868,7 @@ def _simulate_plan(
                  else GAP_LIMIT_MONTHS_OF_PAY * max(D("0"), user.monthly_income))
     total_gap_interest = D("0")
 
+    stop_base = D("1")   # runaway-stop baseline; set from month 1 (was unbound if month 1 was skipped)
     for m in range(1, horizon_months + 1):
         if m > 1 and (simulation_start_month - 1 + m - 1) % 12 + 1 == 4:
             home_prepaid_fy = D("0")     # a new Indian tax year: fresh 80C room
@@ -887,7 +908,7 @@ def _simulate_plan(
 
         # UX2B-5: a promo rate ends; the card's own rate applies from here.
         for ln in loans:
-            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.promo_months + 1:
+            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.first_payment_month + ln.promo_months:
                 ln.nominal_rate = ln.rate_after_promo
         # Auto floating-rate resets: when m hits next_reset_month the rate moves
         # by rate_drift_annualized × frequency/12 (+50bps/yr with a 12mo reset
@@ -1230,14 +1251,37 @@ def _simulate_plan(
             r_month = charge / l.outstanding if l.outstanding > 0 else D("0")
             # Months left if the plan keeps paying the minimum plus this
             # month's extra: the tail a unit prepaid now actually removes.
-            extra_here = from_user_currency(max(D("0"), surplus), l, user)
-            k = _months_to_clear(l.outstanding, r_month * 12, minimums[id(l)] + extra_here)
+            # The tail a unit prepaid now removes is the schedule the loan would
+            # otherwise run on (minimum only). Assuming the extra keeps landing
+            # made the tail look short, so prepaying stopped and the loan ran long.
+            k = _months_to_clear(l.outstanding, r_month * 12, minimums[id(l)])
             if k is not None:
                 # The extra paid this month comes off the final payment,
                 # k - 1 months from now: that is how long it would have grown.
                 k = min(k, horizon_months - m + 1) - 1
             fee = prepayment_fee_with_gst(l.prepayment_penalty_pct, loan_market(l, user.country) == Country.IN)
-            return prepayment_beats_fee(r_month, fee, k)
+            if not prepayment_beats_fee(r_month, fee, k):
+                return False
+            if k is None or fee >= 1:
+                return True
+            # The unit test above is the best case: the first unit prepaid
+            # removes the final payment. A lump this month's extra could put
+            # in removes earlier, smaller tails too, so it can save less than
+            # its fee even when one unit wins (differential suite: a 4.82%
+            # BNPL with a 3.5% fee, cleared in month 1, cost more than its
+            # minimums). Check the whole lump against the minimums-only run.
+            lump = min(from_user_currency(extra_for_debt, l, user), l.outstanding / (D("1") - fee))
+            if lump <= 0:
+                return True
+            # This month's interest is charged on the full balance either way;
+            # the lump only shrinks the balance the later months run on.
+            after_this_month = l.outstanding + charge - minimums[id(l)]
+            if after_this_month <= 0:
+                return False
+            net = min(lump * (D("1") - fee), after_this_month)
+            saved = (_interest_on_minimums(after_this_month, r_month, minimums[id(l)], k + 1)
+                     - _interest_on_minimums(after_this_month - net, r_month, minimums[id(l)], k + 1))
+            return saved > lump * fee
 
         worth_prepaying = [
             l for l in ranked
@@ -1462,15 +1506,22 @@ def _simulate_plan(
                     break
                 if top.outstanding <= 0 or id(top) not in worth_ids or not _can_part_pay(top, m):
                     continue
-                add_principal = from_user_currency(cascade_surplus, top, user)
+                # Same prepayment fee and part-payment cadence as the month's main extra.
+                pct = prepayment_fee_with_gst(top.prepayment_penalty_pct, loan_market(top, user.country) == Country.IN)
+                cash = from_user_currency(cascade_surplus, top, user)
+                add_principal = cash * (D("1") - pct)
                 if add_principal >= top.outstanding:
                     add_principal = top.outstanding
+                    cash = add_principal / (D("1") - pct) if pct < 1 else add_principal
                     if id(top) not in cleared:
                         cleared.append(id(top))
                 top.outstanding -= add_principal
-                used = to_user_currency(add_principal, top, user)
+                fee_user = to_user_currency(cash - add_principal, top, user)
+                prepay_penalty_paid += fee_user
+                used = to_user_currency(cash, top, user)
                 cascade_surplus -= used
-                principal_paid += used
+                principal_paid += used - fee_user
+                last_part_payment_month[id(top)] = m
                 # Reflect the cascade in the per-loan payment dict so the UI
                 # can show the real amount the user sends to that bank.
                 payments[id(top)] = payments.get(id(top), D("0")) + add_principal
@@ -1512,15 +1563,21 @@ def _simulate_plan(
                         break
                     if not _can_part_pay(target, m):
                         continue
-                    add = from_user_currency(left, target, user)
+                    pct = prepayment_fee_with_gst(target.prepayment_penalty_pct, loan_market(target, user.country) == Country.IN)
+                    cash = from_user_currency(left, target, user)
+                    add = cash * (D("1") - pct)
                     if add >= target.outstanding:
                         add = target.outstanding
+                        cash = add / (D("1") - pct) if pct < 1 else add
                         if id(target) not in cleared:
                             cleared.append(id(target))
                     target.outstanding -= add
-                    used = to_user_currency(add, target, user)
+                    fee_user = to_user_currency(cash - add, target, user)
+                    prepay_penalty_paid += fee_user
+                    used = to_user_currency(cash, target, user)
                     left -= used
-                    principal_paid += used
+                    principal_paid += used - fee_user
+                    last_part_payment_month[id(target)] = m
                     payments[id(target)] = (
                         payments.get(id(target), D("0")) + add
                     )

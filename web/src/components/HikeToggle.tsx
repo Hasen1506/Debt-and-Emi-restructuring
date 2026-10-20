@@ -50,7 +50,7 @@ export function HikeToggle({
   // year_to is exclusive in the schedule → display as inclusive (to-1).
   const phasesSummary = (hikePhases ?? [])
     .filter(([f, t, r]) => f > 0 && t > f && Number(r) > 0)
-    .map(([f, t, r]) => `Y${f}-${t - 1} @ ${(Number(r) * 100).toFixed(0)}%`)
+    .map(([f, t, r]) => `Y${f}-${t - 1} @ ${Number((Number(r) * 100).toFixed(2))}%`)
     .join(', ');
 
   const disabledReason = noHike

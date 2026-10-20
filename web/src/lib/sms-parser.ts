@@ -58,7 +58,7 @@ export interface ParsedSms {
   text: string;
 }
 
-const AMT = String.raw`(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)`;
+const AMT = String.raw`(?<![a-z])(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)`;
 const AMT_RE = new RegExp(AMT, 'i');
 
 const BANKS: [RegExp, string][] = [

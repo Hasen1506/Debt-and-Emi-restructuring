@@ -19,7 +19,7 @@ import Decimal from 'decimal.js';
 
 function formatLast6(digits: string | undefined): string {
   if (!digits || digits.length < 4) return '•••• •• •••• ••••';
-  const padded = digits.padStart(6, '0').slice(-6);
+  const padded = digits.slice(-6).padStart(6, '•');
   return `•••• •••• ${padded.slice(0, 2)} ${padded.slice(2)}`;
 }
 

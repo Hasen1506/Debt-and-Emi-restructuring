@@ -62,7 +62,7 @@ test('the engine payload carries the rule, and a deferred start only for the run
   assert.equal(out[1].funding_start_month_index, null);
   // The cookie digest keeps the rule, so /plan's server render sends it.
   const w = g.goalSliceWrite([{ ...g.blankGoal('travel'), id: 'x', amount: '5000', targetMonth: '2027-06' }]);
-  assert.deepEqual(JSON.parse(Buffer.from(w.digest, 'base64').toString('utf8'))[0].fundingRule, { kind: 'after_debt', afterLoanIndex: null });
+  assert.deepEqual(JSON.parse(require('lz-string').decompressFromEncodedURIComponent(w.digest.replace(/^z1\./, '')))[0].fundingRule, { kind: 'after_debt', afterLoanIndex: null });
   assert.match(src('lib/goals.ts'), /return goalsForSimulate\(rows, today, currentlySaved\)/);
 });
 

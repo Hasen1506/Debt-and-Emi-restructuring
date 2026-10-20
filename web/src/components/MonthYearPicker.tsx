@@ -9,7 +9,7 @@
  * half-picked state lives here so choosing the month first doesn't wipe
  * itself out while the year is still empty.
  */
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { MONTH_NAMES } from '@/lib/today';
 
 const selectStyle: React.CSSProperties = {
@@ -48,17 +48,21 @@ export function MonthYearPicker({
 
   // Follow outside changes (e.g. a profile prefill) without clobbering a
   // half-picked state the user is in the middle of.
+  // A '' the picker itself sent (half-picked) is not an outside clear.
+  const sent = useRef(value);
   useEffect(() => {
-    if (value) {
-      setMonth(value.slice(5, 7));
-      setYear(value.slice(0, 4));
-    }
+    if (value === sent.current) return;
+    sent.current = value;
+    setMonth(value ? value.slice(5, 7) : '');
+    setYear(value ? value.slice(0, 4) : '');
   }, [value]);
 
   function update(m: string, y: string) {
     setMonth(m);
     setYear(y);
-    onChange(m && y ? `${y}-${m}` : '');
+    const next = m && y ? `${y}-${m}` : '';
+    sent.current = next;
+    onChange(next);
   }
 
   // Past dates (a loan's start) list the latest year first; a picker that

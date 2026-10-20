@@ -78,10 +78,11 @@ async def notify_user(request: Request) -> NotifyUser:
     if not db_enabled() or SessionLocal is None:
         raise HTTPException(503, "Sign-in isn't available on this server, so notifications aren't either.")
     from api.auth.dependencies import _load_user_from_cookie
-    from api.auth.session import SESSION_COOKIE_NAME
+    from api.auth.session import LEGACY_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME
 
     async with SessionLocal() as db:
-        user = await _load_user_from_cookie(request.cookies.get(SESSION_COOKIE_NAME), db)
+        token = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(LEGACY_SESSION_COOKIE_NAME)
+        user = await _load_user_from_cookie(token, db)
     if user is None:
         raise HTTPException(401, "Sign in to turn on emails.")
     return NotifyUser(id=str(user.id), email=user.email)
@@ -646,7 +647,8 @@ async def inbound_reply(request: Request) -> dict[str, Any]:
     if sub is None or not sub.get("last_sent_month"):
         return {"ok": True, "ignored": "unknown"}
     try:
-        received = inbound.fetch_received(str(data.get("email_id", "")))
+        import asyncio
+        received = await asyncio.to_thread(inbound.fetch_received, str(data.get("email_id", "")))
     except Exception:
         log.exception("could not fetch received email")
         raise HTTPException(502, "Could not read the reply.") from None

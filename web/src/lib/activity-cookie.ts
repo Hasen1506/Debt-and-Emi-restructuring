@@ -35,6 +35,7 @@ import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { localIsoDate, getCountryToday } from './today';
 import { monthsBefore, paceMonths, type PaceMonth } from './pace';
 import { paidThisMonth, type PaidOff } from './owed-now-core';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 const COOKIE_NAME = 'rightdue_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -131,7 +132,7 @@ export function syncActivityCookieClient(
     .map((o) => ({ k: loans[o.index]?.id ?? o.index, a: String(o.amount), p: String(o.paid), d: o.date }));
   if (paidNow.length > 0 || off.length > 0) payload.paidNow = { month: thisMonth, loans: paidNow, ...(off.length ? { off } : {}) };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
-  document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   const saved = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] === encoded;
   if (saved && notify) window.dispatchEvent(new Event('rightdue:profile-changed'));
   return saved;

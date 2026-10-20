@@ -51,7 +51,7 @@ SURCHARGE_BANDS = [
     (D("50000000"),   D("0.25")),
     (D("Infinity"),   D("0.37")),
 ]
-SURCHARGE_CAP_LTCG = D("0.25")
+SURCHARGE_CAP_LTCG = D("0.15")   # Finance Act 2022: surcharge on all LTCG capped at 15%
 # Finance Act 2023: under the new regime (s.115BAC) the 37% band is capped
 # at 25% (P2-01). Income Tax Dept: "25% in case assessee opted for new tax
 # regime under section 115BAC".
@@ -381,12 +381,13 @@ def _house_property(inp: RegimeInputs, regime: TaxRegimeIN) -> tuple[Decimal, De
     income only up to ₹2L in the old regime and not at all in the new."""
     so = [h for h in inp.home_loans if not h.let_out]
     lo = [h for h in inp.home_loans if h.let_out]
-    so_claim = sum(((h.interest + h.pre_construction_instalment) * h.share for h in so), D("0"))
-    so_cap = D("0")
+    so_deduction = D("0")
     if regime == TaxRegimeIN.OLD and so:
-        so_cap = SEC24B_SELF_OCCUPIED_CAP if all(h.full_cap for h in so) else min(
-            SEC24B_SELF_OCCUPIED_CAP, sum((SEC24B_SELF_OCCUPIED_CAP if h.full_cap else SEC24B_OTHER_CAP for h in so), D("0")))
-    so_deduction = min(so_claim, so_cap)
+        # Each home is held to its own cap (Rs 30k for a late one), then the
+        # total to Rs 2L (s.22(2), s.22(5)).
+        per_home = sum((min((h.interest + h.pre_construction_instalment) * h.share,
+                            SEC24B_SELF_OCCUPIED_CAP if h.full_cap else SEC24B_OTHER_CAP) for h in so), D("0"))
+        so_deduction = min(per_home, SEC24B_SELF_OCCUPIED_CAP)
     lo_net = D("0")
     lo_interest = D("0")
     for h in lo:

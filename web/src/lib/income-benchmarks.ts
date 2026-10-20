@@ -59,7 +59,8 @@ export function classifyIncomeBand(
   monthlyIncome: number,
   benchmark: IncomeBenchmark,
 ): IncomeBand {
-  if (benchmark.median <= 0) return 'above'; // degenerate fallback
+  // No income (NaN) is not the top band: fall back like a degenerate benchmark.
+  if (!Number.isFinite(monthlyIncome) || benchmark.median <= 0) return 'above';
   const ratio = monthlyIncome / benchmark.median;
   if (ratio < 0.5) return 'low';
   if (ratio < 1) return 'below';

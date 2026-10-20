@@ -206,6 +206,8 @@ export function sleeveAnnualTarget(user: UserPayload): number | null {
         const end = Date.parse(s.end_date.length === 7 ? `${s.end_date}-01` : s.end_date);
         if (Number.isFinite(end) && end < now) continue;
       }
+      // Salary tax is deducted by the employer (TDS); only non-TDS income needs a sleeve.
+      if (s.kind === 'salaried') continue;
       const gross = Number(s.gross_annual || 0);
       const tds = Number(s.tds_pct || 0);
       // We don't have marginal_rate on the user payload directly — it's

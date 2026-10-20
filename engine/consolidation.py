@@ -112,7 +112,8 @@ def published_range(disclosures: dict, category: str = "personal_loan") -> Optio
         return None
     means = [D(r["mean"]) for r in latest.values()]
     maxes = [D(r["max"]) for r in latest.values() if r.get("max")]
-    labels = sorted({r["period_label"] for r in latest.values()})
+    # By date, not alphabetically ("Apr-Jun 2026" is not before "Jul-Sep 2025").
+    labels = list(dict.fromkeys(r["period_label"] for r in sorted(latest.values(), key=lambda r: r["period_end"])))
     return PublishedRange(
         typical=D(str(median(means))).quantize(D("0.0001")),
         high=D(str(median(maxes))).quantize(D("0.0001")) if maxes else None,
@@ -251,6 +252,11 @@ def consolidate(
     cards = [user.loans[i] for i in card_indices]
     if any(c.loan_type != LoanType.CREDIT_CARD or c.outstanding <= 0 for c in cards):
         raise ConsolidationInputError("card_indices", "Only cards with a balance can be moved.")
+    from engine.surplus import loan_currency_or_default
+    ccys = {loan_currency_or_default(c, user) for c in cards}
+    if len(ccys) != 1 or ccys != {loan_currency_or_default(Loan(LoanType.PERSONAL, "", D("0"), D("0"), "fixed", 1, D("0")), user)}:
+        # One loan in the user's own currency: cards in another currency (or mixed) can't share it.
+        raise ConsolidationInputError("card_indices", "Only cards in your own currency can be moved into one loan.")
     card_total = sum((c.outstanding for c in cards), D("0"))
     principal, fee, fee_gst = loan_amount(card_total, fee_pct, fee_flat, india)
     new_emi = emi(principal, rate, tenure_months).quantize(D("1"), rounding=ROUND_CEILING)

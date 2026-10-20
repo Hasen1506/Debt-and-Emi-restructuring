@@ -1,3 +1,4 @@
+import { getCountryToday } from './today';
 /**
  * Commitments log — records when the user converts a /plan what-if slider
  * into a real change.
@@ -95,8 +96,9 @@ export function removeCommitment(
   return entries.filter((e) => e.id !== id);
 }
 
-export function todayISO(): string {
-  const d = new Date();
+export function todayISO(country?: 'IN' | 'US'): string {
+  // The profile country's date when known, not the browser's.
+  const d = country ? getCountryToday(country) : new Date();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${day}`;

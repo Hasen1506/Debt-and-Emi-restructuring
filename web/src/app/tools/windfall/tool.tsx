@@ -585,7 +585,7 @@ export function WindfallTool({
       <section style={box} aria-labelledby="wf-in">
         <LStepHead no="01" id="wf-in">How much</LStepHead>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, alignItems: 'start' }}>
-          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={(v) => { setAmount(v); setManual({}); setApplied(null); setLogged(null); }} />
+          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={(v) => { setAmount(v); setManual({}); setMode('engine'); setApplied(null); setLogged(null); }} />
           <LChipRow label="Where it comes from">
             <LChip on={source === 'external'} onClick={() => setSource('external')}>
               A bonus, refund or gift

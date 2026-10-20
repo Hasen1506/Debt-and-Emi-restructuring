@@ -76,6 +76,14 @@ function canonLender(lenderType?: string): string | undefined {
   return lenderType;
 }
 
+const BUSINESS_UNANSWERED_REASON =
+  'Not known: a loan against property or a gold loan is often taken for a business, and RBI\'s rule differs for business loans. Answer "Is this loan for a business?" or check your Key Facts Statement.';
+const OLDER_LENDER_REASON =
+  "Not known: before 2026 RBI's floating-rate rule was issued to commercial banks, NBFCs and HFCs, not regional rural or co-operative banks. Check your loan agreement or Key Facts Statement.";
+/** Same sets as engine/prepayment_fee.py. */
+const BUSINESS_CAPABLE_TYPES = new Set<string>(['loan_against_property', 'gold_loan']);
+const PRE_2026_UNCOVERED = new Set<string>(['regional_rural_bank', 'cooperative_bank']);
+
 export function prepaymentFeeDefault(loanType: LoanType, rateType: string, market: Country, ctx: FeeContext = {}): FeeDefault {
   const lender = canonLender(ctx.lenderType);
   // Para 5 is floating rate only. Fixed rate, cards and other markets follow the lender's own policy.
@@ -83,12 +91,21 @@ export function prepaymentFeeDefault(loanType: LoanType, rateType: string, marke
     return { pct: '0', status: 'unknown', reason: UNKNOWN_REASON };
   }
   if (lender === 'other') return { pct: '0', status: 'unknown', reason: OTHER_LENDER_REASON };
-  if (!ctx.businessPurpose) return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
+  const newRule = ctx.sanctionYear !== undefined && ctx.sanctionYear !== null && ctx.sanctionYear >= RULE_START_YEAR;
+  if ((ctx.businessPurpose === undefined || ctx.businessPurpose === null) && BUSINESS_CAPABLE_TYPES.has(loanType)) {
+    return { pct: '0', status: 'unknown', reason: BUSINESS_UNANSWERED_REASON };
+  }
+  if (!ctx.businessPurpose) {
+    if (lender && PRE_2026_UNCOVERED.has(lender) && !newRule) {
+      return { pct: '0', status: 'unknown', reason: OLDER_LENDER_REASON };
+    }
+    return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
+  }
   // A business loan: RBI 2025 Directions para 5(ii), loans sanctioned from 2026 only.
-  const newRule = ctx.sanctionYear !== undefined && ctx.sanctionYear >= RULE_START_YEAR;
   if (newRule && lender === 'bank') return { pct: '0', status: 'assumed', reason: BUSINESS_BANK_REASON };
   const capReason = lender ? CAP_50_REASON[lender] : undefined;
-  const amt = ctx.sanctionedAmount === undefined || ctx.sanctionedAmount === '' ? NaN : Number(ctx.sanctionedAmount);
+  const rawAmt = ctx.sanctionedAmount as unknown;
+  const amt = rawAmt == null || String(rawAmt).trim() === '' ? NaN : Number(rawAmt);
   if (newRule && capReason && Number.isFinite(amt) && amt <= SMALL_LENDER_BUSINESS_CAP) {
     return { pct: '0', status: 'assumed', reason: capReason };
   }
@@ -118,7 +135,7 @@ type FeeLoan = Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency'> &
 
 export function feeContextOf(loan: FeeLoan): FeeContext {
   return {
-    lenderType: loan.lender_type || lenderFeeTypeFromName(loan.bank),
+    lenderType: canonLender(loan.lender_type) || lenderFeeTypeFromName(loan.bank),
     businessPurpose: loan.business_purpose,
     sanctionYear: loan.sanction_year,
     sanctionedAmount: loan.sanctioned_amount,

@@ -81,7 +81,11 @@ export function computeCashAdvice(
 
   for (const a of accounts) {
     if (!NON_FD_KINDS.includes(a.kind)) continue;
-    const bal = new Decimal(a.balance || 0);
+    // Foreign-currency cash at the saved rate; no rate: left out rather than read 1:1.
+    const own = user.country === 'IN' ? 'INR' : 'USD';
+    const fx = !a.currency || a.currency === own ? 1 : Number(user.fx_to_user_currency?.[a.currency]);
+    if (!(fx > 0)) continue;
+    const bal = new Decimal(a.balance || 0).mul(fx);
     eligibleCash = eligibleCash.add(bal);
     weightedApySum = weightedApySum.add(bal.mul(new Decimal(a.apy || 0)));
     if (a.kind === 'checking') hadCheckingFloor = true;

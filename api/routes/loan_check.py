@@ -6,6 +6,8 @@ Nothing is silently skipped: a month the server can't read is an error,
 never a quietly missing finding. (A lost bug did exactly that: "03/2019"
 typed into a Firefox month box made the rate-cut finding disappear.)
 """
+from api.schemas import today_ist
+
 import json
 import re
 from datetime import date, timedelta
@@ -277,7 +279,7 @@ def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResu
         _parse_month("last_reset", "Month the rate last changed", req.last_reset)
         if req.last_reset else None
     )
-    as_of = parse_date("as_of", req.as_of) if req.as_of else date.today()
+    as_of = parse_date("as_of", req.as_of) if req.as_of else today_ist()
     start_rate = _resolve_start_rate(req)
 
     inp = LoanCheckInput(
@@ -483,6 +485,9 @@ class RbiLatestResponse(_Base):
 
 def _latest_decision(as_of: date) -> DecisionOut:
     hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= as_of]
+    if len(hist) < 2:
+        # Before the second recorded repo decision there is no move to apply (was an IndexError, a 500).
+        raise bad("as_of", "No RBI repo rate change is on record before this date.")
     (last_day, last_rate), prev = hist[-1], hist[-2][1]
     return DecisionOut(
         decided=last_day.isoformat(), repo_from=prev, repo_to=last_rate, move=last_rate - prev,
@@ -494,7 +499,7 @@ def _latest_decision(as_of: date) -> DecisionOut:
 @router.get("/rbi-decision/latest", response_model=RbiLatestResponse)
 def rbi_decision_latest(as_of: Optional[str] = None) -> RbiLatestResponse:
     """The last RBI repo decision and the next meeting, for the public page's header."""
-    day = parse_date("as_of", as_of) if as_of else date.today()
+    day = parse_date("as_of", as_of) if as_of else today_ist()
     return RbiLatestResponse(
         decision=_latest_decision(day), next_meeting=_iso(next_rbi_meeting(day)),
         rates_as_of=policy_rates.rates_as_of(Country.IN).isoformat(),
@@ -509,9 +514,12 @@ def rbi_decision(req: RbiDecisionRequest) -> RbiDecisionResponse:
     Check (engine/rate_reset.py)."""
     if req.current_rate > 1:
         raise bad("current_rate", "Send the rate as a fraction (8.55% is 0.0855).")
-    as_of = parse_date("as_of", req.as_of) if req.as_of else date.today()
+    as_of = parse_date("as_of", req.as_of) if req.as_of else today_ist()
     hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= as_of]
-    (last_day, last_rate), prev = hist[-1], hist[-2][1]
+    if len(hist) < 2:
+        # Before the second recorded repo decision there is no move to apply (was an IndexError, a 500).
+        raise bad("as_of", "No RBI repo rate change is on record before this date.")
+    (_last_day, last_rate), prev = hist[-1], hist[-2][1]
     move = last_rate - prev
     notes: list[str] = []
     if req.reached == "yes":

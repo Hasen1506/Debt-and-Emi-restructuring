@@ -47,7 +47,7 @@ def test_snapshot_drops_email_account_and_upi_and_can_hide_the_loan():
     assert "secret@example.com" not in text
     assert "4321" not in text
     assert "secret@upi" not in text
-    assert shown["loans"][0]["name"] == "Home"
+    assert shown["loans"][0]["name"] == "Home loan"
     unnamed = public_snapshot(
         {"profile": {"user": {"country": "IN", "loans": [{"loan_type": "home_loan", "outstanding": "1000"}]}}},
         False,
@@ -115,7 +115,7 @@ def test_link_is_public_until_revoked_and_stays_hidden(share_client):
     assert body["hide_loans"] is True
     share_client.post("/api/user/share", headers=owner, json={"hide_loans": False})
     shown = share_client.get(f"/api/share/{token}").json()
-    assert shown["loans"][0]["name"] == "Home"
+    assert shown["loans"][0]["name"] == "Home loan"
     assert "4321" not in str(shown)
     assert share_client.post("/api/user/share/revoke", headers=owner).json()["active"] is False
     assert share_client.get(f"/api/share/{token}").status_code == 404

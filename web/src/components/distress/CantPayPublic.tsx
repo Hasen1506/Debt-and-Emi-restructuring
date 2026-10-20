@@ -78,7 +78,7 @@ export function CantPayPublic() {
   const isIN = country === 'IN';
   useEffect(() => {
     const saved = (isIN ? readCantPayDraft().in?.loanType : readCantPayDraft().us?.loanType) as LoanType | undefined;
-    if (saved) setKind(saved);
+    setKind(saved ?? (isIN ? 'personal_loan' : 'credit_card'));
   }, [epoch, isIN]);
   const chooseKind = (next: LoanType) => {
     setKind(next);

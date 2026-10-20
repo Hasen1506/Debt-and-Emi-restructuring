@@ -197,7 +197,10 @@ async def patch_state(
     incoming = payload.data
     if row is None:
         data = migrate_state_shape(incoming)
-        _check_total_size(data)
+        try:
+            _check_total_size(data)
+        except HTTPException as exc:
+            raise await _refused(db, user, exc) from None
         row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming},
                         slice_writers=_writers({}, incoming, payload))
         db.add(row)
@@ -232,7 +235,10 @@ async def put_state(
     row = await _locked_row(db, user)
     incoming = payload.data
     data = migrate_state_shape(incoming)
-    _check_total_size(data)
+    try:
+        _check_total_size(data)
+    except HTTPException as exc:
+        raise await _refused(db, user, exc) from None
     if row is None:
         row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming},
                         slice_writers=_writers({}, incoming, payload))

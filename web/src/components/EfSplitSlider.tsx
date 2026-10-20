@@ -37,7 +37,16 @@ export function EfSplitSlider({
   // (and records one decision) once the slider has been still for a moment.
   const saved = useRef(active);
   const timer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const pendingRef = useRef<string | null>(null);
+  // A pending save is sent on unmount, not dropped.
+  useEffect(() => () => {
+    if (timer.current && pendingRef.current != null) { clearTimeout(timer.current); save(pendingRef.current); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Follow the saved split when it changes elsewhere (another tab, an undo).
+  useEffect(() => {
+    saved.current = active;
+    setLocal(active);
+  }, [active]);
 
   if (!hasGap) return null;
 
@@ -62,7 +71,8 @@ export function EfSplitSlider({
   function commit(next: string) {
     setLocal(next);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => save(next), 400);
+    pendingRef.current = next;
+    timer.current = setTimeout(() => { pendingRef.current = null; save(next); }, 400);
   }
 
   const explainer = (

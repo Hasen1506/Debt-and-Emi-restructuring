@@ -235,6 +235,7 @@ export function removeLifecycleEvent(
 // ─── Engine integration: planned events → engine wire shape ────────────────
 
 import type { LifecycleEventInput } from './api';
+import { dec } from './safe-decimal';
 
 /** How many whole months from `from` (inclusive) to `to`. Returns at least 1. */
 function monthsBetween(fromIso: string, toIso: string): number {
@@ -269,7 +270,7 @@ export function plannedEventsForEngine(
         kind: 'salary_reset',
         effective_month: monthsBetween(today, e.effectiveDate),
         new_annual_gross: e.newAnnualGross,
-        new_monthly_take_home: e.newMonthlyTakeHome ?? (user ? estimatedTakeHome(user, e.newAnnualGross) : undefined),
+        new_monthly_take_home: e.newMonthlyTakeHome?.trim() || (user ? estimatedTakeHome(user, e.newAnnualGross) : undefined),
       });
     } else if (e.kind === 'floating_rate_reset') {
       const loanIndex = loans ? resolveLoanIndex(e, loans) : e.loanIndex;
@@ -315,7 +316,7 @@ export function applyConfirmedEvent(
     const next: UserPayload = { ...user, annual_income: event.newAnnualGross };
     if (user.annual_gross_salary) next.annual_gross_salary = event.newAnnualGross;
     if (user.annual_business_income) next.annual_business_income = event.newAnnualGross;
-    next.monthly_income = event.newMonthlyTakeHome ?? estimatedTakeHome(user, event.newAnnualGross);
+    next.monthly_income = event.newMonthlyTakeHome?.trim() || estimatedTakeHome(user, event.newAnnualGross);
     if (user.income_type === 'salaried') next.annual_gross_salary = event.newAnnualGross;
     else next.annual_business_income = event.newAnnualGross;
     return { user: next, snapshot };
@@ -484,9 +485,9 @@ export function pendingArrivals(
 
 /** Estimated income-tax-only net. Payroll/PF/insurance deductions require the override. */
 export function estimatedTakeHome(user: UserPayload, gross: string): string {
-  const income = new Decimal(gross);
+  const income = dec(gross);
   const tax = computeAnnualTax(user.country, user.tax_regime, user.income_type, income.toNumber(), user.filing_status);
-  const state = user.country === 'US' ? income.mul(user.state_marginal_rate ?? 0) : new Decimal(0);
+  const state = user.country === 'US' ? income.mul(dec(user.state_marginal_rate)) : new Decimal(0);
   return Decimal.max(0, income.minus(tax).minus(state)).div(12).toFixed(2);
 }
 

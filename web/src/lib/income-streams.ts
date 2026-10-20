@@ -152,11 +152,9 @@ export function streamTransitionsAsLifecycleEvents(
   let prevGross = activeGrossAnnual(list, today).toString();
 
   for (let m = 2; m <= horizonMonths; m += 1) {
-    const probe = new Date(
-      today.getFullYear(),
-      today.getMonth() + (m - 1),
-      today.getDate(),
-    );
+    // Day 1 at noon of the target month: today's day rolls over on the
+    // 29th-31st (Jan 31 + 1 month = Mar 3) and skipped February.
+    const probe = new Date(today.getFullYear(), today.getMonth() + (m - 1), 1, 12);
     const gross = activeGrossAnnual(list, probe).toString();
     if (gross !== prevGross) {
       const takeHome = D(gross).div(12).toFixed(2);

@@ -187,7 +187,7 @@ export function saveProfileClient(profile: {
   } catch {
     if (previousProfile !== null) writeProfileCookieClient(previousProfile);
     else for (let i=0;i<MAX_PROFILE_CHUNKS;i++) document.cookie = `${profileChunkName(i)}=; path=/; max-age=0`;
-    document.cookie = previousActivity === null ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${previousActivity}; path=/; SameSite=Lax`;
+    document.cookie = previousActivity === null ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${previousActivity}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;
   }

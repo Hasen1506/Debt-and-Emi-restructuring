@@ -89,6 +89,7 @@ import { formatTaxRate } from '@/lib/tax-profile';
 import { checkSpend, dropDraft, parseDraft, readDraftText, serializeDraft, SETUP_DRAFT_KEY, SETUP_EDIT_DRAFT_MAX_AGE_MS, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
+import { wholeMonthsError, LOCK_IN_RANGE } from '@/lib/r8-inputs';
 import {
   applyRateTypeChoice,
   assumedRateTypeNote,
@@ -208,6 +209,7 @@ export function QuickSetup() {
   // UX50 B-28: the loan just removed, while it can be brought back.
   const [removed, setRemoved] = useState<{ loan: LoanPayload; index: number; name: string } | null>(null);
   const undoTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (undoTimer.current) window.clearTimeout(undoTimer.current); }, []);
   // UX50 B-35: a typed ₹0 is used only once confirmed.
   const [zeroSpendOk, setZeroSpendOk] = useState(false);
 
@@ -1197,11 +1199,16 @@ function LoanBlock({
   onUi: (p: Partial<LoanUi>) => void;
   onRemove: () => void;
 }) {
+  // Lock-in as typed, so a bad entry shows an error instead of clearing.
+  const [lockText, setLockText] = useState<string | null>(null);
   const ccy = loanCurrency(loan, country);
   const card = loan.loan_type === 'credit_card';
   useEffect(() => {
     const fixed = withStatutoryPrepayment(loan, country);
-    if (fixed === loan) return;
+    // It returns a new object when it infers lender_type from the bank name even with
+    // nothing to change; patching then re-ran this effect forever. Patch only real changes.
+    if (fixed.prepayment_penalty_pct === loan.prepayment_penalty_pct
+      && fixed.prepay_lock_in_months === loan.prepay_lock_in_months) return;
     onPatch({
       prepayment_penalty_pct: fixed.prepayment_penalty_pct,
       ...(fixed.prepay_lock_in_months !== loan.prepay_lock_in_months ? { prepay_lock_in_months: fixed.prepay_lock_in_months } : {}),
@@ -1446,8 +1453,14 @@ function LoanBlock({
               label="Lock-in, months"
               findIt={find('lockIn')}
               kind="integer"
-              value={loan.prepay_lock_in_months ? String(loan.prepay_lock_in_months) : ''}
-              onChange={(v) => onPatch({ prepay_lock_in_months: Number(v) > 0 ? Math.floor(Number(v)) : undefined })}
+              value={lockText ?? (loan.prepay_lock_in_months ? String(loan.prepay_lock_in_months) : '')}
+              onChange={(v) => {
+                setLockText(v);
+                // Same rule as Profile: whole months in range, else an error rather than a silent clear.
+                if (v.trim() === '') onPatch({ prepay_lock_in_months: undefined });
+                else if (!wholeMonthsError(v, LOCK_IN_RANGE)) onPatch({ prepay_lock_in_months: Number(v) });
+              }}
+              error={lockText != null && lockText.trim() !== '' ? wholeMonthsError(lockText, LOCK_IN_RANGE) : null}
               hint="Months before extra payments are allowed"
             />
           )}

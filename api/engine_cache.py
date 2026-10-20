@@ -31,9 +31,11 @@ DEFAULT_SIZE = 32
 
 
 def canonical_key(operation: str, req: BaseModel) -> str:
+    # The conversion reads the India-time month (schemas.current_month), so key on it too.
+    from api.schemas import current_month
     body = req.model_dump(mode="json")
     day = datetime.now(timezone.utc).date().isoformat()
-    raw = json.dumps([operation, day, body], sort_keys=True, separators=(",", ":"), default=str)
+    raw = json.dumps([operation, day, current_month(), body], sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

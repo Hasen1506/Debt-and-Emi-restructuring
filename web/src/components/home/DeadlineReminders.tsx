@@ -45,8 +45,10 @@ export function DeadlineReminders({
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     a.download = `rightdue-${source}-dates.ics`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setSaid('Open the file to add the dates to your calendar. Each one has an alert the evening before.');
   }
 

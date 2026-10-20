@@ -298,7 +298,7 @@ def complaint_us(req: UsComplaintRequest) -> UsComplaintResponse:
         v = getattr(req, name)
         return parse_date(name, v) if v else None
 
-    today = opt("as_of") or date.today()
+    today = opt("as_of") or __import__("datetime").datetime.now(__import__("zoneinfo").ZoneInfo("America/New_York")).date()
     sent_on, received_on = opt("sent_on"), opt("received_on")
     acknowledged_on, resolved_on = opt("acknowledged_on"), opt("resolved_on")
     statement_on = opt("statement_on")

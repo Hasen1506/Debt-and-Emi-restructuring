@@ -142,8 +142,12 @@ def test_simulation_charges_gst_on_the_prepayment_fee():
 # ── #28: lender type and business purpose ───────────────────────────────────
 
 def test_personal_purpose_is_zero_for_every_rbi_lender_and_unknown_for_others():
-    for lender in (None, "bank", "small_finance_bank", "cooperative_bank", "nbfc", "hfc"):
+    for lender in (None, "bank", "small_finance_bank", "nbfc", "hfc"):
         assert prepayment_fee_default("home_loan", "floating", "IN", lender, False).status == "assumed"
+    # Co-operative banks and RRBs: asked before 2026 or with no year, 0 from 2026 (decision 2026-10-20).
+    for lender in ("cooperative_bank", "regional_rural_bank"):
+        assert prepayment_fee_default("home_loan", "floating", "IN", lender, False).status == "unknown"
+        assert prepayment_fee_default("home_loan", "floating", "IN", lender, False, 2026).status == "assumed"
     assert prepayment_fee_default("home_loan", "floating", "IN", "other", False).status == "unknown"
 
 

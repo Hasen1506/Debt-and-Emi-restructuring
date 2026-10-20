@@ -300,11 +300,12 @@ export function DeductionsPanel({
           />
           <Field
             label="State marginal rate override (%)"
+            kind="percent"
             value={ded.state_marginal_rate_override ?? ''}
             onChange={(v) =>
               update({ state_marginal_rate_override: v || undefined })
             }
-            hint="Decimal (0.05 = 5%); leave blank to use the default"
+            hint="5 = 5%; leave blank to use the default"
             info={
               <>
                 Default state rate is auto-picked from your state field at

@@ -54,7 +54,8 @@ from typing import Optional
 
 from engine.models import TaxRegimeIN
 from engine.tax.india import (
-    CESS_RATE, STANDARD_DEDUCTION_NEW_SALARIED, STANDARD_DEDUCTION_OLD_SALARIED, income_tax,
+    CESS_RATE, NEW_REGIME_SLABS, OLD_REGIME_SLABS, REBATE_87A_NEW_THRESHOLD, REBATE_87A_OLD_THRESHOLD,
+    STANDARD_DEDUCTION_NEW_SALARIED, STANDARD_DEDUCTION_OLD_SALARIED, _slab_tax, income_tax,
 )
 
 D = Decimal
@@ -246,8 +247,29 @@ def salaried_advance_tax(
         else:
             slab_other += g
     special = stcg * STCG_EQUITY_RATE + max(D("0"), ltcg - LTCG_EQUITY_EXEMPT) * LTCG_EQUITY_RATE
-    tax_salary = income_tax(base, regime)
-    tax_total = income_tax(base + slab_other, regime) + special * (1 + CESS_RATE)
+    tax_salary = income_tax(base, regime)   # what the employer's TDS covers
+    # s.87A is judged on total income, and equity STCG/LTCG count toward it.
+    total_income = base + slab_other + stcg + ltcg
+    threshold = REBATE_87A_NEW_THRESHOLD if regime == TaxRegimeIN.NEW else REBATE_87A_OLD_THRESHOLD
+    slab_income = base + slab_other
+    slabs = NEW_REGIME_SLABS if regime == TaxRegimeIN.NEW else OLD_REGIME_SLABS
+    tax_total = income_tax(slab_income, regime) + special * (1 + CESS_RATE)
+    if total_income > threshold:
+        slab_tax = _slab_tax(slab_income, slabs)
+        before_cess = slab_tax + special
+        if regime == TaxRegimeIN.NEW:
+            # s.87A marginal relief (decision 2026-10-20, docs/decisions): tax on total income,
+            # special-rate tax included, may not exceed the income above Rs 12L; the relief
+            # itself can't exceed the slab tax (Finance Act 2025 second proviso), so special-rate
+            # tax is never reduced. Net: max(income above 12L, special-rate tax), if lower.
+            relief = min(max(D("0"), before_cess - (total_income - threshold)), slab_tax)
+            before_cess -= relief
+        if slab_income <= threshold:
+            # The slab part alone would get the rebate; total income does not.
+            tax_total = before_cess * (1 + CESS_RATE)
+            assumptions.append("Your gains take total income past the s.87A limit, so salary TDS may fall short.")
+        elif regime == TaxRegimeIN.NEW and before_cess * (1 + CESS_RATE) < tax_total:
+            tax_total = before_cess * (1 + CESS_RATE)
     liability = _r(max(D("0"), tax_total - tax_salary - tds))
     presumptive = business and presumptive_all and any(s.kind == "freelance" for s in streams)
     senior_exempt = resident and age is not None and age >= SENIOR_AGE and not business

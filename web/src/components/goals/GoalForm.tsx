@@ -377,13 +377,17 @@ export function monthLabel(ym: string): string {
 
 /** 5 · How the plan pays into it (roadmap PR F). Debt first by default. */
 function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goal; picked: boolean; patch: (p: Partial<Goal>) => void; currency: AmountCurrency; error: string | null }) {
-  const user = useMemo(() => loadProfileClient().user, []);
-  const loans = user.loans ?? [];
+  // Read after mount: the server renders this form without the browser's cookies,
+  // so reading during render drew the demo user there and the real one here.
+  const [user, setUser] = useState<ReturnType<typeof loadProfileClient>['user'] | null>(null);
+  useEffect(() => setUser(loadProfileClient().user), []);
+  const loans = user?.loans ?? [];
+  const country = user?.country ?? (currency === 'USD' ? 'US' : 'IN');
   const rule = ruleOf(goal.fundingRule);
   // Audit 80+: the limits (cap, floor, until) stay when the rule changes.
   const limits = { until: rule.until, cap: rule.cap, pauseBelow: rule.pauseBelow };
   const set = (r: NonNullable<Goal['fundingRule']>) => patch({ fundingRule: { ...limits, ...r } });
-  const high = highInterestLoans(loans, user.country);
+  const high = highInterestLoans(loans, country);
   const open = loans.map((l, i) => ({ l, i })).filter(({ l }) => Number(l.outstanding) > 0);
   return (
     <div>
@@ -412,8 +416,9 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
       {picked && rule.kind === 'surplus_pct' && (
         <Field
           label="Share of spare cash (%)"
-          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
-          onChange={(v: string) => set({ kind: 'surplus_pct', pct: v === '' ? '' : String(Number(v) / 100) })}
+          kind="percent"
+          value={rule.pct ?? ''}
+          onChange={(v: string) => set({ kind: 'surplus_pct', pct: v })}
         />
       )}
       {picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
@@ -431,7 +436,7 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
       )}
       {picked && <FundingLimits rule={rule} patch={(p) => patch({ fundingRule: { ...rule, ...p } })} currency={currency} />}
       <p data-testid="goal-rule-label" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '6px 0 0' }}>
-        {picked ? `${fundingRuleLabel(rule, loans, user.country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
+        {picked ? `${fundingRuleLabel(rule, loans, country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
         {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
       </p>
       {error && <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>{error}</span>}
@@ -459,8 +464,9 @@ export function AfterDebtThen({ rule, set, currency }: { rule: Rule; set: (r: Ru
       {then === 'pct' && (
         <Field
           label="Then, share of spare cash (%)"
-          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
-          onChange={(v: string) => set({ ...base, pct: v === '' ? '' : String(Number(v) / 100) })}
+          kind="percent"
+          value={rule.pct ?? ''}
+          onChange={(v: string) => set({ ...base, pct: v })}
         />
       )}
     </div>

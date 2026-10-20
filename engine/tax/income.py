@@ -40,7 +40,8 @@ def user_gross(user) -> tuple[Decimal | None, bool]:
     """(annual pre-tax income, estimated?). Typed gross salary or business
     income wins; else it is solved from take-home; None when neither is on
     file."""
-    typed = user.annual_gross_salary or user.annual_business_income
+    # Salary and business income together (a salaried person with a side business).
+    typed = (user.annual_gross_salary or D("0")) + (user.annual_business_income or D("0"))
     if typed:
         return typed, False
     th = user.monthly_income if user.monthly_income and user.monthly_income > 0 else (

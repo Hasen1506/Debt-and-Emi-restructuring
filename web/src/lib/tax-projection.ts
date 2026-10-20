@@ -170,9 +170,7 @@ function addYears(month: string, years: number): string {
 
 function deductibleAmountUS(loan: LoanPayload, rawInterest: Decimal): Decimal {
   if (taxType(loan) === 'home_loan') return rawInterest;
-  if (loan.loan_type === 'education_loan') {
-    return Decimal.min(rawInterest, 2_500);
-  }
+  if (loan.loan_type === 'education_loan') return rawInterest; // the $2,500 cap is per return, applied below
   return new Decimal(0);
 }
 
@@ -223,6 +221,7 @@ export function projectAnnualTaxSavings(
   for (let y = 1; y <= years; y++) {
     let yearTotalDeductibleUserCcy = new Decimal(0);
     let usMortgageUserCcy = new Decimal(0);
+    let usEduUserCcy = new Decimal(0);
     if (user.country === 'IN') {
       // INR loans only: the deduction caps are in rupees (an NRI's US loan
       // gets no Indian deduction).
@@ -250,10 +249,14 @@ export function projectAnnualTaxSavings(
       const inUserCcy = args.fxToUserCcy(deductibleLoanCcy, loanCcy);
       if (user.country === 'US' && taxType(row.loan) === 'home_loan') {
         usMortgageUserCcy = usMortgageUserCcy.add(inUserCcy);
+      } else if (row.loan.loan_type === 'education_loan') {
+        usEduUserCcy = usEduUserCcy.add(inUserCcy);
       } else {
         yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(inUserCcy);
       }
     }
+    // Student-loan interest: $2,500 per return, not per loan.
+    yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(Decimal.min(usEduUserCcy, 2_500));
     if (usMortgageUserCcy.gt(0)) {
       const above = usMortgageUserCcy.add(usOther).sub(usStandard);
       yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(

@@ -130,7 +130,7 @@ def estimate_late_fee(
         overdue_amount * penal_rate * D(days_late) / D("365")
     )
 
-    if country == Country.IN and loan_type not in _GST_EXEMPT_LOAN_TYPES:
+    if country == Country.IN and _LIKE.get(loan_type, loan_type) not in _GST_EXEMPT_LOAN_TYPES:
         gst = (flat + penal_interest) * _GST_RATE_IN
     else:
         gst = D("0")

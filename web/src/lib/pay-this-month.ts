@@ -144,7 +144,8 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
       card: isCard,
       amount: amount - (fromSalary ? fullMin : 0),
       currency: loanCurrency(loan, country),
-      amountUser: Math.round(loanToUser(amount - (fromSalary ? fullMin : 0), loan, country, plan.fxRatesUsed) ?? amount),
+      // No exchange rate: NaN, and the whole section is withheld below (never 1:1, see currency.ts).
+      amountUser: Math.round(loanToUser(amount - (fromSalary ? fullMin : 0), loan, country, plan.fxRatesUsed) ?? NaN),
       minimum,
       extra: extra >= 1 ? extra : 0,
       ...(isCard && loan.due_day ? { dueDay: loan.due_day } : {}),
@@ -194,7 +195,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
   const budget = Number(plan.debtBudget || 0);
-  const budgetChoice = plan.debtBudgetChoice ?? (budget > 0 ? 'set' : 'all');
+  const budgetChoice = plan.debtBudgetChoice ?? (budget > 0 ? 'set' : 'unset');
   return { rows, total, leftOver, extraUser, duesUser, budget, budgetChoice, fromSalary: salaryOnly };
 }
 
@@ -237,7 +238,7 @@ function reconcileMonth(
     if (r.fromSalary) return s; // #21: already out of take-home
     // Unrounded, as the cash flow adds them (a ₹5,200.40 EMI is not ₹5,200).
     const raw = Math.min(Number(perLoan[String(r.loanIndex)] ?? r.amount), Number(plan.firstMonthMinimums[r.loanIndex as number] ?? 0));
-    return s + (loanToUser(raw, loan, country, plan.fxRatesUsed) ?? raw);
+    return s + (loanToUser(raw, loan, country, plan.fxRatesUsed) ?? NaN);
   }, 0);
   const duesUser = Math.round(minimumsUser);
   const rowExtras = loanRows.reduce(

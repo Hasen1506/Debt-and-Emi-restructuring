@@ -18,12 +18,19 @@ import { applyRules, rulesOrDefault, parseRules } from './payoff-rules';
 function rankLoan<T extends UserPayload['loans'][number]>(loan: T, country: UserPayload['country']): T {
   const market = loan.currency === 'USD' ? 'US' : loan.currency === 'INR' ? 'IN' : country;
   const given = loan.lender_type as string | undefined;
-  const lender = given === 'commercial_bank' ? 'bank' : given;
+  const lender = given === 'commercial_bank' ? 'bank' : given === 'unknown' ? undefined : given;
   const year = loan.sanction_year ?? 0;
-  const amt = Number(loan.sanctioned_amount);
+  const amtRaw = loan.sanctioned_amount as unknown;
+  const amt = amtRaw == null || String(amtRaw).trim() === '' ? NaN : Number(amtRaw);
   const cap = lender === 'small_finance_bank' || lender === 'regional_rural_bank' || lender === 'hfc';
-  const barred = market === 'IN' && loan.rate_type === 'floating' && loan.loan_type !== 'credit_card' && lender !== 'other'
-    && (!loan.business_purpose || (year >= 2026 && (lender === 'bank' || (cap && amt <= 5_000_000))));
+  // Same branch order as prepaymentFeeDefault / engine/prepayment_fee.py.
+  const inScope = market === 'IN' && loan.rate_type === 'floating' && loan.loan_type !== 'credit_card' && lender !== 'other';
+  const unanswered = loan.business_purpose == null && (loan.loan_type === 'loan_against_property' || loan.loan_type === 'gold_loan');
+  const olderUncovered = (lender === 'regional_rural_bank' || lender === 'cooperative_bank') && year < 2026;
+  const barred = inScope && !unanswered && (
+    !loan.business_purpose
+      ? !olderUncovered
+      : year >= 2026 && (lender === 'bank' || (cap && Number.isFinite(amt) && amt <= 5_000_000)));
   if (!barred) return loan;
   const lock = year >= 2026 ? 0 : loan.prepay_lock_in_months;
   const raw = (loan.prepayment_penalty_pct ?? '').trim();

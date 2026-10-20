@@ -69,10 +69,20 @@ def test_the_note_the_form_shows():
 def test_each_rule_case():
     f = prepayment_fee_default
     # Non-business floating: 2012 / 2014 / 2019 / 2025 para 5(i). Any year, any amount.
-    for lender in (None, "bank", "commercial_bank", "small_finance_bank", "cooperative_bank",
-                   "nbfc", "hfc", "regional_rural_bank"):
+    for lender in (None, "bank", "commercial_bank", "small_finance_bank",
+                   "nbfc", "hfc"):
         d = f("home_loan", "floating", "IN", lender, False, 2014, D("8000000"))
         assert d.status == "assumed" and d.pct == 0, lender
+    # RRBs and co-operative banks: asked before 2026, zero from 2026 (para 4).
+    for lender in ("cooperative_bank", "regional_rural_bank"):
+        assert f("home_loan", "floating", "IN", lender, False, 2014).status == "unknown", lender
+        assert f("home_loan", "floating", "IN", lender, False, None).status == "unknown", lender
+        assert f("home_loan", "floating", "IN", lender, False, 2026).status == "assumed", lender
+    # A blank business answer: personal for most loans, asked for LAP and gold.
+    assert f("home_loan", "floating", "IN", "bank", None).status == "assumed"
+    for lt in ("loan_against_property", "gold_loan"):
+        assert f(lt, "floating", "IN", "bank", None, 2026).status == "unknown", lt
+        assert f(lt, "floating", "IN", "bank", False, 2026).status == "assumed", lt
     # A lender RBI does not regulate is not covered.
     assert f("home_loan", "floating", "IN", "other", False).status == "unknown"
     # Fixed rate: para 5 does not apply. Para 6 leaves the charge to the lender.
@@ -139,3 +149,14 @@ def test_snowball_still_clears_the_smaller_zero_fee_loan_first():
     honored = _term(D("0.10"), 6, D("80000"), rate_type="fixed", prepayment_penalty_pct=D("0.05"), bank="Bajaj Finance")
     with_fee = simulate_plan(_user([honored, big]), Strategy.SNOWBALL, horizon_months=2)
     assert with_fee.months[0].extra_to_loan_index == 1
+
+
+def test_simulate_plan_leaves_the_callers_loans_alone():
+    """The statutory zero is applied to copies; a typed fee stays on the input."""
+    loan = _term(D("0.14"), 24, D("500000"), prepayment_penalty_pct=D("0.05"),
+                 prepay_lock_in_months=12, lender_type="bank", business_purpose=False, sanction_year=2026)
+    user = _user([loan])
+    simulate_plan(user, Strategy.AVALANCHE, horizon_months=2)
+    assert user.loans[0] is loan
+    assert loan.prepayment_penalty_pct == D("0.05")
+    assert loan.prepay_lock_in_months == 12

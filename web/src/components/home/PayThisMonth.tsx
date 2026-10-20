@@ -296,8 +296,11 @@ export function PayThisMonth({
   }
 
   function saveOther(row: PayRow, missed = false) {
-    const paid = Math.round(Number(amount));
-    if (missed || paid === 0) {
+    // A blank or non-numeric box is not "didn't pay": only the button, or a typed 0, is.
+    const raw = amount.replace(/[,\s]/g, '');
+    const paid = raw === '' ? NaN : Math.round(Number(raw));
+    if (!missed && !Number.isFinite(paid)) return;
+    if (missed || (paid === 0 && statusOf(row)?.tag !== 'EMI PAID')) {
       log(row, 'missed', 0);
       setSaid(`${row.name}: recorded as not paid this month. The plan adds it back as overdue.`);
       setOpen(null);

@@ -50,8 +50,8 @@ export function projectAssetValue(
       ? Number(asset.appreciation_cagr)
       : defaultAssetCagr(asset.asset_type, country, overrides);
   if (!Number.isFinite(cagr) || cagr === 0) return current;
-  const monthly = cagr / 12;
-  return current * Math.pow(1 + monthly, monthsForward);
+  // CAGR is an annual compound rate: compound it yearly, not cagr/12 monthly.
+  return current * Math.pow(1 + cagr, monthsForward / 12);
 }
 
 /**

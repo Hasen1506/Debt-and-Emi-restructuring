@@ -210,7 +210,7 @@ def test_delete_erases_every_linked_record_and_signs_out_everywhere(harness):
     client.put("/api/user/state", json={"data": {"profile": {"x": 1}}}, headers=cookie)
     r = client.post("/api/auth/account/delete", json={"confirm_email": EMAIL.upper()}, headers=cookie)
     assert r.status_code == 200, r.text
-    assert r.json()["removed"] == {"saved_plan": 1, "sessions": 2, "sign_in_codes": 2}
+    assert r.json()["removed"] == {"saved_plan": 1, "share_links": 0, "sessions": 2, "sign_in_codes": 2}
     assert "Max-Age=0" in r.headers["set-cookie"]
     for t in (first, second):
         assert client.get("/api/auth/me", headers={"Cookie": f"rightdue_session={t}"}).status_code == 401

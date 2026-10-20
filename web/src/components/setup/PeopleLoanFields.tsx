@@ -51,7 +51,7 @@ export function PeopleLoanFields({
         <Field label="Interest, % a month" kind="decimal" value={input} onChange={(v) => set({ rateInput: v, interest: 'monthly' })} hint="2 means 2% a month, kept as 24% a year and charged simply each month." />
       )}
       {interest === 'fixed' && (
-        <Field label="Interest each month" kind="money" currency={loan.currency === 'USD' ? 'USD' : 'INR'} value={input} onChange={(v) => set({ rateInput: v, interest: 'fixed' })} hint="The plan turns this into the yearly rate that accrues the same amount on today’s balance." />
+        <Field label="Interest each month" kind="money" currency={loan.currency === 'USD' ? 'USD' : 'INR'} value={input} onChange={(v) => set({ rateInput: v, interest: 'fixed' })} hint="The plan charges this amount every month until the loan is cleared, even as the balance falls." />
       )}
       <ChipRow label="How you pay it back">
         {REPAY.map(([id, label]) => (

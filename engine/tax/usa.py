@@ -247,7 +247,18 @@ def us_capital_gains_tax(
 
     is_lt = long_term if long_term is not None else holding_days > 365
 
-    if is_lt:
+    if is_lt and is_collectible:
+        # s.1(h)(4): a collectible gain is taxed at the ordinary rate, capped at 28%.
+        ordinary = max(D("0"), taxable_income)
+        federal = D("0")
+        prev = D("0")
+        for limit, rate in BRACKETS_2026[filing_status]:
+            lo = max(prev, ordinary)
+            hi = min(limit, ordinary + gain)
+            if hi > lo:
+                federal += (hi - lo) * min(rate, COLLECTIBLE_LTCG_MAX_RATE)
+            prev = limit
+    elif is_lt:
         ordinary = max(D("0"), taxable_income)
         federal = D("0")
         prev = D("0")
@@ -255,10 +266,7 @@ def us_capital_gains_tax(
             lo = max(prev, ordinary)
             hi = min(limit, ordinary + gain)
             if hi > lo:
-                r = rate
-                if is_collectible:
-                    r = min(COLLECTIBLE_LTCG_MAX_RATE, max(rate, D("0.15")))
-                federal += (hi - lo) * r
+                federal += (hi - lo) * rate
             prev = limit
     else:
         federal = federal_tax(taxable_income + gain, filing_status) - federal_tax(taxable_income, filing_status)
@@ -287,6 +295,8 @@ def federal_tax(taxable_income: Decimal, filing_status: FilingStatusUS) -> Decim
 def federal_marginal_rate(taxable_income: Decimal, filing_status: FilingStatusUS) -> Decimal:
     """Federal marginal rate at the given income."""
     brackets = BRACKETS_2026[filing_status]
+    if taxable_income <= 0:
+        return brackets[0][1]
     prev = D("0")
     for limit, rate in brackets:
         if taxable_income > prev and taxable_income <= limit:
@@ -347,7 +357,7 @@ def self_employment_tax(net_earnings: Decimal, filing_status: FilingStatusUS | N
     from self-employment (Schedule C profit). The Additional Medicare part is
     not halved."""
     se = max(D("0"), net_earnings) * SE_NET_FACTOR
-    if net_earnings < SE_MIN_NET:
+    if se < SE_MIN_NET:   # the $400 floor is on net earnings (92.35% of profit)
         return D("0"), D("0")
     base = SE_SS_RATE * min(se, SE_SS_WAGE_BASE_2026) + SE_MEDICARE_RATE * se
     extra = ADDL_MEDICARE_RATE * max(D("0"), se - ADDL_MEDICARE_THRESHOLD[filing_status or FilingStatusUS.SINGLE])

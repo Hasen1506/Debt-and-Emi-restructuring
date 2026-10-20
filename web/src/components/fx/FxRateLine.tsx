@@ -33,7 +33,7 @@ export function FxRateLine({ user, nowMs }: { user: UserPayload; nowMs: number }
       {ccys.map((c) => {
         const rate = user.fx_to_user_currency?.[c];
         const meta = user.fx_meta?.[c];
-        const warn = failed.includes(c) || fxIsStale(meta, nowMs);
+        const warn = failed.includes(c) || (nowMs > 0 && fxIsStale(meta, nowMs));
         return (
           <span key={c} style={{ color: warn ? L_T.negative : L_T.muted }}>
             {Number(rate) > 0 ? `${fxPerDollar(c as CurrencyCode, own as CurrencyCode, Number(rate)) ?? `1 ${c} = ${Number(rate).toPrecision(4)} ${own}`} · ${fxAsOfLabel(meta)}` : `No ${c} rate yet`}

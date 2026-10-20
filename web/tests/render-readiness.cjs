@@ -46,7 +46,7 @@ test('a fresh device restores goals, contributions, spending, decisions and EF c
   const input={goals:[{id:'g',kind:'custom',label:'Trip',amount:'10000',targetMonth:'2027-01',bufferPct:'0',priorityBump:false,status:'active'}],goal_contributions:[{id:'c',goalId:'g',amount:'2500.25',date:'2026-10-02'}],monthly_spend:[{id:'s',monthIso:'2026-10',spent:'1000.50',loggedAt:'2026-10-02'}],decisions:[{id:'d'}],ef_split:'0.6'};
   await require(path.join(root,'lib/server-sync.ts')).hydrateLocalStores(input);
   for(const slice of ['goals','goal_contributions','monthly_spend','decisions'])assert.deepEqual(JSON.parse(data.get('rightdue_'+slice)),input[slice]);
-  assert.equal(JSON.parse(atob(jar.get('rightdue_goals_digest')))[0].id,'g');assert.equal(JSON.parse(atob(jar.get('rightdue_goal_contributions_digest'))).g,2500.25);assert.equal(JSON.parse(atob(jar.get('rightdue_monthly_spend_digest')))['2026-10'],1000.5);assert.equal(decodeURIComponent(jar.get('rightdue_ef_split')),'0.6');assert.equal(calls,0);
+  assert.equal(JSON.parse(require('lz-string').decompressFromEncodedURIComponent(jar.get('rightdue_goals_digest').replace(/^z1\./,'')))[0].id,'g');assert.equal(JSON.parse(atob(jar.get('rightdue_goal_contributions_digest'))).g,2500.25);assert.equal(JSON.parse(atob(jar.get('rightdue_monthly_spend_digest')))['2026-10'],1000.5);assert.equal(decodeURIComponent(jar.get('rightdue_ef_split')),'0.6');assert.equal(calls,0);
  }finally{global.fetch=original;delete global.document;delete global.localStorage;delete global.window}
 });
 

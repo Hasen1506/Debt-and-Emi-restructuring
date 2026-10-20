@@ -224,6 +224,9 @@ def redact(line: str) -> str:
 def _amount(raw: str) -> Optional[Decimal]:
     if not raw or re.fullmatch(r"[-–—\s]*|na|n/a|nil|not reported", raw.strip(), re.IGNORECASE):
         return None
+    # "-12,345" or "12,345 CR": the account is in credit, so nothing is owed.
+    if re.match(r"\s*[-–]\s*[₹\d]", raw) or re.search(r"\d\s*cr\b(?!ore)", raw, re.IGNORECASE):
+        return D("0")
     m = _money(raw)
     if m is not None:
         return m
@@ -262,9 +265,10 @@ def _mask(raw: str) -> Optional[str]:
 
 
 def _months(raw: str) -> Optional[int]:
-    m = re.search(r"(\d+)\s*(years?|yrs?|y)\b", raw, re.IGNORECASE)
-    if m:
-        return int(m.group(1)) * 12
+    y = re.search(r"(\d+)\s*(?:years?|yrs?|y)\b", raw, re.IGNORECASE)
+    mo = re.search(r"(\d+)\s*(?:months?|mths?|mos?|m)\b", raw, re.IGNORECASE)
+    if y:
+        return int(y.group(1)) * 12 + (int(mo.group(1)) if mo else 0)
     m = re.search(r"(\d+)", raw)
     return int(m.group(1)) if m else None
 
@@ -544,7 +548,7 @@ def _account(block: list[tuple[str, str, str]], as_of: Optional[date]) -> Option
 
 _SCORE_RE = re.compile(
     r"(?:cibil\s*(?:trans\s*union\s*)?score|credit\s*score|experian\s*credit\s*score|perform\s*consumer[\w .]*score|"
-    r"equifax\s*risk\s*score[\w .]*|score)\s*(?:\(.*?\))?\s*[:\-]?\s*(\d{3})\b",
+    r"equifax\s*risk\s*score[\w .]*|score)\s*(?:\(.*?\))?\s*[:\-]?\s*(\d{3})\b(?!\s*(?:-|–|to)\s*\d{3})",
     re.IGNORECASE,
 )
 _REPORT_DATE_RE = re.compile(r"(?:date\s*of\s*report|report\s*date|date\s*of\s*issue|report\s*generated\s*on)\s*[:\-]?\s*(.+)", re.IGNORECASE)

@@ -182,7 +182,7 @@ _MONEY = re.compile(
     r"|(?P<b>\d[\d,]*(?:\.\d+)?)\s*(?P<m2>lakhs?|lacs?|crores?|cr|k|thousand)\b)",
     re.I,
 )
-_PCT = re.compile(r"(?P<n>\d{1,2}(?:\.\d{1,3})?)\s*(?:%|per\s?cent\b|pc\b|percent\b)", re.I)
+_PCT = re.compile(r"(?<![\d.])(?P<n>\d{1,3}(?:\.\d{1,3})?)\s*(?:%|per\s?cent\b|pc\b|percent\b)", re.I)
 _TENURE = re.compile(r"(?P<n>\d{1,3}(?:\.\d)?)\s*(?:-|\s)?(?P<u>years?|yrs?|months?|mos?)\b", re.I)
 
 
@@ -440,8 +440,10 @@ def _fee_claims(s: str, loans: list[AdviceLoan], idx: list[int], p: PlanFacts) -
     l = loans[i]
     says_free = bool(_NO_FEE.search(s))
     if l.rate_type != "floating" or l.loan_type in ("credit_card", "bnpl"):
+        what = ("is a card or pay-later line, not a term loan" if l.loan_type in ("credit_card", "bnpl")
+                else "is fixed-rate")
         return [Claim("prepay_fee", _quote(s), CANT,
-                      f"{_cap(label(loans, i))} is fixed-rate: any prepayment fee is whatever your loan "
+                      f"{_cap(label(loans, i))} {what}: any prepayment fee is whatever your loan "
                       f"agreement says (the key facts statement lists it).", None, None, i)]
     rule = PREPAYMENT_NO_CHARGE
     if says_free:

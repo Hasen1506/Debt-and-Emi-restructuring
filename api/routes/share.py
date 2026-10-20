@@ -43,9 +43,9 @@ _TYPE_WORDS = {
 
 
 def _loan_name(loan: dict[str, Any]) -> str:
-    named = str(loan.get("nickname") or loan.get("bank") or "").strip()
-    if named:
-        return named[:80]
+    """The kind of loan only. A nickname is the owner's own label and can
+    hold a person's name ("Loan from Ravi"), and the lender's name was never
+    shared, so neither leaves the account."""
     return _TYPE_WORDS.get(str(loan.get("loan_type") or ""), "Loan")
 
 
@@ -164,8 +164,8 @@ async def public_share(token: str, db: AsyncSession = Depends(get_db)) -> dict[s
         raise HTTPException(404, "This link is not active.")
     data = await _state(db, row.user_id)
     snap = public_snapshot(data, row.hide_loans)
-    row.snapshot = snap
-    row.updated_at = utc_now()
+    # Built live on every view; not written back, so an anonymous reader
+    # cannot cause a row update per request.
     await access_log.record(db, None, "read", "/api/share/{token}", "ok", commit=False)
     await db.commit()
     return snap

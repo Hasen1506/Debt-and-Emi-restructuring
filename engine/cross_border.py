@@ -65,6 +65,8 @@ def evaluate_cross_border(inp: CrossBorderInputs) -> CrossBorderVerdict:
       - Post-tax yield in user terms = yield * (1 − marginal_tax)
       - If loan_cost > yield → prepay. Spread > 1pp triggers strong recommendation.
     """
+    if inp.loan_tenure_months < 1:
+        raise ValueError("loan_tenure_months must be at least 1")
     drift = inp.expected_fx_drift_annual
     loan_cost = (D("1") + inp.loan_nominal_rate) * (D("1") + drift) - D("1")
     post_tax_yield = inp.user_savings_yield * (D("1") - inp.user_marginal_tax)

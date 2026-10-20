@@ -10,6 +10,7 @@ import { loadProfileClient } from './user-store';
 import { resolveLoanIndex } from './loan-ids';
 import { isOpenCurrentLoan } from './plan-controls';
 import { commitActivity } from './commit-activity';
+import { getCountryToday, localIsoDate } from './today';
 
 export interface ApplyToolResultInput {
   loanIndex: number;
@@ -50,7 +51,7 @@ export function applyToolResult(input: ApplyToolResultInput): number {
     loanIndex: index,
     loanId: profile.user.loans[index].id,
     kind: input.kind,
-    date: input.date ?? todayISO(),
+    date: input.date ?? localIsoDate(getCountryToday(profile.user.country)),
     amount: input.amount,
     scheduledEmi: input.scheduledEmi,
     note: input.note,

@@ -141,7 +141,7 @@ def _lines(text: str) -> list[str]:
 _NUM = r"\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 _PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 _MONEY = re.compile(
-    r"(?:₹|rs\.?|inr|rupees)\s*(" + _NUM + r")\s*(lakhs?|lacs?|crores?|cr\b)?(?:\s*/-)?"
+    r"(?:₹|(?<![a-z])(?:rs\.?|inr|rupees))\s*(" + _NUM + r")\s*(lakhs?|lacs?|crores?|cr\b)?(?:\s*/-)?"
     r"|(" + _NUM + r")\s*(lakhs?|lacs?|crores?)",
     re.I,
 )
@@ -201,14 +201,18 @@ def _pct(s: str) -> Optional[Decimal]:
 
 
 def _date(s: str) -> Optional[date]:
-    for pat in (r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})", r"\b(\d{2})(\d{2})(\d{4})\b"):
-        m = re.search(pat, s)
-        if m:
-            d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            try:
-                return date(y, mo, d)
-            except ValueError:
-                pass
+    m = re.search(r"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)", s)   # ISO 2025-11-05
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
+    m = re.search(r"(?<!\d)(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?!\d)", s)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
     m = re.search(r"(\d{1,2})(?:st|nd|rd|th)?[\s\-/]+([A-Za-z]{3})[a-z]*[\s\-/,]+(\d{4})", s)
     if m and m.group(2).lower()[:3] in _MONTHS:
         try:
@@ -221,6 +225,14 @@ def _date(s: str) -> Optional[date]:
             return date(int(m.group(3)), _MONTHS[m.group(1).lower()[:3]], int(m.group(2)))
         except ValueError:
             pass
+    # Bare DDMMYYYY last, and only as a whole token: an application or account
+    # number would otherwise win over a real date on the same line.
+    m = re.search(r"(?<![\d,.])(\d{2})(\d{2})(\d{4})(?![\d,.])", s)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
     return None
 
 
@@ -231,7 +243,9 @@ def _months(s: str) -> Optional[int]:
     n = D(m.group(1))
     u = m.group(2).lower()
     if u.startswith("y"):
-        return int(n * 12)
+        # "15 years 6 months": add the months that follow the years.
+        extra = re.match(r"\s*(?:and\s*|,\s*)?(\d+)\s*(?:months?|mths?)\b", s[m.end():], re.I)
+        return int(n * 12) + (int(extra.group(1)) if extra else 0)
     if u.startswith("d"):
         return int((n / D("30.4375")).to_integral_value(ROUND_HALF_UP))
     return int(n)
@@ -367,6 +381,12 @@ def _interest(lines: list[str], res: KfsResult) -> None:
         res.fields["rate_type"] = Found(k, _src(line))
 
 
+_DATE_IN_ROW = re.compile(
+    r"(?i)(?<!\d)(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|"
+    r"\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+\d{4})(?!\d)"
+)
+
+
 def _floating(lines: list[str], res: KfsResult) -> None:
     """Annex A row 7: Reference Benchmark | Benchmark rate (B) | Spread (S) | Final rate R = B + S | reset."""
     for i, line in enumerate(lines):
@@ -377,10 +397,13 @@ def _floating(lines: list[str], res: KfsResult) -> None:
             if re.search(r"(?i)\bspread\b.*\(s\)|reset|impact of change|periodicity", cand) and not \
                     re.search(r"\d+\.\d+", cand):
                 continue
+            # A date in the row ("as on 01.04.2025") is not the rate, spread or final rate.
+            cand = _DATE_IN_ROW.sub(" ", cand)
             nums = [n for n in _bare_numbers(cand) if n <= D("40")]
             m = re.match(r"\s*([A-Za-z][A-Za-z0-9 ()\-./]*?)\s*[:|]?\s*(\d)", cand)
             if len(nums) >= 3 and m and not re.search(r"(?i)^\s*(reference|benchmark)\s*$", m.group(1)):
                 name = re.sub(r"(?i)^(reference benchmark|benchmark)\s*[:|-]?\s*", "", m.group(1)).strip(" :|-")
+                name = re.sub(r"(?i)\s+as\s+(?:on|of)\s*$", "", name)
                 b, s, r = nums[0], nums[1], nums[2]
                 if name:
                     res.fields["benchmark"] = Found(name, _src(cand))
@@ -439,9 +462,20 @@ def _fee(lines: list[str], key: str, sanctioned: Optional[Decimal]) -> Optional[
         return Found("0", _src(line), "Nil"), D("0")
     amt = _money(rest)
     pct = _pct(rest)
+    capped = pct is not None and amt is not None and re.search(
+        r"(?i)\b(max(?:imum)?|cap(?:ped)?|up\s*to|not\s+exceeding|subject\s+to)\b", rest)
+    if capped:
+        # "2% of the loan, max Rs 10,000": the % fee, capped at the amount.
+        if not sanctioned:
+            return None
+        rupees = min((sanctioned * pct).quantize(D("1"), ROUND_HALF_UP), amt)
+        return Found(_fmt(rupees, "0.01"), _src(line),
+                     f"{_fmt(pct * 100, '0.01')}% of the loan, capped at {_fmt(amt, '0.01')}"), rupees
     if amt is None and pct is not None and sanctioned:
         rupees = (sanctioned * pct).quantize(D("1"), ROUND_HALF_UP)
         return Found(_fmt(rupees, "0.01"), _src(line), f"{_fmt(pct * 100, '0.01')}% of the loan"), rupees
+    if amt is None and pct is not None:
+        return None   # "2 % of the loan" with no loan amount read: not Rs 2
     if amt is None:
         nums = [n for n in _bare_numbers(rest) if n >= 1]
         amt = max(nums) if nums else None
@@ -561,12 +595,15 @@ def _v(res: KfsResult, key: str) -> Optional[Decimal]:
     return None if f is None else _dec(f.value)
 
 
-def apr_from_terms(principal: Decimal, rate: Decimal, months: int, fees: Decimal) -> Decimal:
+def apr_from_terms(principal: Decimal, rate: Decimal, months: int, fees: Decimal) -> Optional[Decimal]:
     """Annex B: IRR of the net amount disbursed (loan less every fee) against
-    the EMIs, reducing balance, monthly rate × 12."""
+    the EMIs, reducing balance, monthly rate × 12. None when the fees eat the
+    whole loan (no IRR) or the IRR is past the search cap of 100% a month."""
     p = float(principal)
     pay = float(emi_formula(principal, rate, months))
     net = p - float(fees)
+    if net <= 0 or pay * (1 - 2.0 ** -months) > net:
+        return None
     lo, hi = 0.0, 1.0
     for _ in range(200):
         mid = (lo + hi) / 2
@@ -610,6 +647,12 @@ def _check(res: KfsResult, other_fees: Decimal) -> None:
     stated_apr = _v(res, "apr")
     if p and r is not None and n and stated_apr:
         computed_apr = apr_from_terms(p, r, n, fee + other_fees)
+    if p and r is not None and n and stated_apr and computed_apr is None:
+        res.warnings.append(
+            f"The fees read ({_rs(fee + other_fees)}) leave almost nothing of the {_rs(p)} loan, so the "
+            f"APR can't be checked. A fee or the loan amount was probably read wrongly."
+        )
+    elif p and r is not None and n and stated_apr:
         gap = stated_apr - computed_apr
         ok = abs(gap) <= APR_TOLERANCE
         fees_txt = f"{_rs(fee + other_fees)} of fees" if fee + other_fees > 0 else "no fees"
@@ -650,8 +693,11 @@ def _months_between(first: date, today: date) -> int:
     """EMIs due from `first` up to and including `today`."""
     if today < first:
         return 0
+    import calendar
     k = (today.year - first.year) * 12 + (today.month - first.month)
-    if today.day >= first.day:
+    # An EMI on the 29th-31st falls due on the last day of a shorter month.
+    due_day = min(first.day, calendar.monthrange(today.year, today.month)[1])
+    if today.day >= due_day:
         k += 1
     return k
 
@@ -677,7 +723,7 @@ def _to_loan(res: KfsResult, as_of: Optional[date]) -> None:
         )
     p, n = _v(res, "sanctioned_amount"), loan["tenure_months_remaining"]
     fee = _v(res, "processing_fee")
-    if fee is not None and p and n:
+    if fee is not None and p and n and int(n) > 0:
         years = D(int(n)) / D("12")
         loan["processing_fee_amortised"] = _fmt(fee / p / years)
         res.derived["processing_fee_amortised"] = (
@@ -690,7 +736,7 @@ def _to_loan(res: KfsResult, as_of: Optional[date]) -> None:
         paid = _months_between(fd, today)
         if paid == 0:
             loan["first_emi_month"] = fd.strftime("%Y-%m")
-        elif p and n and loan["nominal_rate"] is not None:
+        elif p and n and int(n) > 0 and loan["nominal_rate"] is not None:
             total = int(n)
             paid = min(paid, total)
             left = remaining_balance(p, D(loan["nominal_rate"]), total, paid)

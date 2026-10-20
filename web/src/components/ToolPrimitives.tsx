@@ -235,6 +235,12 @@ export function Field({
       return f === value ? t : fractionToPercentText(value);
     });
   }, [isPercent, value]);
+  // Tell the parent whenever the box text changes, including when it is replaced
+  // from outside (a suggestion or prefill): the unreadable flag used to stay stuck.
+  useEffect(() => {
+    if (isPercent) onUnreadable?.(percentTextToFraction(pctText) === null && pctText.trim() !== '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPercent, pctText]);
   // Money fields keep the typed text ("25L", "25,00,0") and hand the caller
   // plain digits; regrouped only when the value changes from outside.
   const [moneyText, setMoneyText] = useState(() => formatAmount(value, currency));
@@ -424,7 +430,7 @@ export function percentTextToFraction(v: string): string | null {
   const t = v.trim().replace(/%$/, '').trim().replace(/\.$/, '');
   if (t === '') return '';
   if (!/^-?\d*\.?\d+$/.test(t)) return null;
-  return new Decimal(t).div(100).toString();
+  return new Decimal(t).div(100).toFixed(); // toString() turns tiny rates into 1e-8
 }
 
 function describedBy(id: string, hint?: string, error?: string | null): string | undefined {
@@ -749,7 +755,7 @@ export function ScoreChip({
   const sign = positive ? '+' : '';
   const range = deltaLow === deltaHigh
     ? `${sign}${deltaHigh}`
-    : `${sign}${deltaLow} to ${sign.replace('-', '')}${deltaHigh > 0 ? '+' : ''}${deltaHigh}`;
+    : `${sign}${deltaLow} to ${deltaHigh > 0 ? '+' : ''}${deltaHigh}`;
   const bandChange =
     currentBand !== projectedBandHigh
       ? ` · ${BAND_LABEL[currentBand]} → ${BAND_LABEL[projectedBandHigh]}`

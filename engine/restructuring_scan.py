@@ -374,7 +374,7 @@ def _first_year_saving(yearly_gross_saving: Decimal, one_time_cost: Decimal) -> 
 
 
 def _bt_saving_annualised(
-    card: Loan, card_effective: Decimal, effective_bt_apr: Decimal, promo_months: int,
+    card: Loan, card_effective: Decimal, promo_rate: Decimal, fee_pct: Decimal, promo_months: int,
 ) -> Decimal:
     """Saving in the first 12 months, net of the transfer fee.
 
@@ -382,8 +382,10 @@ def _bt_saving_annualised(
     (current − bt_effective) × outstanding × promo/12 equals the interest
     saved during the promo minus the fee. After the promo the rate goes
     back to roughly today's, so nothing more is saved in that year."""
-    saving = (card_effective - effective_bt_apr) * card.outstanding
-    return saving * D(min(promo_months, 12)) / D("12")
+    # Interest saved in the first 12 months (at most the promo), minus the
+    # whole one-time fee, as the module docstring and fit_to_plan count it.
+    window = D(min(promo_months, 12))
+    return (card_effective - promo_rate) * card.outstanding * window / D("12") - fee_pct * card.outstanding
 
 
 def _scan_card_balance_transfer(
@@ -407,9 +409,7 @@ def _scan_card_balance_transfer(
     cand = scan_balance_transfer(card, card_effective, promo_rate, fee_pct, promo_months)
     if cand is None:
         return None
-    saving_annualised = _bt_saving_annualised(
-        card, card_effective, cand.effective_bt_apr, promo_months,
-    )
+    saving_annualised = _bt_saving_annualised(card, card_effective, promo_rate, fee_pct, promo_months)
     ccy = "₹" if country == Country.IN else "$"
     bt_cost = fee_pct * card.outstanding
     bt_breakeven = _breakeven_months(bt_cost, (card_effective - promo_rate) * card.outstanding)
@@ -455,7 +455,7 @@ def _scan_card_balance_transfer(
         if alt_eff < cand.effective_bt_apr:
             alt_bank = alt_card.name
             alt_rate = alt_eff
-            alt_saving = _bt_saving_annualised(card, card_effective, alt_eff, alt_months)
+            alt_saving = _bt_saving_annualised(card, card_effective, alt_promo, alt_fee, alt_months)
     opp = RestructuringOpportunity(
         kind="balance_transfer",
         headline="",

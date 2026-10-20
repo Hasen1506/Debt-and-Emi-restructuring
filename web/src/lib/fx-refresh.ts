@@ -12,6 +12,7 @@
  */
 import type { FxMeta, UserPayload } from './api';
 import { loanCurrency, userDefaultCurrency } from './currency';
+import { localIsoDate } from './today';
 
 export const FX_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** Older than this, the rate line turns into a warning. */
@@ -102,7 +103,7 @@ export function dateProfileRates<U extends FxUser>(
     const q = quotes[c];
     if (prevMeta && String(prev?.fx_to_user_currency?.[c]) === String(rate)) meta[c] = prevMeta;
     else if (q && Number(q.rate) === Number(rate)) meta[c] = { as_of: q.as_of ?? null, fetched_at: at, source: q.source ?? 'live' };
-    else meta[c] = { as_of: at.slice(0, 10), fetched_at: at, source: 'manual', manual: true };
+    else meta[c] = { as_of: localIsoDate(new Date(nowMs)), fetched_at: at, source: 'manual', manual: true };
   }
   return { ...user, fx_meta: meta };
 }

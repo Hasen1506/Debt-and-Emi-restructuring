@@ -138,6 +138,12 @@ def current_month() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m")
 
 
+def today_ist() -> date:
+    """Today's date in India time (the app's default zone); the container runs on UTC."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
+
+
 Amount = Annotated[Decimal, AfterValidator(_amount)]
 Rate = Annotated[Decimal, AfterValidator(_rate)]
 LoanRate = Annotated[Decimal, AfterValidator(_loan_rate)]
@@ -231,7 +237,10 @@ class LoanIn(_In):
     # True-APR restructuring triggers — see engine/models.py:Loan docstring.
     prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
     # RBI prepayment rule (engine/prepayment_fee.py). Omitted = not given.
-    lender_type: Optional[str] = None
+    lender_type: Optional[Literal[
+        "bank", "commercial_bank", "small_finance_bank", "regional_rural_bank",
+        "cooperative_bank", "nbfc", "hfc", "other", "unknown",
+    ]] = None
     business_purpose: Optional[bool] = None
     sanction_year: Optional[int] = Field(None, ge=1990, le=2100)
     sanctioned_amount: Optional[Amount] = None
@@ -239,6 +248,8 @@ class LoanIn(_In):
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     # Lender's minimum part-payment (grill #30); extra below it is set aside.
     min_prepay_amount: Amount = D("0")
+    # People loans at a fixed amount of interest a month (web/src/lib/people-loan.ts).
+    fixed_monthly_interest: Optional[Amount] = None
     pre_emi_months_remaining: Months = 0
     # Sim month of the first EMI (a loan taken this month: 2). The web
     # derives it from the loan's calendar first EMI month.
@@ -455,6 +466,7 @@ class LoanIn(_In):
             sanctioned_amount=self.sanctioned_amount,
             prepay_lock_in_months=self.lock_in_months_left(),
             min_prepay_amount=self.min_prepay_amount,
+            fixed_monthly_interest=self.fixed_monthly_interest if self.loan_type == "people_loan" else None,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
             first_payment_month=self.first_payment_month,

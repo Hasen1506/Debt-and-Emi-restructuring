@@ -20,6 +20,10 @@ export function RateMoveEmail({ loans }: { loans: RateWatchLoan[] }) {
   const [available, setAvailable] = useState(false);
   const [on, setOn] = useState(false);
   const [picked, setPicked] = useState<boolean[]>(() => loans.map((l) => l.likelyRepo));
+  // Loans can arrive after mount: keep one tick per loan.
+  useEffect(() => {
+    setPicked((prev) => loans.map((l, i) => prev[i] ?? l.likelyRepo));
+  }, [loans]);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
 
@@ -66,7 +70,7 @@ export function RateMoveEmail({ loans }: { loans: RateWatchLoan[] }) {
           <legend style={{ fontWeight: 600 }}>Email me after each RBI rate decision: the new EMI or tenure to check, and the better choice</legend>
           {loans.map((l, i) => (
             <label key={i} style={{ display: 'block' }}>
-              <input type="checkbox" checked={picked[i]} onChange={(e) => setPicked((p) => p.map((v, k) => (k === i ? e.target.checked : v)))} />{' '}
+              <input type="checkbox" checked={!!picked[i]} onChange={(e) => setPicked((p) => p.map((v, k) => (k === i ? e.target.checked : v)))} />{' '}
               {l.name} ({(l.rate * 100).toFixed(2)}%){l.likelyRepo ? '' : ' — tick only if your sanction letter says repo-linked (RLLR / EBLR)'}
             </label>
           ))}

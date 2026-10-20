@@ -229,9 +229,13 @@ export function mergeCreditReports(reports: CreditReportReadResponse[]): CreditR
         chosen.set(key, account);
         return;
       }
-      const newerBalance = account.loan?.outstanding ?? prev.loan?.outstanding ?? null;
+      // The newer balance travels with its own report date, or roll-forward
+      // takes off EMIs the newer balance already reflects.
+      const fromNewer = account.loan?.outstanding != null;
+      const newerBalance = fromNewer ? account.loan!.outstanding : prev.loan?.outstanding ?? null;
+      const reported = fromNewer ? account.loan!.reported ?? null : prev.loan?.reported ?? null;
       const base = filled(account) >= filled(prev) ? account : prev;
-      const loan = base.loan ? { ...base.loan, outstanding: newerBalance } : base.loan;
+      const loan = base.loan ? { ...base.loan, outstanding: newerBalance, reported } : base.loan;
       chosen.set(key, { ...base, loan });
     });
   }
