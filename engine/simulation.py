@@ -124,6 +124,19 @@ def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int |
     return math.ceil(-math.log(1 - r * p / a) / math.log(1 + r))
 
 
+def _interest_on_minimums(balance: Decimal, r_month: Decimal, payment: Decimal, months: int) -> Decimal:
+    """Interest a balance accrues over at most `months` while only `payment`
+    is paid each month (the prepayment fee gate's minimums-only run)."""
+    b, r, a, total = float(balance), float(r_month), float(payment), 0.0
+    for _ in range(max(0, int(months))):
+        if b <= 0:
+            break
+        i = b * r
+        total += i
+        b = b + i - a
+    return D(str(total))
+
+
 def _home_interest_pool(homes: list[Loan], country: Country) -> Decimal:
     """India: the user's share of a year's interest and pre-construction
     instalments across self-occupied home loans, which share one ₹2L cap
@@ -1247,7 +1260,28 @@ def _simulate_plan(
                 # k - 1 months from now: that is how long it would have grown.
                 k = min(k, horizon_months - m + 1) - 1
             fee = prepayment_fee_with_gst(l.prepayment_penalty_pct, loan_market(l, user.country) == Country.IN)
-            return prepayment_beats_fee(r_month, fee, k)
+            if not prepayment_beats_fee(r_month, fee, k):
+                return False
+            if k is None or fee >= 1:
+                return True
+            # The unit test above is the best case: the first unit prepaid
+            # removes the final payment. A lump this month's extra could put
+            # in removes earlier, smaller tails too, so it can save less than
+            # its fee even when one unit wins (differential suite: a 4.82%
+            # BNPL with a 3.5% fee, cleared in month 1, cost more than its
+            # minimums). Check the whole lump against the minimums-only run.
+            lump = min(from_user_currency(extra_for_debt, l, user), l.outstanding / (D("1") - fee))
+            if lump <= 0:
+                return True
+            # This month's interest is charged on the full balance either way;
+            # the lump only shrinks the balance the later months run on.
+            after_this_month = l.outstanding + charge - minimums[id(l)]
+            if after_this_month <= 0:
+                return False
+            net = min(lump * (D("1") - fee), after_this_month)
+            saved = (_interest_on_minimums(after_this_month, r_month, minimums[id(l)], k + 1)
+                     - _interest_on_minimums(after_this_month - net, r_month, minimums[id(l)], k + 1))
+            return saved > lump * fee
 
         worth_prepaying = [
             l for l in ranked
