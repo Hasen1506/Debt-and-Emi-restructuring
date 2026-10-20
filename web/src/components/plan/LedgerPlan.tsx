@@ -282,7 +282,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </div>}
         {plan.user.loans.some(l=>l.planned_effective_month) && <div style={{fontSize:12}}>
           Forecast includes planned loans: {plan.user.loans.filter(l=>l.planned_effective_month).map(l=>
-            `${l.bank} from ${monthIndexToCountryLabel(l.planned_effective_month!,plan.user.country)}`).join('; ')}.
+            `${loanLabel(l)} from ${monthIndexToCountryLabel(l.planned_effective_month!,plan.user.country)}`).join('; ')}.
           Confirm, postpone or cancel the event when the date arrives.
         </div>}
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />

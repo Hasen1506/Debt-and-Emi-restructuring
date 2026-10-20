@@ -72,10 +72,13 @@ export function rateMove(loan: LoanPayload, country: Country, step = RATE_STEP):
   // computed one. A borrower who already pays above the formula EMI was
   // shown a step off that formula instead of off their payment.
   const now = scheduled > 0 ? scheduled : emiFor(p, rate, n);
+  // Moves are applied to the payment actually made, not the formula EMI.
+  const base = emiFor(p, rate, n);
+  const shift = (r: number) => now + (emiFor(p, r, n) - base);
   return {
     loan,
     follows,
-    ...(n > 0 ? { emi: { now, up: emiFor(p, rate + step, n), down: emiFor(p, down, n) } } : {}),
+    ...(n > 0 ? { emi: { now, up: shift(rate + step), down: shift(down) } } : {}),
     months: { now: monthsFor(p, rate, scheduled), up: monthsFor(p, rate + step, scheduled), down: monthsFor(p, down, scheduled) },
   };
 }

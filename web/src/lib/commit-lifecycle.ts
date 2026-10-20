@@ -20,7 +20,7 @@ export function commitLifecycle(id: string, action: LifecycleStatus | 'delete'):
     if (event.kind === 'property_buy' && stored.user.loans.length >= 50) throw new Error('Your profile already has the maximum 50 loans.');
     if(event.kind === 'property_buy') {
       const loan=event.loanDraft;
-      if(![loan.outstanding,loan.nominal_rate,loan.scheduled_emi].every(v=>Number.isFinite(Number(v)))
+      if(![loan.outstanding,loan.nominal_rate,loan.scheduled_emi].every(v=>String(v ?? '').trim() !== '' && Number.isFinite(Number(v)))
         || Number(loan.outstanding)<=0 || Number(loan.scheduled_emi)<=0 || Number(loan.nominal_rate)<0 || Number(loan.nominal_rate)>1
         || !Number.isInteger(loan.tenure_months_remaining) || loan.tenure_months_remaining<1 || loan.tenure_months_remaining>480)
         throw new Error('Enter a positive loan balance, EMI and tenure, and a valid rate before confirming this event.');

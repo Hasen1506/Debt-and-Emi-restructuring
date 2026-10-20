@@ -59,6 +59,7 @@ export function useProfileEditGuard(save: () => unknown, ready: boolean): { bloc
   useEffect(() => {
     if (!ready) {
       openedWith.current = null;
+      overwrite.current = false;   // one "overwrite" answers one conflict, not every later save
       return;
     }
     openedWith.current = profileCookieKey();

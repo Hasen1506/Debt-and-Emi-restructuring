@@ -1205,7 +1205,10 @@ function LoanBlock({
   const card = loan.loan_type === 'credit_card';
   useEffect(() => {
     const fixed = withStatutoryPrepayment(loan, country);
-    if (fixed === loan) return;
+    // It returns a new object when it infers lender_type from the bank name even with
+    // nothing to change; patching then re-ran this effect forever. Patch only real changes.
+    if (fixed.prepayment_penalty_pct === loan.prepayment_penalty_pct
+      && fixed.prepay_lock_in_months === loan.prepay_lock_in_months) return;
     onPatch({
       prepayment_penalty_pct: fixed.prepayment_penalty_pct,
       ...(fixed.prepay_lock_in_months !== loan.prepay_lock_in_months ? { prepay_lock_in_months: fixed.prepay_lock_in_months } : {}),

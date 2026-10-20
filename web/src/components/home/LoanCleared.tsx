@@ -81,8 +81,11 @@ export function LoanCleared({
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     a.download = 'rightdue-closure-dates.ics';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    const toRevoke = a.href;
+    window.setTimeout(() => URL.revokeObjectURL(toRevoke), 1500);
   }
 
   const fmt = (v: number) => formatCurrencyWhole(Math.round(v), currency);

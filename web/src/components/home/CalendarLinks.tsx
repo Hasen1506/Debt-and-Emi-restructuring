@@ -11,8 +11,11 @@ function download(events: CalendarEvent[], name: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  const toRevoke = url;
+  window.setTimeout(() => URL.revokeObjectURL(toRevoke), 1500);
 }
 
 export function CalendarLinks({ loans, month }: { loans: LoanPayload[]; month: string }) {

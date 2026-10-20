@@ -224,9 +224,9 @@ export function TaxSleeveCard({
           )}
         </div>
         <div style={{ marginTop: 6 }}>
-          India advance tax: 15% by Jun 15, 45% by Sep 15, 75% by Dec 15, 100%
-          by Mar 15. Missing an installment costs 1%/month penal interest on the
-          shortfall.
+          {country === 'IN'
+            ? 'India advance tax: 15% by Jun 15, 45% by Sep 15, 75% by Dec 15, 100% by Mar 15. Missing an installment costs 1%/month penal interest on the shortfall.'
+            : 'US estimated tax: four payments (Apr 15, Jun 15, Sep 15, Jan 15). Paying late adds the Form 2210 underpayment penalty on the shortfall.'}
         </div>
         <div style={{ marginTop: 4, fontStyle: 'italic' }}>
           Annual target of{' '}

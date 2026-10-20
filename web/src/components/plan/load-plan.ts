@@ -187,7 +187,7 @@ export async function loadPlanInputs(
         // Prefer the user's existing cookie schedule (preserves mark-paid
         // history); fall back to fresh generation when missing or stale.
         const stored = await readScheduleServer();
-        const today = new Date();
+        const today = getCountryToday(adjustedUser.country);
         const todayIso = localIsoDate(today);
         const storedStale =
           stored
@@ -216,7 +216,7 @@ export async function loadPlanInputs(
   // the tax it adds after TDS is ₹10,000 or more (engine/tax/advance_tax.py).
   let advanceTaxNote: string | null = null;
   if (!advanceTaxSchedule) {
-    const todayIso = localIsoDate(new Date());
+    const todayIso = localIsoDate(getCountryToday(adjustedUser.country));
     const req = salariedAdvanceTaxRequest(adjustedUser, todayIso);
     const res = req ? await api.salariedAdvanceTax(req).catch(() => null) : null;
     const fresh = res ? scheduleFromResponse(res, todayIso) : null;
@@ -228,7 +228,7 @@ export async function loadPlanInputs(
           && stored.instalments.length > 0
           && stored.instalments[stored.instalments.length - 1].dueDate >= todayIso;
       advanceTaxSchedule = storedOk
-        ? markMissedInstalments(rebaseSchedule(stored, new Decimal(res.liability)), new Date())
+        ? markMissedInstalments(rebaseSchedule(stored, new Decimal(res.liability)), getCountryToday(adjustedUser.country))
         : fresh;
       advanceTaxNote = salariedAdvanceTaxNote(res, (v) => formatCurrencyWhole(String(Math.round(Number(v))), 'INR'));
     }
@@ -239,7 +239,7 @@ export async function loadPlanInputs(
   const extraTax = Number(adjustedUser.income_type === 'salaried' ? adjustedUser.extra_income_annual_tax || 0 : 0);
   if (!advanceTaxSchedule && (adjustedUser.country === 'IN' ? extraTax >= 10_000 : extraTax > 1_000)) {
     const stored = await readScheduleServer();
-    const fresh = buildSchedule(adjustedUser.country, new Decimal(extraTax), new Date());
+    const fresh = buildSchedule(adjustedUser.country, new Decimal(extraTax), getCountryToday(adjustedUser.country));
     advanceTaxSchedule = stored && stored.country === adjustedUser.country && fresh && stored.instalments.at(-1)?.dueDate === fresh.instalments.at(-1)?.dueDate
       ? markMissedInstalments(rebaseSchedule(stored, new Decimal(extraTax)), new Date())
       : fresh;
@@ -268,7 +268,7 @@ export async function loadPlanInputs(
   // not just the panel.
   let advanceTaxPenaltyMonthly = 0;
   if (advanceTaxSchedule) {
-    const accrued = accruedPenalty(advanceTaxSchedule, new Date());
+    const accrued = accruedPenalty(advanceTaxSchedule, getCountryToday(adjustedUser.country));
     const total = Number(accrued.total);
     if (total > 0) {
       advanceTaxPenaltyMonthly = total / 12;
@@ -322,7 +322,7 @@ export async function loadPlanInputs(
     if (!iso) return undefined;
     const t = Date.parse(iso.length === 7 ? `${iso}-01` : iso);
     if (!Number.isFinite(t)) return undefined;
-    const today = new Date();
+    const today = getCountryToday(adjustedUser.country);
     const target = new Date(t);
     const diff =
       (target.getFullYear() - today.getFullYear()) * 12 +
@@ -395,7 +395,7 @@ export async function loadPlanInputs(
   // and the run-rate computes against the full funded amount.
   const contributionTotals = await readContributionTotalsServer();
   const goalsForEngine = await goalsForSimulateServer(
-    new Date(),
+    getCountryToday(adjustedUser.country),
     contributionTotals,
   );
   const hasGoalsForEngine = goalsForEngine.length > 0;

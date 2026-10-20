@@ -31,7 +31,7 @@ export function commitSpendingCut(expected: UserPayload, amount: number, startMo
   const currency = userDefaultCurrency(stored.user.country);
   const label = variable ? 'variable spending' : 'fixed expenses';
   const next = addCommitment(readCommitmentsClient(), {
-    date: todayISO(), kind: 'surplus_cut', amount: String(amount),
+    date: todayISO(stored.user.country), kind: 'surplus_cut', amount: String(amount),
     note: `Cut ${label} ${formatCurrency(current, currency)} → ${formatCurrency(nextAmount, currency)}`,
     spendingSnapshot: { country: stored.user.country, key, before: String(stored.user[key] || '0'), after: nextAmount,
       debtBudgetBefore: budgetBefore, debtBudgetAfter: budgetAfter },

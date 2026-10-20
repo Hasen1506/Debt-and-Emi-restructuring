@@ -17,7 +17,7 @@
  * Three layout variants mirror the Plan themes; chrome lives in PanelShell.
  * Editorial/aside variant is intentionally read-only.
  */
-import { formatMonthDate, localIsoDate } from '@/lib/today';
+import { formatMonthDate, getCountryToday, localIsoDate } from '@/lib/today';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, type Country } from '@/lib/api';
@@ -48,13 +48,13 @@ export function AdvanceTaxPanel({
   const [pending, startTransition] = useTransition();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
 
-  const today = new Date();
+  const today = getCountryToday(country);
   const todayIso = localIsoDate(today);
   const penalty = accruedPenalty(schedule, today);
   const totalPenalty = Number(penalty.total);
 
   function payOrdinal(ordinal: number, amountStr: string) {
-    if (!amountStr || Number(amountStr) <= 0) return;
+    if (!amountStr || !(Number(amountStr) > 0)) return;
     const prev = schedule.instalments.find((inst) => inst.ordinal === ordinal);
     const next = markPaid(schedule, ordinal, amountStr, todayIso);
     writeScheduleClient(next);

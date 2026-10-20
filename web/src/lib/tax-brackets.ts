@@ -171,7 +171,7 @@ export function classifyBracket(
   const taxable = Math.max(0, grossIncome - standardDeduction);
 
   for (const slab of slabs) {
-    if (taxable >= slab.from && taxable < slab.to) {
+    if (taxable >= slab.from && taxable <= slab.to) {
       return {
         marginalRate: slab.rate,
         lowerBound: slab.from,

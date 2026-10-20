@@ -85,6 +85,7 @@ export function ThemedSegmentedControl<T extends string>({
               {i > 0 && <span>·</span>}
               <button
                 type="button"
+                aria-pressed={selected}
                 onClick={() => pick(opt.value)}
                 disabled={pending || disabled}
                 style={{

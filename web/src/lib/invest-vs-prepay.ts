@@ -209,6 +209,7 @@ export function compareToLoan(
   vehicles: SafeVehicle[],
 ): ComparisonResult {
   const loanRate = D(loanEffectiveRate);
+  if (vehicles.length === 0) throw new Error('No safe vehicles to compare against.');
   const best = vehicles.reduce((a, b) =>
     b.afterTaxEffective.gt(a.afterTaxEffective) ? b : a,
   );

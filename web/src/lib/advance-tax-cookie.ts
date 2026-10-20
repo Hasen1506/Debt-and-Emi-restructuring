@@ -65,7 +65,7 @@ export function markPaid(
   amount: string,
   paidOn: string,
 ): AdvanceTaxSchedule {
-  const amountD = new Decimal(amount);
+  const amountD = dec(amount);
   if (amountD.lte(0)) return schedule;
   return {
     ...schedule,
@@ -81,7 +81,7 @@ export function markPaid(
           : 'pending';
       return {
         ...inst,
-        paidAmount: newPaid.toFixed(0),
+        paidAmount: newPaid.toFixed(2),
         status,
         paidOn,
       };

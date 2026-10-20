@@ -317,7 +317,7 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
     edu_interest_start: eduStart || undefined,
   };
   const inst = preConstructionInstalment(draft, month);
-  const valid = Number(share) >= 0 && Number(share) <= 100 && (!done || /^\d{4}-(0[1-9]|1[0-2])$/.test(done)) && (!eduStart || /^\d{4}-(0[1-9]|1[0-2])$/.test(eduStart));
+  const valid = String(share).trim() !== '' && Number(share) >= 0 && Number(share) <= 100 && (!done || /^\d{4}-(0[1-9]|1[0-2])$/.test(done)) && (!eduStart || /^\d{4}-(0[1-9]|1[0-2])$/.test(eduStart));
 
   function submit() {
     const patch: Partial<LoanPayload> = {

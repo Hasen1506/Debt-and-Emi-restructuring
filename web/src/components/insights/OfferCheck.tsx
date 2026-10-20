@@ -105,7 +105,11 @@ export function OfferCheck({
       </LSectionHeader>
       <LChipRow label="What is it?">
         {(Object.keys(kinds) as OfferBody['kind'][]).map((k) => (
-          <LChip small key={k} on={kind === k} onClick={() => setKind(k)}>{kinds[k]}</LChip>
+          <LChip small key={k} on={kind === k} onClick={() => {
+            // The fee box is a % for a loan offer and an amount for a card EMI: never carry one over as the other.
+            if ((k === 'no_cost_emi') !== (kind === 'no_cost_emi')) setFee('');
+            setKind(k);
+          }}>{kinds[k]}</LChip>
         ))}
       </LChipRow>
       <LChipRow label="What’s the money for?">

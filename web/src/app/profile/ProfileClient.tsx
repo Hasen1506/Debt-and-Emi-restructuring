@@ -598,6 +598,16 @@ function ProfileEditor({
 
   function removeLoan(idx: number) {
     setLoans((cur) => cur.filter((_, i) => i !== idx));
+    // True-APR suggestions are keyed by index too: shift them with the loans.
+    setLoanSuggestions((cur) => {
+      const next: typeof cur = {};
+      for (const [k, v] of Object.entries(cur)) {
+        const j = Number(k);
+        if (j < idx) next[j] = v;
+        else if (j > idx) next[j - 1] = v;
+      }
+      return next;
+    });
     // Shift the open More options panels down past the removed loan.
     setMoreOpen((cur) => {
       const next: Record<number, boolean> = {};
@@ -1672,7 +1682,7 @@ function ProfileEditor({
             )}
             {loans.map((l, i) => (
               <div
-                key={i}
+                key={l.id ?? i}
                 style={{
                   display: 'grid',
                   gap: 12,
