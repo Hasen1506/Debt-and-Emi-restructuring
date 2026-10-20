@@ -41,3 +41,12 @@ Taken on the founder's behalf during the review of #90 and #93, and shipped in #
 - **Share link.** It shows only the kind of loan (e.g. "Home loan"), never a nickname or lender name. A public view no longer writes to the database.
 - **Spending cookie.** The logged-spending cookie keeps only the latest 24 months.
 - **Change log.** It records "Logged spending" only for a new entry, not a delete.
+
+## 5. Calls made while fixing the full-codebase review
+
+- **Is a prepayment fee worth paying?** The plan checks this against the loan's minimum-payment schedule, not one that assumes extra payments keep landing. The old check stopped prepaying costly loans and could double the interest.
+- **Interest-only loans.** The payment follows a rate change both ways, so a cut lowers it too.
+- **Part-payment limit.** Two extra payments into the same loan in the same month count as one part-payment, so a small extra no longer blocks a larger one for the whole window.
+- **Advance tax.** The s.87A rebate is judged on total income including equity gains. When gains push total income past the limit, the slab tax on salary is counted and the user is told salary TDS may fall short.
+- **Penal charges on loan against property and home top-up.** They follow the home-loan GST treatment, the same as their other defaults. The underlying "home loan penal charges are GST-exempt" premise still needs checking against GST rules.
+- **Profile tenure box.** A blank or invalid months box goes back to the derived tenure instead of saving 0.

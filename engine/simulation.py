@@ -203,6 +203,11 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     new_rate = max(D("0"), new_rate)
     old_rate = loan.nominal_rate
     loan.nominal_rate = new_rate
+    # An interest-only payment follows the rate both ways (a cut lowers it too).
+    if (loan.loan_type != LoanType.CREDIT_CARD and loan.outstanding > 0
+            and repayment_kind(loan) == "interest_only"):
+        loan.scheduled_emi = loan.outstanding * new_rate / D("12")
+        return None
     if new_rate <= old_rate or loan.loan_type == LoanType.CREDIT_CARD:
         return None
     if loan.outstanding <= 0:
@@ -210,9 +215,6 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     kind = repayment_kind(loan)
     if kind == "bullet":
         return None          # nothing is paid until maturity; interest accrues at the new rate
-    if kind == "interest_only":
-        loan.scheduled_emi = loan.outstanding * new_rate / D("12")
-        return None
     if loan.scheduled_emi <= 0:
         return None
     n_now = _months_to_clear(loan.outstanding, old_rate, loan.scheduled_emi)
@@ -801,7 +803,8 @@ def _simulate_plan(
         freq = loan.part_payment_freq_months
         if freq:
             last = last_part_payment_month.get(id(loan), 0)
-            if last > 0 and (m - last) < freq:
+            # A second payment in the same month is part of the same part-payment.
+            if last > 0 and last != m and (m - last) < freq:
                 return False
         return True
 
@@ -1235,8 +1238,10 @@ def _simulate_plan(
             r_month = charge / l.outstanding if l.outstanding > 0 else D("0")
             # Months left if the plan keeps paying the minimum plus this
             # month's extra: the tail a unit prepaid now actually removes.
-            extra_here = from_user_currency(max(D("0"), surplus), l, user)
-            k = _months_to_clear(l.outstanding, r_month * 12, minimums[id(l)] + extra_here)
+            # The tail a unit prepaid now removes is the schedule the loan would
+            # otherwise run on (minimum only). Assuming the extra keeps landing
+            # made the tail look short, so prepaying stopped and the loan ran long.
+            k = _months_to_clear(l.outstanding, r_month * 12, minimums[id(l)])
             if k is not None:
                 # The extra paid this month comes off the final payment,
                 # k - 1 months from now: that is how long it would have grown.

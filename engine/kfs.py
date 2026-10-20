@@ -650,8 +650,11 @@ def _months_between(first: date, today: date) -> int:
     """EMIs due from `first` up to and including `today`."""
     if today < first:
         return 0
+    import calendar
     k = (today.year - first.year) * 12 + (today.month - first.month)
-    if today.day >= first.day:
+    # An EMI on the 29th-31st falls due on the last day of a shorter month.
+    due_day = min(first.day, calendar.monthrange(today.year, today.month)[1])
+    if today.day >= due_day:
         k += 1
     return k
 

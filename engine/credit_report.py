@@ -262,9 +262,10 @@ def _mask(raw: str) -> Optional[str]:
 
 
 def _months(raw: str) -> Optional[int]:
-    m = re.search(r"(\d+)\s*(years?|yrs?|y)\b", raw, re.IGNORECASE)
-    if m:
-        return int(m.group(1)) * 12
+    y = re.search(r"(\d+)\s*(?:years?|yrs?|y)\b", raw, re.IGNORECASE)
+    mo = re.search(r"(\d+)\s*(?:months?|mths?|mos?|m)\b", raw, re.IGNORECASE)
+    if y:
+        return int(y.group(1)) * 12 + (int(mo.group(1)) if mo else 0)
     m = re.search(r"(\d+)", raw)
     return int(m.group(1)) if m else None
 

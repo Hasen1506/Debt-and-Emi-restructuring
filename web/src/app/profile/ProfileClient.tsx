@@ -1964,9 +1964,15 @@ function ProfileEditor({
                   country={country}
                   loan={l}
                   manualMode={manualTenureIdxs.has(i)}
-                  onChangeTenure={(v) =>
-                    updateLoan(i, { tenure_months_remaining: Number(v) || 0 })
-                  }
+                  onChangeTenure={(v) => {
+                    const n = Math.floor(Number(v));
+                    if (!String(v).trim() || !Number.isFinite(n) || n <= 0) {
+                      // Blank or invalid: go back to deriving the months rather than saving 0 over them.
+                      setTenureMode(i, false);
+                      return;
+                    }
+                    updateLoan(i, { tenure_months_remaining: n });
+                  }}
                   onSetManual={(manual) => setTenureMode(i, manual)}
                 />
                 )}

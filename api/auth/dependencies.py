@@ -34,6 +34,7 @@ async def _load_user_from_cookie(
     now = utc_now()
     if sess.expires_at <= now:
         return None
+    user_id = sess.user_id   # read before a rollback expires the instance
     # audit80 D21: "last used" on the device list, written at most hourly.
     if sess.last_seen_at is None or now - _naive_like(sess.last_seen_at, now) > LAST_SEEN_EVERY:
         try:
@@ -41,7 +42,7 @@ async def _load_user_from_cookie(
             await db.commit()
         except Exception:  # never fail a request over a timestamp
             await db.rollback()
-    res = await db.execute(select(User).where(User.id == sess.user_id))
+    res = await db.execute(select(User).where(User.id == user_id))
     return res.scalar_one_or_none()
 
 
