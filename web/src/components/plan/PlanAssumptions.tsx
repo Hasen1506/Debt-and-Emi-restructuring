@@ -6,7 +6,8 @@
  * rising costs, tax refunds,
  * emergency fund share, rupee drift). A chip opens its control below the
  * row; changing it re-runs the plan. This is the one place they're edited:
- * Home's context line links here. Chips that can't change anything for
+ * Home's monthly-total line and the masthead's payoff order link here.
+ * Chips that can't change anything for
  * this profile (no tax saving, no gap in the emergency fund, one currency)
  * aren't shown.
  */
@@ -27,6 +28,7 @@ import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
 import { DebtBudgetControl } from './DebtBudgetControl';
+import { debtBudgetChoiceLabel } from '@/lib/debt-budget';
 import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { AssumedReturnControl, GapLimitControl, RateRiseControl, SeasonalIncomeControl } from './PlanInputsControls';
 import { hasSeasonalPattern } from '@/lib/seasonal-income';
@@ -46,11 +48,43 @@ interface Chip {
   control: React.ReactNode;
 }
 
+const CHIP_KEYS: ChipKey[] = ['order', 'budget', 'hike', 'inflation', 'tax', 'ef', 'fx', 'borrow', 'return', 'rise', 'season'];
+
 export function PlanAssumptions({ plan }: { plan: PlanData }) {
-  const [open, setOpen] = useState<ChipKey | null>(null);
-  // Home's "set your own total" lands here with that chip open.
+  const askBudget =
+    plan.profileIsLive && plan.live && plan.debtBudgetChoice === 'unset' && plan.user.loans.some((l) => Number(l.outstanding) > 0);
+  const [open, setOpen] = useState<ChipKey | null>(askBudget ? 'budget' : null);
+  const [pacePrefill, setPacePrefill] = useState('');
+  // Home, the masthead and Profile land here with one chip open. A link on
+  // this same page (the header's EDIT, a pace link) changes the query through
+  // history, which does not remount this chip row.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('set') === 'budget') setOpen('budget');
+    function apply() {
+      const q = new URLSearchParams(window.location.search);
+      const set = q.get('set');
+      if (set && (CHIP_KEYS as string[]).includes(set)) setOpen(set as ChipKey);
+      if (set === 'budget') {
+        const pace = q.get('pace') ?? '';
+        if (/^\d+(?:\.\d+)?$/.test(pace)) setPacePrefill(pace);
+      }
+    }
+    apply();
+    const push = history.pushState.bind(history);
+    const replace = history.replaceState.bind(history);
+    history.pushState = (...args: Parameters<History['pushState']>) => {
+      push(...args);
+      apply();
+    };
+    history.replaceState = (...args: Parameters<History['replaceState']>) => {
+      replace(...args);
+      apply();
+    };
+    window.addEventListener('popstate', apply);
+    return () => {
+      history.pushState = push;
+      history.replaceState = replace;
+      window.removeEventListener('popstate', apply);
+    };
   }, []);
   const u = plan.user;
   const configured = plan.configuredUser;
@@ -80,20 +114,25 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       value: STRATEGY_LABEL[plan.strategy].toUpperCase(),
       about: localTerms('Which loan gets the money left after EMIs and minimums.', u.country),
       control: (
-        <StrategySwitcher active={plan.strategy} variant="ledger" compare={plan.strategyCompare} country={u.country} user={plan.configuredUser} money={(n) => formatCurrencyWhole(String(n), ccy)} />
+        <StrategySwitcher
+          active={plan.strategy}
+          variant="ledger"
+          compare={plan.strategyCompare}
+          country={u.country}
+          user={plan.configuredUser}
+          money={(n) => formatCurrencyWhole(String(n), ccy)}
+        />
       ),
     },
     {
       key: 'budget',
       label: 'TO DEBTS',
-      value:
-        plan.debtBudgetChoice === 'set' && budget > 0
-          ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH`
-          : plan.debtBudgetChoice === 'unset'
-            ? 'EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT'
-            : plan.debtBudgetChoice === 'min' || allSpare - required < 1
-              ? 'EMIS AND MINIMUMS ONLY'
-              : `${u.country === 'US' ? 'PAYMENTS' : 'EMIS'} + ALL SPARE CASH`,
+      value: debtBudgetChoiceLabel(
+        plan.debtBudgetChoice,
+        plan.debtBudgetChoice === 'set' && budget > 0 ? formatCurrencyWhole(String(budget), ccy) : '',
+        ccy,
+        allSpare - required < 1,
+      ),
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (
@@ -103,6 +142,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
           figures={figures}
           currency={ccy}
           hasFundTarget={Number(u.efund_target || 0) > 0}
+          prefill={pacePrefill}
         />
       ),
     },
@@ -217,12 +257,22 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     });
   }
   if (efGap) {
+    const fixedEf = Number(configured.assumptions?.ef_save_amount || 0);
     chips.push({
       key: 'ef',
       label: 'EMERGENCY FUND',
-      value: `${efPct}% OF SPARE CASH`,
-      about: 'Your emergency fund is below its target. This share of the spare cash goes to it until it is full; the rest pays debt.',
-      control: <EfSplitSlider active={plan.efSplit} hasGap variant="ledger" country={u.country} />,
+      value: fixedEf > 0 ? `${formatCurrencyWhole(String(fixedEf), ccy)} A MONTH` : `${efPct}% OF SPARE CASH`,
+      about: 'Your emergency fund is below its target. This much of the spare cash goes to it until it is full; the rest pays debt.',
+      control: (
+        <EfSplitSlider
+          active={plan.efSplit}
+          hasGap
+          variant="ledger"
+          country={u.country}
+          currency={ccy}
+          fixedAmount={configured.assumptions?.ef_save_amount ?? ''}
+        />
+      ),
     });
   }
   if (twoCurrencies) {

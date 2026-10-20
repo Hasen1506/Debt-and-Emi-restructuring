@@ -40,6 +40,8 @@ import { LBracket, L_T } from '@/components/ledger/primitives';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { PrepayChoice } from '@/components/PrepayChoice';
 import { asksPrepayChoice, lowerEmiAfter, prepayFields, saveLowerEmi, type PrepayMode } from '@/lib/prepay-choice';
+import { clampWhatIf, RATE_BPS, SPEND_START_MONTHS } from '@/lib/what-if-picture';
+import { WhatIfPicture } from '@/components/plan/WhatIfPicture';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -505,9 +507,9 @@ export function WhatIfPanel({
         disabled={!hasFloating}
         unit="bps"
         currency={userCcy}
-        min={-200}
-        max={300}
-        step={5}
+        min={RATE_BPS.min}
+        max={RATE_BPS.max}
+        step={RATE_BPS.step}
         value={rateShockBps}
         onChange={setRateShockBps}
         formatValue={(v) =>
@@ -707,84 +709,6 @@ function prepayDetail(result: CompareResponse | null, fmt: (v: number) => string
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * The change as a picture: when the debts are gone, and the interest paid,
- * on the plan as it is and with the change, as two bars each. The numbers
- * alone ("−3 MO") didn't show how big a change is against the whole.
- */
-function BeforeAfter({
-  result,
-  country,
-  formatInterest,
-}: {
-  result: CompareResponse;
-  country: 'IN' | 'US';
-  formatInterest: (v: number) => string;
-}) {
-  const base = result.baseline_debt_free_month;
-  const next = result.scenario_debt_free_month;
-  const baseInt = Number(result.baseline_total_interest ?? NaN);
-  const nextInt = Number(result.scenario_total_interest ?? NaN);
-  const rows: { label: string; a: number; b: number; aText: string; bText: string; lowerIsBetter: true }[] = [];
-  if (base != null && next != null) {
-    rows.push({
-      label: 'DEBT-FREE',
-      a: base,
-      b: next,
-      aText: monthIndexToCountryLabel(base, country),
-      bText: monthIndexToCountryLabel(next, country),
-      lowerIsBetter: true,
-    });
-  }
-  if (Number.isFinite(baseInt) && Number.isFinite(nextInt)) {
-    rows.push({
-      label: 'INTEREST PAID',
-      a: baseInt,
-      b: nextInt,
-      aText: formatInterest(baseInt),
-      bText: formatInterest(nextInt),
-      lowerIsBetter: true,
-    });
-  }
-  if (rows.length === 0) return null;
-  return (
-    <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
-      {rows.map((r) => {
-        const max = Math.max(r.a, r.b, 1);
-        const better = r.b < r.a;
-        const same = Math.abs(r.b - r.a) < 0.5;
-        const bar = (v: number, color: string, filled: boolean) => (
-          <span
-            aria-hidden="true"
-            style={{
-              display: 'block',
-              height: 10,
-              width: `${Math.max(2, (v / max) * 100)}%`,
-              background: filled ? color : 'transparent',
-              border: `1px solid ${color}`,
-            }}
-          />
-        );
-        return (
-          <div key={r.label} role="img" aria-label={`${r.label.toLowerCase()}: ${r.aText} on your plan, ${r.bText} with this change`}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 11 }}>
-              <span style={{ color: L_T.muted }}>Your plan</span>
-              {bar(r.a, L_T.inkSoft, false)}
-              <span style={{ color: L_T.inkSoft, whiteSpace: 'nowrap' }}>{r.aText}</span>
-              <span style={{ color: L_T.ink, fontWeight: 600 }}>With this</span>
-              {bar(r.b, same ? L_T.inkSoft : better ? L_T.positive : L_T.negative, true)}
-              <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: same ? L_T.ink : better ? L_T.positive : L_T.negative }}>
-                {r.bText}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function SliderRow({
   country,
   title,
@@ -821,8 +745,7 @@ function SliderRow({
   value: number;
   onChange: (v: number) => void;
   formatValue: (v: number) => string;
-  /** Formatter for the "interest saved" sub-line — uses user-default
-   *  currency since interest_saved is engine-summed across loans. */
+  /** Whole-rupee formatter for the picture. Interest is summed across loans. */
   formatInterest: (v: number) => string;
   state: ScenarioState;
   /** Plain-language one-liner shown below the numeric result. */
@@ -835,11 +758,6 @@ function SliderRow({
   /** Extra controls slot — e.g. start-date picker on the surplus row. */
   extraControls?: React.ReactNode;
 }) {
-  const months = state.result
-    ? Math.round(Number(state.result.months_pulled_forward))
-    : 0;
-  const interest = Number(state.result?.interest_saved ?? '0');
-  const tone = (good: boolean | null) => (good == null ? L_T.muted : good ? L_T.positive : L_T.negative);
   const small = { fontFamily: 'inherit', fontSize: 10, letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
 
   return (
@@ -876,12 +794,12 @@ function SliderRow({
         />
         {nudge != null && !disabled && (
           <>
-            <button type="button" className="l-hit" style={small} aria-label={`Decrease ${title} by ${nudge}`} onClick={() => onChange(Math.max(min, value - nudge))}>−</button>
-            <button type="button" className="l-hit" style={small} aria-label={`Increase ${title} by ${nudge}`} onClick={() => onChange(Math.min(max, value + nudge))}>+</button>
+            <button type="button" className="l-hit" style={small} aria-label={`Decrease ${title} by ${nudge}`} onClick={() => onChange(clampWhatIf(value - nudge, min, max))}>−</button>
+            <button type="button" className="l-hit" style={small} aria-label={`Increase ${title} by ${nudge}`} onClick={() => onChange(clampWhatIf(value + nudge, min, max))}>+</button>
           </>
         )}
         {showMaxButton && !disabled && (
-          <button type="button" onClick={() => onChange(max)} className="l-hit" style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
+          <button type="button" onClick={() => onChange(clampWhatIf(max, min, max))} className="l-hit" style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
             MAX
           </button>
         )}
@@ -911,21 +829,8 @@ function SliderRow({
           <span style={{ color: L_T.negative }}>{state.error}</span>
         ) : state.result ? (
           <>
-            <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-              <strong style={{ color: tone(months === 0 ? null : months > 0) }}>
-                {months === 0
-                  ? 'Same debt-free month'
-                  : `Debt-free ${Math.abs(months)} month${Math.abs(months) === 1 ? '' : 's'} ${months > 0 ? 'sooner' : 'later'}`}
-              </strong>
-              <span style={{ color: L_T.muted }}>·</span>
-              <strong style={{ color: tone(interest === 0 ? null : interest > 0) }}>
-                {interest === 0
-                  ? 'the same interest'
-                  : `${formatInterest(Math.abs(interest))} ${interest > 0 ? 'less' : 'more'} interest`}
-              </strong>
-            </span>
             {summary && <div style={{ color: L_T.muted, fontSize: 11 }}>{summary}</div>}
-            {value !== 0 && <BeforeAfter result={state.result} country={country} formatInterest={formatInterest} />}
+            {value !== 0 && <WhatIfPicture result={state.result} country={country} formatInterest={formatInterest} />}
           </>
         ) : (
           !disabled && <span style={{ color: L_T.muted }}>Move the slider or type an amount to see the change.</span>
@@ -960,10 +865,10 @@ function StartMonthPicker({
   }
 
   const options = [
-    { v: 1, label: `this month` },
-    { v: 4, label: `${labelForOffset(3)} (in 3 months)` },
-    { v: 7, label: `${labelForOffset(6)} (in 6 months)` },
-    { v: 13, label: `${labelForOffset(12)} (in a year)` },
+    { v: SPEND_START_MONTHS[0], label: `this month` },
+    { v: SPEND_START_MONTHS[1], label: `${labelForOffset(3)} (in 3 months)` },
+    { v: SPEND_START_MONTHS[2], label: `${labelForOffset(6)} (in 6 months)` },
+    { v: SPEND_START_MONTHS[3], label: `${labelForOffset(12)} (in a year)` },
   ];
 
   return (

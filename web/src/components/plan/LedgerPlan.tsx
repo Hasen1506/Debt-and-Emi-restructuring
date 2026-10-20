@@ -14,12 +14,11 @@
  * (REDESIGN R2).
  */
 
-import { DebtBudgetPromptLazy as DebtBudgetPrompt } from './DebtBudgetPromptLazy';
-import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { NriPrepayLine } from './NriPrepayLine';
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { CompareResponse } from '@/lib/api';
 import { planWithWhatIf } from '@/lib/trajectory';
@@ -37,7 +36,9 @@ import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
 import { PlanPace } from './PlanPace';
 import { RateDecisions } from './RateDecisions';
-import { WhatIfPanel } from '@/components/WhatIfPanel';
+const WhatIfPanel = dynamic(() => import('@/components/WhatIfPanel').then((m) => m.WhatIfPanel), {
+  loading: () => <p style={{ margin: '8px 0', fontSize: 12, color: 'var(--muted)' }}>Loading what-if…</p>,
+});
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
@@ -151,17 +152,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         )}
 
         <AppliedChangeCard banner />
-        {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
-            defaulted; until it's chosen the plan pays EMIs and minimums only. */}
-        {plan.live && plan.profileIsLive && plan.debtBudgetChoice === 'unset' && plan.user.loans.some((l) => Number(l.outstanding) > 0) && (
-          <DebtBudgetPrompt
-            choice={plan.debtBudgetChoice}
-            budget={plan.debtBudget ?? ''}
-            figures={debtBudgetFigures(plan)}
-            currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
-            hasFundTarget={Number(plan.user.efund_target || 0) > 0}
-          />
-        )}
 
         {/* What the plan assumes (editable chips), the data and guesses it
             rests on, then what it comes to */}

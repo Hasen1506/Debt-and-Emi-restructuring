@@ -1398,6 +1398,9 @@ class BaselineRequest(_In):
     # rates as the plan it is compared with.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list, max_length=500)
     gap_as_debt: bool = True
+    # Same payments already logged this month as /simulate, so the dashed
+    # line starts where the plan line does.
+    paid_off_this_month: list[PaidOffIn] = Field(default_factory=list, max_length=200)
 
 
 class CompareRequest(_In):
@@ -1435,6 +1438,8 @@ class CompareRequest(_In):
     tenure_extension_loan_index: Optional[LoanIndex] = None
     tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
     gap_as_debt: bool = True
+    # Same payments already logged this month as /simulate.
+    paid_off_this_month: list[PaidOffIn] = Field(default_factory=list, max_length=200)
     # Live test L#26: also return the scenario's trajectory, so the Plan chart and table can show the what-if.
     include_trajectory: bool = False
 

@@ -40,11 +40,11 @@ test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offli
   await continueToPlan(page);
 
   // R6B-9: offline, a new order is saved and noted; the page stays put.
-  // Audit 80+ B20 (W7): the header switch is a "Payoff order" radio group
-  // (Cheapest · Smallest · Mine), not "Switch to …" buttons.
+  // The one control is Plan's payoff-order group (the header only names it).
+  await page.getByRole('button', { name: /PAYOFF ORDER/ }).click();
   const first = page.getByRole('radiogroup', { name: 'Payoff order' }).locator('[role=radio][aria-checked="false"]').first();
   await expect(first).toBeVisible();
-  const label = (await first.innerText()).trim();
+  const label = (await first.innerText()).replace(/[\[\]]/g, '').trim();
   const sw = page.getByRole('radiogroup', { name: 'Payoff order' }).getByRole('radio', { name: label, exact: true });
   // Let /plan finish loading first (Firefox: a click going offline mid-load
   // waits on that navigation forever).

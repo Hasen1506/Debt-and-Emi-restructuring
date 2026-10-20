@@ -16,23 +16,39 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { writeEfSplitClient } from '@/lib/ef-split';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
-import { InfoTip } from '@/components/ToolPrimitives';
+import { Field, InfoTip } from '@/components/ToolPrimitives';
+import { LBracket, LChip, L_T } from '@/components/ledger/primitives';
+import { formatCurrencyWhole } from '@/lib/api';
+import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 
 export function EfSplitSlider({
   active,
   hasGap,
   variant = 'inline',
   country,
+  currency = 'INR',
+  fixedAmount = '',
 }: {
   /** R8-2: the user's country, for "EMIs" vs "monthly payments". */
   country?: string;
   active: string;
   hasGap: boolean;
   variant?: 'inline' | 'ledger';
+  currency?: 'INR' | 'USD';
+  /** A fixed monthly top-up, used instead of the share when set. */
+  fixedAmount?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [local, setLocal] = useState(active);
+  const fixedNow = Number(fixedAmount) > 0;
+  const [mode, setMode] = useState<'share' | 'amount'>(fixedNow ? 'amount' : 'share');
+  const [amount, setAmount] = useState(fixedNow ? fixedAmount : '');
+  const [amountError, setAmountError] = useState<string | null>(null);
+  useEffect(() => {
+    setMode(Number(fixedAmount) > 0 ? 'amount' : 'share');
+    setAmount(Number(fixedAmount) > 0 ? fixedAmount : '');
+  }, [fixedAmount]);
   // The saved value, and the pending save: dragging only re-runs the plan
   // (and records one decision) once the slider has been still for a moment.
   const saved = useRef(active);
@@ -68,6 +84,20 @@ export function EfSplitSlider({
     startTransition(() => router.refresh());
   }
 
+  function saveFixed(next: string | null) {
+    const stored = loadProfileClient();
+    const assumptions = { ...(stored.user.assumptions ?? {}) };
+    if (next && Number(next) > 0) assumptions.ef_save_amount = next;
+    else delete assumptions.ef_save_amount;
+    const ok = saveProfileClient({ ...stored, user: { ...stored.user, assumptions } });
+    if (!ok) {
+      setAmountError('That wasn’t saved: this browser didn’t keep it.');
+      return;
+    }
+    setAmountError(null);
+    startTransition(() => router.refresh());
+  }
+
   function commit(next: string) {
     setLocal(next);
     clearTimeout(timer.current);
@@ -87,36 +117,89 @@ export function EfSplitSlider({
 
   if (variant === 'ledger') {
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 12,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          letterSpacing: '0.08em',
-          color: 'var(--muted)',
-        }}
-      >
-        <span>SPARE CASH SPLIT {explainer}</span>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={5}
-          value={pct}
-          onChange={(e) =>
-            commit((Number(e.target.value) / 100).toFixed(2))
-          }
-          aria-label="Emergency fund share of extra money"
-          aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
-          style={{ width: 140 }}
-        />
-        <span style={{ color: 'var(--ink)' }}>
-          {pct}% EMERGENCY FUND · {debtPct}% DEBT
-        </span>
-        {pending && <span>recomputing…</span>}
+      <div data-testid="ef-top-up-control" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div role="group" aria-label="How much spare cash goes to the emergency fund" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <LChip
+            on={mode === 'share'}
+            onClick={() => {
+              setMode('share');
+              setAmountError(null);
+              if (Number(fixedAmount) > 0) saveFixed(null);
+            }}
+          >
+            A share of spare cash
+          </LChip>
+          <LChip on={mode === 'amount'} onClick={() => setMode('amount')}>
+            A set amount a month
+          </LChip>
+        </div>
+        {mode === 'share' ? (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 12,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              color: 'var(--muted)',
+            }}
+          >
+            <span>SPARE CASH SPLIT {explainer}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={pct}
+              onChange={(e) => commit((Number(e.target.value) / 100).toFixed(2))}
+              aria-label="Emergency fund share of extra money"
+              aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
+              style={{ width: 140 }}
+            />
+            <span style={{ color: 'var(--ink)' }}>
+              {pct}% EMERGENCY FUND · {debtPct}% DEBT
+            </span>
+            {pending && <span>recomputing…</span>}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 200px', maxWidth: 260 }}>
+              <Field
+                label="To the emergency fund a month"
+                kind="money"
+                currency={currency}
+                value={amount}
+                onChange={(v) => {
+                  setAmount(v);
+                  setAmountError(null);
+                }}
+                error={amountError}
+              />
+            </div>
+            <span style={{ paddingBottom: 8 }}>
+              <LBracket
+                active
+                onClick={() => {
+                  const n = Number(String(amount).replace(/[,₹$\s]/g, ''));
+                  if (!(n > 0)) {
+                    setAmountError(`Type a monthly amount, for example ${formatCurrencyWhole('5000', currency)}.`);
+                    return;
+                  }
+                  saveFixed(String(Math.round(n)));
+                }}
+              >
+                {pending ? 'WORKING IT OUT…' : 'SAVE'}
+              </LBracket>
+            </span>
+          </div>
+        )}
+        <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+          {mode === 'amount' && Number(fixedAmount) > 0
+            ? `${formatCurrencyWhole(String(Math.round(Number(fixedAmount))), currency)} a month goes to the fund until it is full, instead of a share of spare cash.`
+            : `Each month, ${pct}% of the spare cash goes to the fund until it is full, and ${debtPct}% pays debts. A set amount replaces that share.`}
+        </p>
       </div>
     );
   }

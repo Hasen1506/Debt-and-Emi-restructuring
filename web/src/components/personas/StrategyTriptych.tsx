@@ -3,12 +3,10 @@
 /**
  * The three payoff orders side by side at the bottom of Profile (REDESIGN
  * R6.3): each persona's scene, its rule, and what it comes to on the
- * user's own debts. A card switches to that order, the same as the
- * masthead's medallion.
+ * user's own debts. The order is chosen once, on Plan; these cards only
+ * show which one is in use.
  */
-import { useEffect, useState } from 'react';
-import { OfflineStrategyNote, useStrategyRefresh } from '@/components/useStrategyRefresh';
-import { STRATEGIES, writeStrategyClient, type StrategyName } from '@/lib/strategy';
+import { STRATEGIES, type StrategyName } from '@/lib/strategy';
 import { L_MONO, L_T } from '@/components/ledger/primitives';
 import { PERSONA, PersonaScene } from './Persona';
 
@@ -30,42 +28,26 @@ export function StrategyTriptych({
   figures?: Record<StrategyName, StrategyFigures>;
   note?: string;
 }) {
-  // R6B-9: offline, the choice is saved and the refresh waits for the connection.
-  const { pending, offline, refresh } = useStrategyRefresh();
-  const [current, setCurrent] = useState(active);
-  useEffect(() => setCurrent(active), [active]);
-
-  function pick(s: StrategyName) {
-    if (s === current) return;
-    setCurrent(s);
-    writeStrategyClient(s);
-    refresh();
-  }
-
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.55 }}>
-        Every order pays all the minimums. They differ in which debt gets the extra first.
+        Every order pays all the minimums. They differ in which debt gets the extra first. Change the order on Plan.
       </p>
-      <OfflineStrategyNote show={offline} />
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 12,
-          opacity: pending ? 0.6 : 1,
         }}
       >
         {STRATEGIES.map((s) => {
-          const on = s === current;
+          const on = s === active;
           const p = PERSONA[s];
           const f = figures?.[s];
           return (
-            <button
+            <article
               key={s}
-              type="button"
-              aria-pressed={on}
-              onClick={() => pick(s)}
+              aria-current={on ? 'true' : undefined}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -75,7 +57,6 @@ export function StrategyTriptych({
                 border: `1px solid ${L_T.ink}`,
                 outline: on ? `2px solid ${L_T.accent}` : 'none',
                 outlineOffset: -1,
-                cursor: on ? 'default' : 'pointer',
                 font: 'inherit',
                 color: L_T.ink,
               }}
@@ -105,7 +86,7 @@ export function StrategyTriptych({
                       color: on ? L_T.accent : L_T.muted,
                     }}
                   >
-                    {on ? 'IN USE' : 'USE THIS'}
+                    {on ? 'IN USE' : ''}
                   </small>
                 </span>
                 {/* Takes the slack, so the figures line up across the cards. */}
@@ -118,7 +99,7 @@ export function StrategyTriptych({
                   </span>
                 )}
               </span>
-            </button>
+            </article>
           );
         })}
       </div>

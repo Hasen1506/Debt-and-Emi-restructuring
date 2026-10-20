@@ -118,6 +118,26 @@ export function monthIndexToDate(monthIndex: number, start: Date): Date {
 }
 
 /**
+ * When a trajectory point sits on the calendar. Month 0 is today (what's
+ * owed now). Month n ≥ 1 is the last day of that sim month: the engine's
+ * balance is the end of the month, and month 1 is still this month, so it
+ * must not take a full slot away from today.
+ */
+export function trajectoryPointDate(monthIndex: number, start: Date): Date {
+  if (monthIndex <= 0) return new Date(start.getFullYear(), start.getMonth(), start.getDate(), 12, 0, 0, 0);
+  const first = monthIndexToDate(monthIndex, start);
+  return new Date(first.getFullYear(), first.getMonth() + 1, 0, 12, 0, 0, 0);
+}
+
+/** 0 at `first`, 1 at `end`, spaced by the dates above. */
+export function trajectoryTimeFraction(month: number, first: number, end: number, start: Date): number {
+  const t = (m: number) => trajectoryPointDate(m, start).getTime();
+  const span = t(end) - t(first);
+  if (span <= 0) return 0;
+  return (t(month) - t(first)) / span;
+}
+
+/**
  * A 1-based sim month as the short form ("Jul 2029"), anchored at the
  * country's today. Sentences use formatMonthDate(..., 'long').
  */

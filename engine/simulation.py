@@ -593,6 +593,7 @@ def _simulate_plan(
     stop_owed_multiple: Decimal | None = None,
     low_rate_invest: tuple[Decimal, Decimal] | None = None,
     income_lookahead: "list[Decimal] | None" = None,
+    paid_off_this_month: "dict[int, Decimal] | None" = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`.
 
@@ -686,6 +687,13 @@ def _simulate_plan(
     "pay only minimums" comparison, run through the same month loop so
     rate resets, pre-EMI and unpaid interest are treated the same way in
     both.
+
+    `paid_off_this_month` is money already gone out this month that the
+    opening balance still includes (a card payment logged after the
+    statement). It comes off before month 1, on the plan and on the
+    minimums run, so the trajectory starts where the chart's "now" point
+    does. Leaving it only on the owed-today figure drew a line that jumped
+    from today's balance back up to the statement.
     """
     # FX drift below rewrites the exchange rates every month. Work on a
     # copy: the caller's user used to come back with drifted rates, and a
@@ -693,6 +701,13 @@ def _simulate_plan(
     user = copy(user)
     user.fx_to_user_currency = dict(user.fx_to_user_currency)
     loans = [deepcopy(l) for l in user.loans]
+    # Already paid this month, still inside the opening balance (owed-fix).
+    # Both lines start from what's owed today; a later month must not climb
+    # back to the statement.
+    for i, l in enumerate(loans):
+        off = (paid_off_this_month or {}).get(i) or D("0")
+        if off > 0:
+            l.outstanding = max(D("0"), l.outstanding - off)
     # Map deep-copied loan identity → its original position in user.loans.
     # Used to translate per-loan payments into a position-keyed dict that
     # the API can pass to the frontend without leaking Python ids.
@@ -1737,6 +1752,7 @@ def baseline_minimums_only(
     lifecycle_events: list[LifecycleEvent] | None = None,
     gap_as_debt: bool = True,
     stop_owed_multiple: Decimal | None = None,
+    paid_off_this_month: "dict[int, Decimal] | None" = None,
 ) -> SimulationResult:
     """Counterfactual: pay only minimums (no extra), no Layer 3 redirection.
     Used to compute `savings_vs_minimums` for the Plan screen.
@@ -1754,6 +1770,7 @@ def baseline_minimums_only(
         minimums_only=True,
         gap_as_debt=gap_as_debt,
         stop_owed_multiple=stop_owed_multiple,
+        paid_off_this_month=paid_off_this_month,
     )
 
 

@@ -11,13 +11,13 @@
 import { useMemo } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
-import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate } from '@/lib/today';
+import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate, trajectoryPointDate, trajectoryTimeFraction } from '@/lib/today';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { loanClears } from './plan-milestones';
 import { chartBalances } from '@/lib/schedule-chart';
-import { chartEndMonth, linesCoincide } from '@/lib/plan-gap';
+import { balanceSettledMonth, chartAxisMonths, chartEndMonth, linesCoincide } from '@/lib/plan-gap';
 import { minimumsClearMonth } from '@/lib/trajectory';
 
 const CHART_NAME: Record<string, string> = {
@@ -28,7 +28,16 @@ const CHART_NAME: Record<string, string> = {
   education_loan: 'EDUCATION LOAN',
   gold_loan: 'GOLD LOAN',
   bnpl: 'BNPL',
+  people_loan: 'PERSON',
 };
+
+/** Short name on a payoff marker. A loan from a person is the person's name. */
+function markerName(loan: { loan_type: string; bank?: string }, typeCount: Map<string, number>): string {
+  if (loan.loan_type === 'people_loan' && loan.bank) return loan.bank.toUpperCase();
+  const kind = CHART_NAME[loan.loan_type] ?? 'LOAN';
+  if ((typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank) return `${loan.bank.split(' ')[0].toUpperCase()} ${kind}`;
+  return kind;
+}
 
 export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean }) {
   const ccy = plan.displayCurrency;
@@ -57,33 +66,47 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     // Live re-test 3 R3-1: one never-clears answer for the line, its note and
     // the screen-reader summary, in the plan and in the what-if.
     const minClear = minimumsClearMonth(traj, plan.baselineNeverClears);
+    // A gap that is still borrowed keeps growing; one that was repaid does not.
+    const gapGrows = !clears && plan.gap?.firstBorrowMonth != null && plan.gap.repaidMonth == null;
+    // A leftover the plan stops paying (a 0% loan) is not a 30-year story.
+    // The axis ends when the balance settles, or the markers pile into the
+    // first sliver and the leftover sits on the ₹0 line.
+    const notFundableFrom = plan.infeasibleFrom ?? null;
+    const settled =
+      !clears && notFundableFrom == null && !gapGrows ? balanceSettledMonth(series.map((p) => ({ month: p.month, balance: p.avalanche }))) : null;
     // End at the stack's payoff month. A longer axis left the plan line at ₹0
     // until the minimums line finished; the note still says when that is.
     const end = chartEndMonth({
       planClears: clears,
       minClear,
       lastMonth: lastAll,
-      growingGapFrom: !clears ? plan.gap?.firstBorrowMonth ?? null : null,
-      notFundableFrom: plan.infeasibleFrom ?? null,
+      growingGapFrom: gapGrows ? plan.gap?.firstBorrowMonth ?? null : null,
+      notFundableFrom,
+      settledMonth: settled,
     });
     // Integration phase 5 (C11): a capped plan has no debt-free milestone
     // (plan.debtFreeMonth is null, load-plan's shownDebtFreeMonth); the line
     // stops at the first unfundable month and the note says so.
-    const notFundableFrom = plan.infeasibleFrom ?? null;
     const shown = series.filter((p) => p.month <= end);
-    const span = Math.max(1, end - first);
-    const tOf = (m: number) => (m - first) / span;
+    // One point per month, spaced by the calendar: today to the end of
+    // this month is a few days, and each later month is its own length.
+    const tOf = (m: number) => trajectoryTimeFraction(m, first, end, today);
     const maxBal = shown.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
     const norm = (v: number) => (maxBal > 0 ? v / maxBal : 0);
     const money = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
-    const points: LTrajPoint[] = shown.map((p) => ({
-      t: tOf(p.month),
-      av: norm(p.avalanche),
-      min: norm(p.minimums),
-      tip: `${p.month === 0 ? 'Now' : shortDate(p.month)} · ${money(p.avalanche)}`,
-      month: p.month,
-      balance: Math.round(p.avalanche),
-    }));
+    const points: LTrajPoint[] = shown.map((p) => {
+      // A rounding dip below zero would draw under the axis. The tip keeps
+      // the figure the schedule shows.
+      const balance = Math.round(p.avalanche);
+      return {
+        t: tOf(p.month),
+        av: norm(Math.max(0, p.avalanche)),
+        min: norm(Math.max(0, p.minimums)),
+        tip: `${p.month === 0 ? 'Now' : shortDate(p.month)} · ${money(balance)}`,
+        month: p.month,
+        balance,
+      };
+    });
     const avAt = (m: number) => shown.find((p) => p.month === m)?.avalanche ?? 0;
 
     // One marker per month a loan is paid off; the last is the debt-free month.
@@ -91,16 +114,13 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const typeCount = new Map<string, number>();
     for (const l of loans) typeCount.set(l.loan_type, (typeCount.get(l.loan_type) ?? 0) + 1);
     const byMonth = new Map<number, string[]>();
-    if (clears || notFundableFrom != null) {
-      for (const c of loanClears(plan)) {
-        if (c.month > end) continue;
-        const loan = loans[c.index];
-        const name =
-          (typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank
-            ? `${loan.bank.split(' ')[0].toUpperCase()} ${CHART_NAME[loan.loan_type] ?? 'LOAN'}`
-            : (CHART_NAME[loan.loan_type] ?? 'LOAN');
-        byMonth.set(c.month, [...(byMonth.get(c.month) ?? []), name]);
-      }
+    // Markers for loans that do clear, even when a leftover means the whole
+    // stack has no debt-free date. Skipping them hid every payoff.
+    for (const c of loanClears(plan)) {
+      if (c.month > end || notFundableFrom != null) continue;
+      const loan = loans[c.index];
+      const name = markerName(loan, typeCount);
+      byMonth.set(c.month, [...(byMonth.get(c.month) ?? []), name]);
     }
     const milestones: LTrajMilestone[] = [...byMonth.entries()]
       .sort(([a], [b]) => a - b)
@@ -119,20 +139,30 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     }
 
     const lastShown = shown[shown.length - 1];
+    const leftover = settled != null ? Math.round(avAt(settled)) : 0;
     const minimumsNote =
       notFundableFrom != null
         ? `NOT FUNDABLE FROM ${shortDate(notFundableFrom)} →`
-        : !clears && plan.gap?.firstBorrowMonth
+        : gapGrows
         ? 'GAP BORROWING KEEPS GROWING →'
-        : minClear
+        : settled != null
+          ? `${money(leftover)} STAYS`
+          : minClear
           ? `MINIMUMS ONLY: CLEAR ${shortDate(minClear)}`
           : lastShown && lastShown.minimums > 0.5
             ? 'MINIMUMS NEVER CLEAR IT →'
             : undefined;
 
-    const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
-      const m = first + Math.round(f * span);
-      return { t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) };
+    const tickMonths = chartAxisMonths(first, end, 5);
+    const seenMonth = new Set<string>();
+    const xLabels = tickMonths.flatMap((m) => {
+      const d = trajectoryPointDate(m, today);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      // NOW and the end of this month name the same calendar month. Keep
+      // the last tick (the debt-free month); drop a middle one that repeats it.
+      if (seenMonth.has(key) && m !== tickMonths[tickMonths.length - 1]) return [];
+      seenMonth.add(key);
+      return [{ t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) }];
     });
     // The same whole-rupee figures as the BALANCE cells, not a compact scale.
     const yLabels = [
@@ -152,11 +182,13 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
         ? `; debt-free in ${label(clears)}. `
         : notFundableFrom != null
           ? `; not fundable from ${label(notFundableFrom)} as things stand, so no debt-free date. `
-          : '; not cleared within the plan. ') +
+          : settled != null
+            ? `; ${money(leftover)} stays from ${label(settled)}, because the plan does not pay that leftover down. `
+            : '; not cleared within the plan. ') +
       (minClear
         ? `Paying only the minimums clears it in ${label(minClear)}.`
         : 'Paying only the minimums never clears it.');
-    return { points, milestones, xLabels, yLabels, minimumsNote, title };
+    return { points, milestones, xLabels, yLabels, minimumsNote, noteOn: settled != null ? 'av' as const : 'min' as const, title };
   }, [traj, short, plan, country, ccy, strategy]);
 
   const key = (line: React.ReactNode, text: string) => (
@@ -181,6 +213,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
             yLabels={view.yLabels}
             title={view.title}
             minimumsNote={view.minimumsNote}
+            noteOn={view.noteOn}
           />
           <div
             aria-hidden="true"

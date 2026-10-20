@@ -10,7 +10,8 @@
  *   'min'    only EMIs and minimums (chosen),
  *   amount   a set total,
  *   nothing  not chosen yet: the plan pays EMIs and minimums only and asks
- *            "How much a month toward debts?" on Plan and Home.
+ *            "How much a month toward debts?" once, on Plan (TO DEBTS).
+ *            Home shows the saved figure and links there.
  * A budget saved before this (an amount) is untouched; "all spare cash"
  * used to be stored as nothing, so those users are asked once.
  */
@@ -35,6 +36,21 @@ export function normalizeDebtBudget(v: string | null | undefined): string {
   const raw = String(v ?? '').trim();
   if (raw === 'all' || raw === 'min') return raw;
   return normalizeDebtBudgetAmount(raw);
+}
+
+/** The words on Plan's TO DEBTS chip and Home's read-only line. `amount`
+ *  is already formatted ("₹45,000"); pass '' unless the choice is a set total. */
+export function debtBudgetChoiceLabel(
+  choice: DebtBudgetKind,
+  amount: string,
+  currency: 'INR' | 'USD',
+  nothingSpare = false,
+): string {
+  const emi = currency === 'USD' ? 'PAYMENTS' : 'EMIS';
+  if (choice === 'set' && amount) return `${amount} A MONTH`;
+  if (choice === 'unset') return `${emi} AND MINIMUMS ONLY — CHOOSE AN AMOUNT`;
+  if (choice === 'min' || nothingSpare) return `${emi} AND MINIMUMS ONLY`;
+  return `${emi} + ALL SPARE CASH`;
 }
 
 export function debtBudgetKind(token: string): DebtBudgetKind {

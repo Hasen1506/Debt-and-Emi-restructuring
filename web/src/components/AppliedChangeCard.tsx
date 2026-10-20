@@ -77,7 +77,7 @@ export function AppliedChangeCard({ kinds, banner = false }: { kinds?: AppliedUn
                 ? 'You haven’t chosen a monthly debt budget, so the plan pays EMIs and minimums only.'
                 : 'Your monthly debt budget is EMIs and minimums only.'}{' '}
               The money you free up won&apos;t reach your debts until you choose an amount.{' '}
-              <LBracket href={c.budgetHolds === 'unset' ? '/plan#debt-budget-prompt' : '/plan?set=budget#plan-assumption'}>CHOOSE AN AMOUNT</LBracket>
+              <LBracket href="/plan?set=budget#plan-assumption">CHOOSE AN AMOUNT</LBracket>
             </p>
           )}
           {c.bankNote && (

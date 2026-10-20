@@ -165,8 +165,9 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   // How the columns add up to what's owed today (lib/schedule-reconcile).
   const owedToday = owedAtStart(plan);
   // Owed-fix: the start row shows what's owed now (Home's figure): the
-  // opening balance less what's gone out this month. This month's row still
-  // pays the whole month, so a card's cell says what's paid and what's to go.
+  // opening balance less what's gone out this month. The engine runs this
+  // month from that balance, and the row's payment is still the full
+  // monthly amount, so a card's cell says what's paid and what's to go.
   const owedNow = owedNowAtStart(plan);
   const owedNowLoans = owedNowByLoan(plan);
   const paidNow = new Map((plan.paidNow ?? []).map((p) => [p.index, p]));
@@ -186,7 +187,10 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     const d = monthIndexToDate(1, today);
     return formatMonthDate(d, 'short');
   })();
-  const totals = reconcileSchedule(allRows, owedToday);
+  // Principal in the rows pays down what's owed now. Card payments already
+  // logged are off that opening, so they are not in the rows; an EMI marked
+  // paid still is (the engine pays it in month 1).
+  const totals = reconcileSchedule(allRows, Math.max(0, owedToday - (plan.owedToday?.paidOff ?? 0)));
   const gstApplies = plan.user.country === 'IN' && plan.user.loans.some((l) => l.loan_type === 'credit_card');
   const help: Record<string, string> = {
     ...scheduleColumnHelp(gstApplies, GST_RATE_IN.mul(100).toFixed(0)),

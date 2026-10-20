@@ -137,12 +137,16 @@ test('R6B-9: choosing a strategy offline saves it, says so, and refreshes on rec
   // A probe of a static file decides, since navigator.onLine isn't reliable everywhere.
   assert.match(h, /fetch\(PROBE, \{ method: 'HEAD', cache: 'no-store' \}\)/);
   assert.match(h, /data-testid="strategy-offline-note"/);
-  for (const f of ['components/StrategySwitcher.tsx', 'components/chrome/PayoffOrderSwitch.tsx', 'components/personas/StrategyTriptych.tsx']) {
-    const s = src(f);
-    assert.match(s, /useStrategyRefresh\(\)/, f);
-    assert.match(s, /<OfflineStrategyNote\s+show=\{offline\}/, f);
-    assert.doesNotMatch(s, /router\.refresh\(\)/, f);
-    assert.match(s, /writeStrategyClient\(s\)/, f);
+  const s = src('components/StrategySwitcher.tsx');
+  assert.match(s, /useStrategyRefresh\(\)/);
+  assert.match(s, /<OfflineStrategyNote\s+show=\{offline\}/);
+  assert.doesNotMatch(s, /router\.refresh\(\)/);
+  assert.match(s, /writeStrategyClient\(s\)/);
+  // The masthead and Profile show the saved order; they do not write it.
+  for (const f of ['components/chrome/PayoffOrderSwitch.tsx', 'components/personas/StrategyTriptych.tsx']) {
+    const summary = src(f);
+    assert.doesNotMatch(summary, /writeStrategyClient/, f);
+    assert.doesNotMatch(summary, /useStrategyRefresh/, f);
   }
   const m = require(path.join(root, 'components/useStrategyRefresh.tsx'));
   assert.equal(m.isOfflineNow({ onLine: false }), true);
