@@ -365,7 +365,7 @@ const planProfile = (plan: Awaited<ReturnType<typeof loadPlanOnce>>) => ({ user:
 export async function HomeCashFlow() {
   const plan = await loadPlanOnce();
   const pay = plan.live && plan.gaps.length === 0 ? payThisMonth(plan) : null;
-  return <CashFlow profile={planProfile(plan)} dues={pay?.duesUser} addsSpare={(pay?.extraUser ?? 0) >= 1} spendMonths={plan.spendAverage?.count ?? 0} />;
+  return <CashFlow profile={planProfile(plan)} dues={pay?.duesUser} addsSpare={(pay?.extraUser ?? 0) >= 1} budgetChoice={pay?.budgetChoice} spendMonths={plan.spendAverage?.count ?? 0} />;
 }
 
 export async function HomeDuesTotal() {

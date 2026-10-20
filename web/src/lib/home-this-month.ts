@@ -101,6 +101,8 @@ export function cashFlowLeftNote(a: {
   due: number;
   left: number;
   addsSpare: boolean;
+  /** The monthly total for debts: picks the reason when nothing is added. */
+  budgetChoice?: 'unset' | 'all' | 'min' | 'set';
   money: (n: number) => string;
 }): string {
   const sum = `Take-home ${a.money(a.income)} − spending ${a.money(a.spend)} − due ${a.money(a.due)}`;
@@ -108,6 +110,12 @@ export function cashFlowLeftNote(a: {
   if (a.left === 0) return 'Nothing spare this month';
   if (a.addsSpare) {
     return `${sum}. Pay this month adds this ${a.money(a.left)} (extra and set-aside) on top of the ${a.money(a.due)} due. It is not cash left after that payment.`;
+  }
+  if (a.budgetChoice === 'all') {
+    return `${sum}. This ${a.money(a.left)} is spare after the amount due. No open loan costs more than a safe return, so the plan keeps it.`;
+  }
+  if (a.budgetChoice === 'set') {
+    return `${sum}. This ${a.money(a.left)} is spare after the amount due. It stays outside your monthly total for debts.`;
   }
   return `${sum}. This ${a.money(a.left)} is spare after the amount due. Pay this month does not add it on top while the monthly total for debts is only the EMIs and minimums.`;
 }

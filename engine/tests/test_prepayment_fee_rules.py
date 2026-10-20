@@ -139,3 +139,14 @@ def test_snowball_still_clears_the_smaller_zero_fee_loan_first():
     honored = _term(D("0.10"), 6, D("80000"), rate_type="fixed", prepayment_penalty_pct=D("0.05"), bank="Bajaj Finance")
     with_fee = simulate_plan(_user([honored, big]), Strategy.SNOWBALL, horizon_months=2)
     assert with_fee.months[0].extra_to_loan_index == 1
+
+
+def test_simulate_plan_leaves_the_callers_loans_alone():
+    """The statutory zero is applied to copies; a typed fee stays on the input."""
+    loan = _term(D("0.14"), 24, D("500000"), prepayment_penalty_pct=D("0.05"),
+                 prepay_lock_in_months=12, lender_type="bank", business_purpose=False, sanction_year=2026)
+    user = _user([loan])
+    simulate_plan(user, Strategy.AVALANCHE, horizon_months=2)
+    assert user.loans[0] is loan
+    assert loan.prepayment_penalty_pct == D("0.05")
+    assert loan.prepay_lock_in_months == 12

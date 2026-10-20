@@ -194,7 +194,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
   const budget = Number(plan.debtBudget || 0);
-  const budgetChoice = plan.debtBudgetChoice ?? (budget > 0 ? 'set' : 'all');
+  const budgetChoice = plan.debtBudgetChoice ?? (budget > 0 ? 'set' : 'unset');
   return { rows, total, leftOver, extraUser, duesUser, budget, budgetChoice, fromSalary: salaryOnly };
 }
 

@@ -231,7 +231,10 @@ class LoanIn(_In):
     # True-APR restructuring triggers — see engine/models.py:Loan docstring.
     prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
     # RBI prepayment rule (engine/prepayment_fee.py). Omitted = not given.
-    lender_type: Optional[str] = None
+    lender_type: Optional[Literal[
+        "bank", "commercial_bank", "small_finance_bank", "regional_rural_bank",
+        "cooperative_bank", "nbfc", "hfc", "other", "unknown",
+    ]] = None
     business_purpose: Optional[bool] = None
     sanction_year: Optional[int] = Field(None, ge=1990, le=2100)
     sanctioned_amount: Optional[Amount] = None

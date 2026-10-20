@@ -518,6 +518,10 @@ def simulate_plan(
     # A floating-rate loan RBI bars a charge on is prepaid at 0, even when a
     # fee was typed or imported. Done before the fee-aware order search, so
     # a legally zero fee does not move which loan the extra goes to.
+    # Work on copies so the caller's Loan objects (and a typed or KFS fee
+    # stored on them) are left as they were.
+    user = copy(user)
+    user.loans = [copy(ln) for ln in user.loans]
     for ln in user.loans:
         apply_statutory_prepayment(ln, user.country)
     if (strategy != Strategy.AVALANCHE or args or kwargs.get("minimums_only")

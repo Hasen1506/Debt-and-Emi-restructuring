@@ -97,3 +97,13 @@ test('a US hardship letter changes when a different ask is ticked', () => {
   assert.doesNotMatch(two, /lower monthly payment/);
   assert.notEqual(two, three);
 });
+
+test('cash flow LEFT names the reason that matches the monthly total', () => {
+  const { cashFlowLeftNote } = lib('home-this-month.ts');
+  const base = { income: 80000, spend: 30000, due: 21696, left: 28304, addsSpare: false, money: inr };
+  assert.match(cashFlowLeftNote({ ...base, budgetChoice: 'all' }), /safe return/);
+  assert.doesNotMatch(cashFlowLeftNote({ ...base, budgetChoice: 'all' }), /only the EMIs and minimums/);
+  assert.match(cashFlowLeftNote({ ...base, budgetChoice: 'set' }), /outside your monthly total/);
+  assert.match(cashFlowLeftNote({ ...base, budgetChoice: 'unset' }), /only the EMIs and minimums/);
+  assert.match(cashFlowLeftNote(base), /only the EMIs and minimums/);
+});
