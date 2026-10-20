@@ -208,6 +208,7 @@ export function QuickSetup() {
   // UX50 B-28: the loan just removed, while it can be brought back.
   const [removed, setRemoved] = useState<{ loan: LoanPayload; index: number; name: string } | null>(null);
   const undoTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (undoTimer.current) window.clearTimeout(undoTimer.current); }, []);
   // UX50 B-35: a typed ₹0 is used only once confirmed.
   const [zeroSpendOk, setZeroSpendOk] = useState(false);
 

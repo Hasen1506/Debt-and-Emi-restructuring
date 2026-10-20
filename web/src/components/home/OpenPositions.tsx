@@ -9,7 +9,7 @@
  */
 import { Term } from '@/components/Term';
 import { localTerms, paymentWords } from '@/lib/terms';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -27,6 +27,9 @@ import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
 import { formatMonth, getCountryToday } from '@/lib/today';
 
 export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m: DerivedMetrics; dues?: ReactNode }) {
+  // Set after mount: Date.now() during render differs between server and browser.
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => setNowMs(Date.now()), []);
   const [open, setOpen] = useState<number | null>(null);
   const { user } = profile;
   const country = user.country;
@@ -61,7 +64,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
         entered, until you enter the next statement.
       </p>
       <StaleCardNudge user={user} />
-      <FxRateLine user={user} nowMs={Date.now()} />
+      <FxRateLine user={user} nowMs={nowMs} />
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {m.loans.map((d, i) => {
           const { loan } = d;

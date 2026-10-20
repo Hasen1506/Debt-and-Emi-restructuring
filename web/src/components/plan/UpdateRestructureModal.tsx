@@ -137,6 +137,11 @@ export function UpdateRestructureModal({
   }
 
   const rateError = percentRateError(form.rate);
+  const tenureNum = Number(form.tenureMonths);
+  const tenureError = String(form.tenureMonths ?? '').trim() === '' || !Number.isFinite(tenureNum) || tenureNum < 1
+    ? 'Enter the months left, 1 or more.' : null;
+  const feeError = String(form.processingFee ?? '').trim() !== '' && !(Number(form.processingFee) >= 0)
+    ? 'Enter the fee, or 0.' : null;
   const feeBarred = !consolidation && primary != null && prepaymentBarred(primary, user.country);
 
   function handleSubmit() {
@@ -145,7 +150,8 @@ export function UpdateRestructureModal({
     const profile = loadProfileClient();
     const loans = [...profile.user.loans];
     const rateDecimal = String(Number(form.rate || 0) / 100);
-    const tenure = Math.max(1, Number(form.tenureMonths || 0));
+    if (tenureError || feeError) return;
+    const tenure = Math.round(Number(form.tenureMonths));
     const procFee = String(Number(form.processingFee || 0));
     const resulting: LoanPayload = consolidation
       ? { loan_type: 'personal_loan', rate_type: 'fixed', bank: form.bank || 'consolidated', outstanding: '0', nominal_rate: '0', tenure_months_remaining: 1, scheduled_emi: '0' }
@@ -341,7 +347,7 @@ export function UpdateRestructureModal({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting || rateError != null}
+          disabled={submitting || rateError != null || tenureError != null || feeError != null}
           style={{
             padding: '6px 14px',
             background: 'var(--accent)',

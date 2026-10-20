@@ -412,8 +412,9 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
       {picked && rule.kind === 'surplus_pct' && (
         <Field
           label="Share of spare cash (%)"
-          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
-          onChange={(v: string) => set({ kind: 'surplus_pct', pct: v === '' ? '' : String(Number(v) / 100) })}
+          kind="percent"
+          value={rule.pct ?? ''}
+          onChange={(v: string) => set({ kind: 'surplus_pct', pct: v })}
         />
       )}
       {picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
@@ -459,8 +460,9 @@ export function AfterDebtThen({ rule, set, currency }: { rule: Rule; set: (r: Ru
       {then === 'pct' && (
         <Field
           label="Then, share of spare cash (%)"
-          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
-          onChange={(v: string) => set({ ...base, pct: v === '' ? '' : String(Number(v) / 100) })}
+          kind="percent"
+          value={rule.pct ?? ''}
+          onChange={(v: string) => set({ ...base, pct: v })}
         />
       )}
     </div>

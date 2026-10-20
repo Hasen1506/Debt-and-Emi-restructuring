@@ -50,3 +50,13 @@ Taken on the founder's behalf during the review of #90 and #93, and shipped in #
 - **Advance tax.** The s.87A rebate is judged on total income including equity gains. When gains push total income past the limit, the slab tax on salary is counted and the user is told salary TDS may fall short.
 - **Penal charges on loan against property and home top-up.** They follow the home-loan GST treatment, the same as their other defaults. The underlying "home loan penal charges are GST-exempt" premise still needs checking against GST rules.
 - **Profile tenure box.** A blank or invalid months box goes back to the derived tenure instead of saving 0.
+
+## 6. Calls made in the second full-codebase pass
+
+- **Capital-gains surcharge.** Capped at 15% for long-term gains on every asset type (Finance Act 2022), not 25%.
+- **US collectible gains (gold).** Taxed at the ordinary rate, capped at 28% (s.1(h)(4)).
+- **Card balance in credit.** A credit-report balance shown as negative or "CR" counts as nothing owed.
+- **US CD early-withdrawal penalty.** The 1% figure is the India FD default, so on a US CD it still means "not set". An entered 0% is now kept.
+- **Default "today".** API tools use the India date. US collection letters use the New York date.
+- **Cards in another currency.** They can't be merged into one consolidation loan in the user's currency.
+- **US underpayment penalty.** About 8% a year (Form 2210), not India's 1% a month.

@@ -10,6 +10,7 @@ import { useState, type CSSProperties } from 'react';
 import { LBracket, LField, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { DRAFT_MARK, forSending } from '@/lib/distress-triage';
+import { getCountryToday, localIsoDate } from '@/lib/today';
 import {
   US_COLLECTION_FIELDS, US_COLLECTION_HOW, US_COLLECTION_SOURCES, US_COLLECTION_TITLES,
   usCollectionLetter, usCollectionMissing, validationDeadline, type UsCollectionKind, type UsCollectionValues,
@@ -24,7 +25,7 @@ export function UsCollectionLetter({ kind }: { kind: UsCollectionKind }) {
   const [said, setSaid] = useState('');
   const letter = usCollectionLetter(kind, values);
   const missing = usCollectionMissing(kind, values);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate(getCountryToday('US'));
   const deadline = kind === 'debt_validation' ? validationDeadline(received, today) : null;
   const copy = async () => {
     try {
@@ -38,8 +39,10 @@ export function UsCollectionLetter({ kind }: { kind: UsCollectionKind }) {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([forSending(letter)], { type: 'text/plain;charset=utf-8' }));
     a.download = `${kind.replace(/_/g, '-')}.txt`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setSaid(`Saved as ${a.download}.`);
   };
   return (

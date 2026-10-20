@@ -209,6 +209,8 @@ export function PurchaseTool() {
   let inputError: string | null = null;
   try {
     if (price.trim() && deriveMetrics(profile).fxMissing.length) throw new Error('Save exchange rates for your foreign loans in Setup before checking affordability.');
+    if (price.trim() && [downPct, tenureYears, rate].some((x) => String(x).trim() === '' || !Number.isFinite(Number(x))))
+      throw new Error('Enter the down payment, the years and the rate.');
     if (price.trim()) analysis = analyzePurchase({
           type,
           price: Number(price),

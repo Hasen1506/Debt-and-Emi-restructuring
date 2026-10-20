@@ -501,7 +501,11 @@ export function NewDebtTool() {
                     nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(quotedRate ?? bankRate(activeBank!)),
                     tenure_months_remaining: Number(tenure),
                     scheduled_emi: String(v.monthly_emi),
-                    processing_fee_amortised: fee !== '0' ? fee : undefined,
+                    // The profile field is a yearly fraction of the loan, not an amount.
+                    processing_fee_amortised:
+                      Number(fee) > 0 && Number(isCard ? listPrice : loanAmount) > 0 && Number(tenure) > 0
+                        ? (Number(fee) / Number(isCard ? listPrice : loanAmount) / (Number(tenure) / 12)).toFixed(6)
+                        : undefined,
                   });
                   if (saved != null) setAdded(true);
                   else setErr('The loan could not be saved. Recheck it fits against your current profile.');

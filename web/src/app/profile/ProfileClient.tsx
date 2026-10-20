@@ -598,6 +598,16 @@ function ProfileEditor({
 
   function removeLoan(idx: number) {
     setLoans((cur) => cur.filter((_, i) => i !== idx));
+    // Shift the open More options panels down past the removed loan.
+    setMoreOpen((cur) => {
+      const next: Record<number, boolean> = {};
+      for (const [k, v] of Object.entries(cur)) {
+        const i = Number(k);
+        if (i < idx) next[i] = v;
+        else if (i > idx) next[i - 1] = v;
+      }
+      return next;
+    });
     // Indices shift down when a loan is removed — rebuild the manual set
     // accordingly so the right loans stay flagged as manually-tenured.
     setManualTenureIdxs((cur) => {
@@ -1716,7 +1726,7 @@ function ProfileEditor({
                   }
                 />
                 {l.loan_type === 'people_loan' && (
-                  <PeopleLoanFields loan={l} thisMonth={new Date().toISOString().slice(0, 7)} onPatch={(p) => updateLoan(i, p)} />
+                  <PeopleLoanFields loan={l} thisMonth={thisMonth} onPatch={(p) => updateLoan(i, p)} />
                 )}
                 <BankCombobox
                   label={l.loan_type === 'people_loan' ? 'Who you borrowed from' : 'Bank / lender'}
@@ -2200,7 +2210,7 @@ function ProfileEditor({
                     onChange={(v) =>
                       updateLoan(i, {
                         pre_emi_months_remaining:
-                          v === '' ? undefined : Number(v),
+                          v.trim() === '' || !Number.isInteger(Number(v)) || Number(v) < 0 ? undefined : Number(v),
                       })
                     }
                     placeholder="0"
@@ -2630,22 +2640,9 @@ function ProfileEditor({
                       />
                       <Field
                         label="APY (%)"
-                        value={acct.apy === '' ? '' : String(Number(acct.apy) * 100)}
-                        onChange={(v) =>
-                          setCashAccounts((cur) =>
-                            cur.map((a, i) =>
-                              i === idx
-                                ? {
-                                    ...a,
-                                    apy:
-                                      v.trim() === ''
-                                        ? ''
-                                        : String(Number(v) / 100),
-                                  }
-                                : a,
-                            ),
-                          )
-                        }
+                        kind="percent"
+                        value={acct.apy}
+                        onChange={(v) => setCashAccounts((cur) => cur.map((a, i) => (i === idx ? { ...a, apy: v } : a)))}
                         hint={idx === 0 ? 'e.g. 4.5' : undefined}
                       />
                       <Select
