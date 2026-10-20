@@ -166,8 +166,8 @@
    "rate_type": "floating",
    "market": "IN",
    "pct": "0",
-   "status": "assumed",
-   "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   "status": "unknown",
+   "reason": "Not known: a loan against property or a gold loan is often taken for a business, and RBI's rule differs for business loans. Answer \"Is this loan for a business?\" or check your Key Facts Statement."
   },
   {
    "loan_type": "gold_loan",

@@ -28,9 +28,11 @@ def test_the_shared_table():
 
 
 def test_floating_indian_loans_are_assumed_zero_and_cite_rbi():
-    for lt in ("home_loan", "personal_loan", "auto_loan", "education_loan", "gold_loan", "bnpl"):
+    for lt in ("home_loan", "personal_loan", "auto_loan", "education_loan", "bnpl"):
         d = prepayment_fee_default(lt, "floating", "IN")
         assert d.pct == 0 and d.status == "assumed" and "RBI" in d.reason and "2 July 2025" in d.reason
+    # Gold loan: often for a business, so a blank business answer is asked (decision 2026-10-20).
+    assert prepayment_fee_default("gold_loan", "floating", "IN").status == "unknown"
     assert "NotificationUser.aspx?Id=12878" in RBI_URL
 
 

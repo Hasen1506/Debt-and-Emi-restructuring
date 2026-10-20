@@ -235,6 +235,12 @@ export function Field({
       return f === value ? t : fractionToPercentText(value);
     });
   }, [isPercent, value]);
+  // Tell the parent whenever the box text changes, including when it is replaced
+  // from outside (a suggestion or prefill): the unreadable flag used to stay stuck.
+  useEffect(() => {
+    if (isPercent) onUnreadable?.(percentTextToFraction(pctText) === null && pctText.trim() !== '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPercent, pctText]);
   // Money fields keep the typed text ("25L", "25,00,0") and hand the caller
   // plain digits; regrouped only when the value changes from outside.
   const [moneyText, setMoneyText] = useState(() => formatAmount(value, currency));

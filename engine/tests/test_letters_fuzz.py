@@ -123,7 +123,8 @@ def test_timelines_never_invert():
         reply = rng.choice(list(Reply))
         reply_on = None
         if reply != Reply.NONE:
-            reply_on = sent + timedelta(days=rng.randint(0, max(0, (TODAY - sent).days)))
+            # A reply comes after the bank received the complaint (an earlier one is rejected).
+            reply_on = received + timedelta(days=rng.randint(0, max(0, (TODAY - received).days)))
         try:
             t = india_timeline(sent, today=TODAY, received_on=received, reply=reply,
                                reply_on=reply_on, io_reviewed=rng.random() < 0.5)

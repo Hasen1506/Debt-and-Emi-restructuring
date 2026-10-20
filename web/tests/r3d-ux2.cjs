@@ -277,7 +277,7 @@ test('#23 two tabs: the Profile form compares the saved profile with what it ope
   assert.equal(CHANGED_ELSEWHERE, 'Changed in another tab — reload or overwrite?');
   const g = src('lib/tab-guard.tsx');
   // Snapshot once the account copy is in the form, not on the blank first paint.
-  assert.match(g, /if \(!ready\) \{\s*openedWith\.current = null;\s*return;\s*\}\s*openedWith\.current = profileCookieKey\(\);\s*\}, \[ready\]\);/);
+  assert.match(g, /if \(!ready\) \{\s*openedWith\.current = null;\s*overwrite\.current = false;[^\n]*\s*return;\s*\}\s*openedWith\.current = profileCookieKey\(\);\s*\}, \[ready\]\);/);
   assert.match(g, /if \(!ready\) return true;/);
   assert.equal(formWouldEraseSavedLoans([{ outstanding: '2500000' }], [{ outstanding: '' }], false), true);
   assert.equal(formWouldEraseSavedLoans([{ outstanding: '2500000' }], [{ outstanding: '' }], true), false);

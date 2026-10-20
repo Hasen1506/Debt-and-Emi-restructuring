@@ -252,17 +252,24 @@ def salaried_advance_tax(
     total_income = base + slab_other + stcg + ltcg
     threshold = REBATE_87A_NEW_THRESHOLD if regime == TaxRegimeIN.NEW else REBATE_87A_OLD_THRESHOLD
     slab_income = base + slab_other
-    if total_income > threshold and slab_income <= threshold:
-        # The slab part alone would get the rebate; total income does not.
-        slabs = NEW_REGIME_SLABS if regime == TaxRegimeIN.NEW else OLD_REGIME_SLABS
+    slabs = NEW_REGIME_SLABS if regime == TaxRegimeIN.NEW else OLD_REGIME_SLABS
+    tax_total = income_tax(slab_income, regime) + special * (1 + CESS_RATE)
+    if total_income > threshold:
         slab_tax = _slab_tax(slab_income, slabs)
-        if regime == TaxRegimeIN.NEW:   # marginal relief, judged on total income
-            slab_tax = min(slab_tax, max(D("0"), total_income - threshold))
-        slab_part = slab_tax * (1 + CESS_RATE)
-        assumptions.append("Your gains take total income past the s.87A limit, so salary TDS may fall short.")
-    else:
-        slab_part = income_tax(slab_income, regime)
-    tax_total = slab_part + special * (1 + CESS_RATE)
+        before_cess = slab_tax + special
+        if regime == TaxRegimeIN.NEW:
+            # s.87A marginal relief (decision 2026-10-20, docs/decisions): tax on total income,
+            # special-rate tax included, may not exceed the income above Rs 12L; the relief
+            # itself can't exceed the slab tax (Finance Act 2025 second proviso), so special-rate
+            # tax is never reduced. Net: max(income above 12L, special-rate tax), if lower.
+            relief = min(max(D("0"), before_cess - (total_income - threshold)), slab_tax)
+            before_cess -= relief
+        if slab_income <= threshold:
+            # The slab part alone would get the rebate; total income does not.
+            tax_total = before_cess * (1 + CESS_RATE)
+            assumptions.append("Your gains take total income past the s.87A limit, so salary TDS may fall short.")
+        elif regime == TaxRegimeIN.NEW and before_cess * (1 + CESS_RATE) < tax_total:
+            tax_total = before_cess * (1 + CESS_RATE)
     liability = _r(max(D("0"), tax_total - tax_salary - tds))
     presumptive = business and presumptive_all and any(s.kind == "freelance" for s in streams)
     senior_exempt = resident and age is not None and age >= SENIOR_AGE and not business

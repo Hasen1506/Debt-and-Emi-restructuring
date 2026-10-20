@@ -10,7 +10,7 @@
  * themselves; the break-even return is the honest core. Nothing here names
  * an investment, a kind of investment, or tells anyone to invest.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LButton, L_T, LSectionHeader, lStrip } from '@/components/ledger/primitives';
 import { fetchPrepayInvest, type InsightsArgs, type PrepayInvestData } from '@/lib/insights';
@@ -39,19 +39,23 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const argsKey = JSON.stringify(runArgs);
+  const req = useRef(0);
 
   async function load(r: string) {
+    // Only the latest request may write: an older, slower reply was drawn over a newer one.
+    const id = ++req.current;
     setBusy(true);
     setErr(null);
     try {
       // The comparison always starts from "prepay everything" (the share the
       // plan runs with is the user's own choice, compared against the rest).
       const base = { ...runArgs, low_rate_invest_share: undefined };
-      setData(await fetchPrepayInvest(r ? { ...base, assumed_return: r } : base));
+      const d = await fetchPrepayInvest(r ? { ...base, assumed_return: r } : base);
+      if (id === req.current) setData(d);
     } catch (e) {
-      setErr((e as Error).message);
+      if (id === req.current) setErr((e as Error).message);
     } finally {
-      setBusy(false);
+      if (id === req.current) setBusy(false);
     }
   }
 
@@ -60,6 +64,7 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
     setRet(saved ? String(+(Number(saved) * 100).toFixed(2)) : '');
     setChosen(readLowRateShareClient());
     void load(saved);
+    return () => { req.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [argsKey]);
 

@@ -60,3 +60,22 @@ Taken on the founder's behalf during the review of #90 and #93, and shipped in #
 - **Default "today".** API tools use the India date. US collection letters use the New York date.
 - **Cards in another currency.** They can't be merged into one consolidation loan in the user's currency.
 - **US underpayment penalty.** About 8% a year (Form 2210), not India's 1% a month.
+
+## 7. Advance tax: s.87A marginal relief with share gains (new regime)
+
+**Decision.** When total income, including equity STCG/LTCG, is above Rs 12L, the tax on total income (slab tax plus the special-rate tax on gains) may not exceed the income above Rs 12L. The relief can't be more than the slab tax, so the special-rate tax on the gains is never reduced. In effect the tax is max(income above Rs 12L, special-rate tax), whenever that is lower than the full tax. The rebate itself still applies only to slab tax when total income is Rs 12L or less.
+
+**Why.**
+- The Finance Act 2025 amendment to s.87A adds a second proviso: the deduction "shall not exceed the amount of income-tax payable as per the rates provided in sub-section (1A) of section 115BAC" (the slab rates).
+- The Income Tax Department's FAQ says the rebate is not available on special-rate income.
+- A worked practitioner example (CA Club India, Aug 2026: salary Rs 11.8L + LTCG Rs 40k) gives Rs 20,000, which this rule reproduces. A second check (Rs 11.5L slab + Rs 1L STCG) gives Rs 50,000 before cess.
+- Some commentators (TaxGuru) say marginal relief doesn't apply to special-rate income at all. That reading taxes more. The statutory proviso supports the reading above, so this was settled without needing Twitter or Reddit.
+
+**Code.** `engine/tax/advance_tax.py` (`salaried_advance_tax`).
+
+## 8. Smaller calls in the final fix pass
+
+- **A saved exchange rate keeps its own date** (from `fx_meta`), not today's. When the date is unknown, it is shown simply as "your saved rate".
+- **A reply dated before the bank received the complaint is rejected.** The letters fuzz test now generates replies on or after receipt.
+- **A gold loan with a blank business answer is asked** (decision 1). The shared fee table and its tests were regenerated to match.
+- **Goals cookie format.** Tests read the compressed `z1.` goals cookie; the formatter baseline was updated for three data (not display) `toFixed` calls.

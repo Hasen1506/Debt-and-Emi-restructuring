@@ -32,6 +32,8 @@ import { dayLabel, LIFE_KIND_LABEL as KIND, LifeEventForm, lifeEventSummary } fr
 /** `window.dispatchEvent(new CustomEvent(ADD_LIFE_EVENT, { detail }))`
  *  opens the form; detail: `{ kind?, loanIndex? }`. */
 export const ADD_LIFE_EVENT = 'rightdue:add-life-event';
+/** Fired after any life-event write, so every list on the page re-reads. */
+export const LIFECYCLE_CHANGED = 'rightdue:lifecycle-changed';
 
 export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { user: UserPayload; configuredLoans?: UserPayload['loans'] }) {
   const router = useRouter();
@@ -59,13 +61,16 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
       );
     };
     window.addEventListener(ADD_LIFE_EVENT, onAdd);
-    return () => window.removeEventListener(ADD_LIFE_EVENT, onAdd);
+    const onChanged = () => setEvents(readLifecycleClient());
+    window.addEventListener(LIFECYCLE_CHANGED, onChanged);
+    return () => { window.removeEventListener(ADD_LIFE_EVENT, onAdd); window.removeEventListener(LIFECYCLE_CHANGED, onChanged); };
     // `open` only sets state; re-binding on each render isn't needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function refresh(next: LifecycleEvent[]) {
     setEvents(next);
+    window.dispatchEvent(new Event(LIFECYCLE_CHANGED));
     setError('');
     startTransition(() => router.refresh());
   }

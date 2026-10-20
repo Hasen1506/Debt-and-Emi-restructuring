@@ -19,7 +19,7 @@
  * button when they want a quote.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import type { AssetPayload, UserPayload } from '@/lib/api';
@@ -58,8 +58,12 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   const userCcy = userDefaultCurrency(user.country);
   // A quote's rate into the profile's currency (null when it's the same).
   const fxFor = (quote: QuoteResult) =>
-    fxForQuote(quote, userCcy, user.fx_to_user_currency, api.fxRate);
+    fxForQuote(quote, userCcy, user.fx_to_user_currency, api.fxRate, user.fx_meta);
   const [assets, setAssets] = useState<AssetPayload[]>(user.assets ?? []);
+  // The latest list, for code that resumes after awaiting a quote: two refreshes
+  // at once each started from their own stale copy and one update was lost.
+  const assetsRef = useRef(assets);
+  assetsRef.current = assets;
   const [tickerInput, setTickerInput] = useState('');
   const [qtyInput, setQtyInput] = useState('');
   const [costInput, setCostInput] = useState('');
@@ -89,6 +93,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   const unrealized = totalValue.minus(totalCost);
 
   function persist(next: AssetPayload[]) {
+    assetsRef.current = next;
     setAssets(next);
     saveProfileClient({
       user: { ...user, assets: next },
@@ -131,13 +136,13 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
         userCcy,
         fx,
       );
-      const next = [...assets, asset];
+      const next = [...assetsRef.current, asset];
       persist(next);
       const { price, currency } = majorUnits(quote);
       setStatus({
         kind: 'ok',
         msg: fx
-          ? `Added ${ticker} at ${currency} ${price.toFixed(2)}, worth ${formatCurrency(asset.current_market_value, userCcy)} at 1 ${currency} = ${fx.rate} ${userCcy} (${fx.source === 'live' ? `rate of ${fx.asOf}` : 'your saved rate'}).`
+          ? `Added ${ticker} at ${currency} ${price.toFixed(2)}, worth ${formatCurrency(asset.current_market_value, userCcy)} at 1 ${currency} = ${fx.rate} ${userCcy} (${fx.source === 'live' ? `rate of ${fx.asOf}` : fx.asOf ? `your saved rate of ${fx.asOf}` : 'your saved rate'}).`
           : `Added ${ticker} at ${currency} ${price.toFixed(2)}.`,
       });
       setTickerInput('');
@@ -158,7 +163,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
     try {
       const quote = await fetchQuote(asset.ticker);
       const fresh = refreshAssetWithQuote(asset, quote, userCcy, await fxFor(quote));
-      const next = assets.map((a) => (a === asset ? fresh : a));
+      const next = assetsRef.current.map((a) => (a === asset ? fresh : a));
       persist(next);
       setStatus({
         kind: 'ok',
@@ -177,21 +182,20 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
   async function handleRefreshAll() {
     if (holdings.length === 0) return;
     setStatus({ kind: 'loading', msg: 'Refreshing all holdings…' });
-    let next = [...assets];
+    const freshBy = new Map<AssetPayload, AssetPayload>();
     let okCount = 0;
     const errs: string[] = [];
     for (const h of holdings) {
       if (!h.ticker) continue;
       try {
         const quote = await fetchQuote(h.ticker);
-        const fresh = refreshAssetWithQuote(h, quote, userCcy, await fxFor(quote));
-        next = next.map((a) => (a === h ? fresh : a));
+        freshBy.set(h, refreshAssetWithQuote(h, quote, userCcy, await fxFor(quote)));
         okCount += 1;
       } catch (err) {
         errs.push(`${h.ticker}: ${(err as Error).message}`);
       }
     }
-    persist(next);
+    persist(assetsRef.current.map((a) => freshBy.get(a) ?? a));
     setStatus(
       errs.length === 0
         ? { kind: 'ok', msg: `Refreshed ${okCount} holdings.` }

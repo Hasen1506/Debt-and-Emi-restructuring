@@ -168,6 +168,8 @@ export async function fxForQuote(
   userCurrency: string,
   saved: Record<string, string> | undefined,
   lookup: (base: string, quote: string) => Promise<{ rate: string; as_of: string | null }>,
+  /** When each saved rate was set (profile fx_meta), so a saved rate keeps its own date. */
+  savedAsOf?: Record<string, { as_of?: string | null } | undefined>,
 ): Promise<HoldingFx | null> {
   const { currency } = majorUnits(quote);
   if (currency === userCurrency) return null;
@@ -181,7 +183,8 @@ export async function fxForQuote(
   }
   const kept = saved?.[currency];
   if (kept && Number(kept) > 0) {
-    return { rate: kept, asOf: localIsoDate(new Date()), source: 'saved' };
+    // The saved rate's own date, not today's: it may be weeks old. '' when unknown.
+    return { rate: kept, asOf: savedAsOf?.[currency]?.as_of ?? '', source: 'saved' };
   }
   throw new Error(
     `it's priced in ${currency}, your portfolio is in ${userCurrency}, and today's ${currency}→${userCurrency} rate couldn't be fetched`,

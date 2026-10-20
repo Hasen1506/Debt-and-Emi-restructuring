@@ -39,7 +39,7 @@ test('#19 after LOG IT the heading says "Got another ₹X? Here\'s where it woul
   assert.match(tool, /whereItGoesHeading\(logged, fmt\(total\)\)/);
   assert.match(tool, /setLogged\(\{ lines, amount: fmt\(total\), date \}\)/);
   // A new amount starts a new round.
-  assert.match(tool, /setAmount\(v\); setManual\(\{\}\); setApplied\(null\); setLogged\(null\);/);
+  assert.match(tool, /setAmount\(v\); setManual\(\{\}\); setMode\('engine'\); setApplied\(null\); setLogged\(null\);/);
 });
 
 // ─── #20: the date the money came in ──────────────────────────────────────

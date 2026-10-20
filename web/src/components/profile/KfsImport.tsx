@@ -42,11 +42,12 @@ function shown(r: ReviewRow): string {
   return r.value;
 }
 
-function stored(r: ReviewRow, typed: string): string {
+function stored(r: ReviewRow, typed: string): string | null {
   if (r.kind === 'percent') {
     if (typed.trim() === '') return '';
     const n = Number(typed);
-    return Number.isFinite(n) ? String(Math.round((n / 100) * 1e8) / 1e8) : typed;
+    // Unreadable text ("1e") is not saved into a fraction field.
+    return Number.isFinite(n) ? String(Math.round((n / 100) * 1e8) / 1e8) : null;
   }
   return typed;
 }
@@ -61,6 +62,8 @@ export function KfsImport({
   onAdd: (loan: LoanPayload) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // The text in each box as typed, so "10." isn't redrawn as "10" and the dot lost.
+  const [typed, setTyped] = useState<Record<string, string>>({});
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function KfsImport({
       const res = await api.kfsRead({ ...req, as_of: todayIso });
       setResult(res);
       setRows(reviewRows(res));
+      setTyped({});
       setPassword('');
     } catch (e) {
       if (e instanceof ApiFieldError && e.field === 'password') setNeedsPassword(true);
@@ -249,10 +253,15 @@ export function KfsImport({
                     </select>
                   ) : (
                     <input
-                      value={shown(r)}
+                      value={typed[r.key] ?? shown(r)}
                       inputMode={r.kind === 'text' || r.kind === 'month' ? 'text' : 'decimal'}
                       placeholder={r.kind === 'month' ? 'YYYY-MM' : ''}
-                      onChange={(e) => setRows(editRow(rows, r.key, stored(r, e.target.value)))}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setTyped((t) => ({ ...t, [r.key]: raw }));
+                        const v = stored(r, raw);
+                        if (v !== null) setRows((cur) => editRow(cur, r.key, v));
+                      }}
                     />
                   )}
                   <span

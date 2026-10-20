@@ -52,6 +52,13 @@ const FIELD_WORD: Record<string, string> = {
   account_last4: 'account digits', balance_as_of: 'balance date',
 };
 
+/** A changed field as the edit box shows it: money in rupees, the rate in % (not 0.105). */
+function crShown(field: string, v: string | number | null | undefined): string {
+  if (field === 'outstanding' || field === 'scheduled_emi') return rupees(v == null ? null : String(v));
+  if (field === 'nominal_rate' && v != null && v !== '') return `${Math.round(Number(v) * 10000) / 100}%`;
+  return v == null ? '—' : String(v);
+}
+
 export function CreditReportImport({
   blankLoan,
   todayIso,
@@ -398,8 +405,7 @@ export function CreditReportImport({
                       .filter((d) => d.field !== 'balance_as_of')
                       .map((d) => (
                         <span key={d.field} className="muted">
-                          {FIELD_WORD[d.field] ?? d.field}: {d.from ? (d.field === 'outstanding' || d.field === 'scheduled_emi' ? rupees(d.from) : d.from) : 'empty'} →{' '}
-                          {d.field === 'outstanding' || d.field === 'scheduled_emi' ? rupees(d.to) : d.to}
+                          {FIELD_WORD[d.field] ?? d.field}: {d.from ? crShown(d.field, d.from) : 'empty'} → {crShown(d.field, d.to)}
                         </span>
                       ))}
                     <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

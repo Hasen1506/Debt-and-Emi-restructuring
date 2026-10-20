@@ -27,6 +27,8 @@ import {
   type LifecycleEvent,
 } from '@/lib/lifecycle-events';
 import { commitLifecycle } from '@/lib/commit-lifecycle';
+import { useRouter } from 'next/navigation';
+import { LIFECYCLE_CHANGED } from './LifecycleEventsPanel';
 import { localIsoDate } from '@/lib/today';
 import { LOAN_TYPE_NAME, loanLabel } from '@/lib/loan-types';
 
@@ -39,6 +41,7 @@ export function LifecycleArrivalPrompts({
   user: UserPayload;
   variant: Variant;
 }) {
+  const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error,setError] = useState('');
   const [events, setEvents] = useState<LifecycleEvent[]>([]);
@@ -56,14 +59,22 @@ export function LifecycleArrivalPrompts({
       setEvents(readLifecycleClient());
     }
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    // The life-events list below writes too: re-read when it changes.
+    window.addEventListener(LIFECYCLE_CHANGED, onFocus);
+    return () => { window.removeEventListener('focus', onFocus); window.removeEventListener(LIFECYCLE_CHANGED, onFocus); };
   }, []);
 
   const pending = ready ? pendingArrivals(events) : [];
   if (pending.length === 0 && !error) return null;
 
   function setStatus(id: string, status: 'confirmed' | 'cancelled') {
-    try {setEvents(commitLifecycle(id,status));setError('');}
+    try {
+      setEvents(commitLifecycle(id,status));
+      setError('');
+      // Tell the list on the same page, and re-run the plan.
+      window.dispatchEvent(new Event(LIFECYCLE_CHANGED));
+      router.refresh();
+    }
     catch(e) {setError((e as Error).message);}
   }
 
@@ -77,6 +88,8 @@ export function LifecycleArrivalPrompts({
       setEvents(next);
       setPostponedTo((prev) => ({ ...prev, [id]: newIso }));
       setError('');
+      window.dispatchEvent(new Event(LIFECYCLE_CHANGED));
+      router.refresh();
     } catch(e) {setError((e as Error).message);}
 
   }
