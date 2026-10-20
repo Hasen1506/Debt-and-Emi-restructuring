@@ -36,7 +36,7 @@ export async function chooseAllSpareCash(context: BrowserContext) {
 }
 
 /** page.goto errors that mean "another navigation replaced this one". */
-const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED|interrupted by another navigation|Navigation interrupted/;
+const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED|interrupted by another navigation|Navigation interrupted|Frame load interrupted/;
 
 /** How long one navigation attempt may take. Every page here loads in a
  *  few seconds; a 120 s test timeout is not a navigation budget. */
@@ -58,8 +58,10 @@ type NavOptions = { timeout?: number; waitUntil?: 'load' | 'domcontentloaded' | 
  *    and Home refreshes for the activity cookie. In Firefox a goto sent
  *    while that RSC fetch is in flight cancels the fetch, Next falls back
  *    to a browser navigation of the current page, and that aborts the goto
- *    (CI run 38337335511; reproduced with router.refresh() + goto). Sent
- *    again once the interrupting navigation has loaded (bounded wait).
+ *    (CI run 38337335511; reproduced with router.refresh() + goto). WebKit
+ *    reports the same abort as "Frame load interrupted", without those
+ *    words (full local run, goto /cant-pay). Sent again once the
+ *    interrupting navigation has loaded (bounded wait).
  * 2. Stranded. In Firefox, Playwright sometimes never settles a goto whose
  *    page did load: new document, readyState "complete", nothing in flight
  *    (microsoft/playwright#42183, ~1 in 100-200 navigations on CI). CI run

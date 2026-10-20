@@ -59,11 +59,17 @@ def test_escaped_tables_are_read_as_text():
 
 
 def test_refresh_offline_keeps_the_committed_figures(tmp_path):
-    """The committed market-data.json is what the saved pages say."""
+    """The saved pages (9-10 Oct 2026) reproduce the snapshot taken from them.
+
+    The weekly job rewrites web/src/lib/market-data.json from the live pages
+    before this test runs. Reading that working tree made a real auction
+    move (gsec_in 6.29% → 6.49% on 19 Oct 2026) look like a failure. The
+    check uses the frozen snapshot stored next to the pages.
+    """
     from scripts import refresh_market_data as refresh
 
     out = tmp_path / "market-data.json"
-    shutil.copy(md.SNAPSHOT, out)
+    shutil.copy(PAGES / "snapshot.json", out)
     before = json.loads(out.read_text())
     refresh.main(["--pages", str(PAGES), "--today", "2026-10-10", "--out", str(out),
                   "--report", str(tmp_path / "report.md")])

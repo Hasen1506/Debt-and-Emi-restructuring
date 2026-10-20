@@ -154,7 +154,7 @@ export function RateRiseCard({ rr }: { rr: LoanCheckRateRise }) {
             </tbody>
           </table>
         </div>
-        {im.tenure_premium && Number(im.tenure_premium) > 0 && (
+        {im.tenure_premium && Number(im.tenure_premium) > 0 && Number(im.emi_change) > 0 && (
           <p data-testid="lc-best-step" style={{ fontSize: 'var(--fs-dense)', margin: '10px 0 0', lineHeight: 1.6 }}>
             <strong>Best step:</strong> if you can afford {inr(im.emi_change)} more a month, raise the EMI: it costs{' '}
             {inr(im.tenure_premium)} less interest than a longer tenure. If cash is tight, keep the EMI and take the

@@ -48,6 +48,14 @@ test('A11a: the EMI-or-tenure rows say both choices, and when the tenure choice 
  assert.match(rows[2].option,/Prepay ₹92,057/);
  const no={...im,tenure_option_possible:false,months_after:null,months_change:null,interest_tenure_option:null,tenure_premium:null};
  assert.equal(hike.impactRows(no)[1].monthly,'Not allowed');
+ // An EMI already above the level payment can fall after a rise. Say "less",
+ // never a minus glued to the rupee sign.
+ const over={...im,emi_before:'78250',emi_after:'77009',emi_change:'-1241',months_before:34,months_after:34,months_change:0,interest_before:'258531',interest_emi_option:'273312',interest_tenure_option:'268511',tenure_premium:'-4801',prepay_to_keep_both:'0'};
+ const down=hike.impactRows(over);
+ assert.match(down[0].monthly,/₹77,009 \(₹1,241 less\)/);
+ assert.doesNotMatch(down.map(r=>`${r.option} ${r.monthly} ${r.interest}`).join('\n'),/−₹|-₹|₹-/);
+ assert.equal(hike.scenarioEmi(over),'EMI ₹77,009 (₹1,241 less a month)');
+ assert.equal(hike.scenarioTenure(over),`, or the same number of months at today's EMI`);
 });
 
 test('A11: the pitch is the hike cycle everywhere Loan Check is sold',()=>{

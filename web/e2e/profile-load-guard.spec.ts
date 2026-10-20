@@ -2,9 +2,10 @@
  * Opening Loans from ?step=loans before the account copy arrives must not
  * look like another tab, and must not save a blank form over the loans.
  */
+import type { Page } from '@playwright/test';
 import { expect, fillLoan, landedOnOnboarding, makeSetupChoices, signIn, test, continueToPlan } from './fixtures';
 
-async function savedHomeLoan(page: import('@playwright/test').Page, email: string) {
+async function savedHomeLoan(page: Page, email: string) {
   await signIn(page, email);
   if (!(await landedOnOnboarding(page))) return;
   await page.getByLabel(/Take-home pay a month/).fill('80000');
@@ -17,25 +18,68 @@ async function savedHomeLoan(page: import('@playwright/test').Page, email: strin
   await continueToPlan(page);
 }
 
+/**
+ * Hold GET /api/session/user/state until releaseUserState.
+ *
+ * page.route never sees this fetch on WebKit for Linux: the request is
+ * served and the loans form is already filled, so the wait below cannot
+ * fail the way it does in Chromium (a80-w05-retention.spec.ts). The hold
+ * is inside the page, before its scripts, and the same checks run.
+ */
+async function holdUserState(page: Page, mark: 'body' | 'empty') {
+  await page.addInitScript((mark) => {
+    const w = window as unknown as { __releaseStateGets?: Array<() => void> };
+    w.__releaseStateGets = [];
+    const note = (line: string) => {
+      const cur = JSON.parse(sessionStorage.getItem('e2e-state-notes') || '[]') as string[];
+      cur.push(line);
+      sessionStorage.setItem('e2e-state-notes', JSON.stringify(cur));
+    };
+    const real = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const method = (init?.method ?? (typeof input !== 'string' && !(input instanceof URL) ? input.method : 'GET')).toUpperCase();
+      if (url.includes('/api/session/user/state')) {
+        if (method === 'PATCH' || method === 'PUT') {
+          const body = typeof init?.body === 'string' ? init.body : '';
+          if (mark === 'body') {
+            if (body.includes('"outstanding":""') || body.includes('"outstanding":"0"')) note(body.slice(0, 200));
+          } else if (/"loans"\s*:\s*\[\s*\]/.test(body) || /"outstanding"\s*:\s*""/.test(body)) {
+            note('empty');
+          }
+        }
+        if (method === 'GET' && sessionStorage.getItem('e2e-hold-state') === '1') {
+          await new Promise<void>((resolve) => { w.__releaseStateGets!.push(resolve); });
+        }
+      }
+      return real(input, init);
+    };
+  }, mark);
+  await page.evaluate(() => sessionStorage.setItem('e2e-hold-state', '1'));
+}
+
+async function releaseUserState(page: Page) {
+  await page.evaluate(() => {
+    sessionStorage.removeItem('e2e-hold-state');
+    const w = window as unknown as { __releaseStateGets?: Array<() => void> };
+    const waiting = w.__releaseStateGets ?? [];
+    w.__releaseStateGets = [];
+    waiting.forEach((fn) => fn());
+  });
+}
+
+async function stateNotes(page: Page): Promise<string[]> {
+  return page.evaluate(() => JSON.parse(sessionStorage.getItem('e2e-state-notes') || '[]') as string[]);
+}
+
 test('slow account load: the loans form waits, then fills, and a save does not wipe the balance', async ({ page }) => {
   await savedHomeLoan(page, 'r3-slow-load@rightdue.app');
-  let release: () => void = () => {};
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const wiped: string[] = [];
-  await page.route('**/api/session/user/state**', async (route) => {
-    const req = route.request();
-    if (req.method() === 'PATCH') {
-      const body = req.postData() ?? '';
-      if (body.includes('"outstanding":""') || body.includes('"outstanding":"0"')) wiped.push(body.slice(0, 200));
-    }
-    if (req.method() === 'GET') await gate;
-    await route.continue();
-  });
+  await holdUserState(page, 'body');
   await page.goto('/profile?step=loans');
   await expect(page.getByTestId('profile-form-loading')).toBeVisible();
   await expect(page.getByRole('button', { name: 'SAVE CHANGES' })).toHaveCount(0);
   await expect(page.getByTestId('tab-conflict')).toHaveCount(0);
-  release();
+  await releaseUserState(page);
   const balance = page.getByLabel('Outstanding balance');
   await expect(balance).toBeVisible();
   await expect(balance).toHaveValue(/25,00,000|2500000/);
@@ -43,7 +87,7 @@ test('slow account load: the loans form waits, then fills, and a save does not w
   await page.getByRole('button', { name: 'SAVE CHANGES' }).click();
   await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
   await expect(page.getByTestId('tab-conflict')).toHaveCount(0);
-  expect(wiped).toEqual([]);
+  expect(await stateNotes(page)).toEqual([]);
   // Save returns to the summary and drops ?step=. Wait for that navigation
   // before reloading, or the reload can reopen the editor from the old URL.
   await page.waitForURL((u) => u.pathname === '/profile' && !u.searchParams.has('step'));
@@ -75,24 +119,13 @@ test('a real save in another tab still asks before this loans form overwrites it
 
 test('a blank loans form never replaces a saved balance', async ({ page }) => {
   await savedHomeLoan(page, 'r3-no-wipe@rightdue.app');
-  let release: () => void = () => {};
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const erased: string[] = [];
-  await page.route('**/api/session/user/state**', async (route) => {
-    const req = route.request();
-    if (req.method() === 'PATCH') {
-      const body = req.postData() ?? '';
-      if (/"loans"\s*:\s*\[\s*\]/.test(body) || /"outstanding"\s*:\s*""/.test(body)) erased.push('empty');
-    }
-    if (req.method() === 'GET') await gate;
-    await route.continue();
-  });
+  await holdUserState(page, 'empty');
   await page.goto('/profile?step=loans');
   await expect(page.getByTestId('profile-form-loading')).toBeVisible();
   await expect(page.getByRole('button', { name: 'SAVE CHANGES' })).toHaveCount(0);
-  release();
+  await releaseUserState(page);
   await expect(page.getByLabel('Outstanding balance')).toHaveValue(/25,00,000|2500000/);
-  expect(erased).toEqual([]);
+  expect(await stateNotes(page)).toEqual([]);
   await page.reload();
   await expect(page.getByLabel('Outstanding balance')).toHaveValue(/25,00,000|2500000/);
 });

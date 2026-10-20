@@ -11,7 +11,7 @@ import { Field } from '@/components/ToolPrimitives';
 import { LChip, LChipRow, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LSteps } from '@/components/ledger/LToolSteps';
 import { api, formatCurrency, formatPct, type RbiDecisionResponse } from '@/lib/api';
-import { PLAN_HREF_MPC, impactRows, moveWords, shareText, whatsappHref } from '@/lib/loan-check-hike';
+import { PLAN_HREF_MPC, impactRows, moveWords, scenarioEmi, scenarioTenure, shareText, whatsappHref } from '@/lib/loan-check-hike';
 import { parsePercentInput } from '@/lib/rate-input';
 import { formatIso } from '@/lib/today';
 import { useFormErrors } from '@/lib/form-errors';
@@ -148,11 +148,7 @@ export function RbiDecisionTool() {
                     <li key={s.move}>
                       {s.impact == null
                         ? 'No change: your EMI and tenure stay as above.'
-                        : `A rise of ${formatPct(s.move, 2)}: EMI ${inr(s.impact.emi_after)} (+${inr(s.impact.emi_change)} a month)${
-                            s.impact.tenure_option_possible && s.impact.months_change != null
-                              ? `, or ${s.impact.months_change} more months at today's EMI`
-                              : ', and keeping the EMI would no longer cover the interest'
-                          }.`}
+                        : `A rise of ${formatPct(s.move, 2)}: ${scenarioEmi(s.impact)}${scenarioTenure(s.impact)}.`}
                     </li>
                   ))}
                 </ul>

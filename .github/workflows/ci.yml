@@ -295,13 +295,19 @@ jobs:
 
   e2e-browsers:
     name: Cross-browser E2E (Firefox, WebKit)
-    # E21: ~2x the chromium job's minutes. Runs on push to main, or on a PR
-    # labelled "cross-browser" (add the label to a PR that touches layout,
-    # forms or date handling). Main still catches everything after merge.
+    # Runs on push to main, or on a PR labelled "cross-browser" (add the
+    # label to a PR that touches layout, forms or date handling). Main still
+    # catches everything after merge.
+    #
+    # Firefox and WebKit run one after the other. On 18 Oct 2026 both
+    # finished in 16 minutes. By 19 Oct the suite had grown and Firefox
+    # alone took about 22 minutes, so the 25-minute job limit cancelled
+    # the run as WebKit was starting (the last two pushes to main). 60
+    # minutes covers both browsers and still stops a stuck run (UX50 E-23).
     needs: changes
     if: needs.changes.outputs.cross_browser == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17-alpine
