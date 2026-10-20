@@ -64,6 +64,7 @@ def test_data_pr_action_waits_for_ci_and_can_wait_for_review():
     # audit80 D17: never a direct push to main; auto-merge after the CI checks.
     assert 'HEAD:$BASE' not in run, "no direct push to main when a PR can't be opened"
     assert "--auto" in run and "gh workflow run ci.yml" in run
+    assert 'git fetch --depth=1 origin "$BASE"' in run
     assert '"$MODE" = "review"' in run
 
 
