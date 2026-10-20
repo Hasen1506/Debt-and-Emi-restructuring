@@ -22,6 +22,7 @@
  */
 
 import { persistGoalSlices, type GoalSliceWrite } from './persist-goal-slices';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 
 export type GoalKind =
   | 'birthday'
@@ -350,7 +351,8 @@ export function goalSliceWrite(goals: Goal[]): GoalSliceWrite {
     autoDefer: g.autoDefer,
     fundingRule: g.fundingRule,
   }));
-  const value = btoa(JSON.stringify(digest));
+  // lz-string (URL-safe) with a z1. marker: plain base64 passed 4 KB at about 11 goals.
+  const value = 'z1.' + compressToEncodedURIComponent(JSON.stringify(digest));
   return { key: STORAGE_KEY, cookie: DIGEST_COOKIE, digest: value, value: sorted, slice: 'goals' };
 }
 
@@ -400,7 +402,9 @@ function parseDigestCookie(raw: string | undefined): GoalDigestRow[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(
-      Buffer.from(raw, 'base64').toString('utf8'),
+      raw.startsWith('z1.')
+        ? decompressFromEncodedURIComponent(raw.slice(3)) || ''
+        : Buffer.from(raw, 'base64').toString('utf8'),
     );
     if (!Array.isArray(parsed)) return [];
     return parsed

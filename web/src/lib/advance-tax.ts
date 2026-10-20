@@ -234,7 +234,8 @@ export function accruedPenalty(
   schedule: AdvanceTaxSchedule,
   today: Date,
 ): { sec234C: string; sec234B: string; total: string } {
-  const rate234C = 0.01; // 1%/mo for both India 234C and (close enough) US 2210
+  const rate234C = 0.01; // India s.234C / 234B: 1% a month
+  const rate2210 = 0.08 / 12; // US Form 2210: short-term rate + 3%, about 8% a year
   let total234C = new Decimal(0);
   const todayDate = today.getTime();
 
@@ -270,7 +271,7 @@ export function accruedPenalty(
       (todayDate - dueDate) / (1000 * 60 * 60 * 24 * 30.4375),
     );
     if (monthsLate <= 0) continue;
-    total234C = total234C.add(shortfall.mul(rate234C).mul(monthsLate));
+    total234C = total234C.add(shortfall.mul(rate2210).mul(monthsLate));
   }
 
   // 234B: only India, only after FY end. We don't have the year-end

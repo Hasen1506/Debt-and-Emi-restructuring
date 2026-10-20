@@ -1,4 +1,5 @@
 import { syncSliceToServer } from './server-sync';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 export interface ClientSliceWrite {
   key?: string;
@@ -20,7 +21,7 @@ export function persistClientSlices(writes: ClientSliceWrite[]): void {
         if (localStorage.getItem(w.key) !== serialized) throw new Error('The change could not be saved. No change was recorded.');
       }
       if (w.cookie) {
-        document.cookie = `${w.cookie}=${w.digest}; path=/; max-age=31536000; SameSite=Lax`;
+        document.cookie = `${w.cookie}=${w.digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
         if (readCookie(w.cookie) !== w.digest) throw new Error('The change could not be saved for the plan. No change was recorded.');
       }
     }
@@ -29,7 +30,7 @@ export function persistClientSlices(writes: ClientSliceWrite[]): void {
       if (w.key) try {
         if (before[i].local === null) localStorage.removeItem(w.key); else localStorage.setItem(w.key,before[i].local!);
       } catch { /* Continue restoring other records when this key is blocked. */ }
-      if (w.cookie) document.cookie = before[i].cookie === undefined ? `${w.cookie}=; path=/; max-age=0` : `${w.cookie}=${before[i].cookie}; path=/; SameSite=Lax`;
+      if (w.cookie) document.cookie = before[i].cookie === undefined ? `${w.cookie}=; path=/; max-age=0` : `${w.cookie}=${before[i].cookie}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
     });
     throw e;
   }

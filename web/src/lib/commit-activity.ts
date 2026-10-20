@@ -3,6 +3,7 @@ import type { UserPayload } from './api';
 import { syncActivityCookieClient, parseActivityDeltas, activityDeltas } from './activity-cookie';
 import { syncSliceToServer } from './server-sync';
 import { activityChanges, recordChanges } from './change-log';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 /** Persist the ledger and its projection together before displaying success. */
 export function commitActivity(entries: ActivityEntry[], user: UserPayload): void {
@@ -19,7 +20,7 @@ export function commitActivity(entries: ActivityEntry[], user: UserPayload): voi
       throw new Error('The payment could not be saved for the plan. No entry was logged.');
   } catch (e) {
     try { if (before === null) localStorage.removeItem(key); else localStorage.setItem(key, before); } catch { /* Cookie rollback must still run when storage is unavailable. */ }
-    document.cookie = raw === undefined ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${raw}; path=/; SameSite=Lax`;
+    document.cookie = raw === undefined ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${raw}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
     throw e;
   }
   void syncSliceToServer('activity', entries);

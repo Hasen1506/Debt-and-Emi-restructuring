@@ -17,6 +17,7 @@
 
 import { syncSliceToServer } from './server-sync';
 import { recordChange } from './change-log';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 export interface MonthlySpendEntry {
   id: string;
@@ -73,7 +74,7 @@ export function writeMonthlySpendClient(entries: MonthlySpendEntry[]): void {
     const all = latestByMonth(entries);
     const digest = Object.fromEntries(Object.keys(all).sort().slice(-24).map((k) => [k, all[k]]));
     const value = btoa(JSON.stringify(digest));
-    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   void syncSliceToServer('monthly_spend', entries);
   const latest = entries[0];

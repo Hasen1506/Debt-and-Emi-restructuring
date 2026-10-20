@@ -5,6 +5,7 @@ import { syncActivityCookieClient, parseActivityDeltas, activityDeltas } from '.
 import { saveProfileClient, type StoredProfile } from './user-store';
 import { syncSliceToServer } from './server-sync';
 import { totalsByGoal, type GoalContributionEntry } from './goal-contributions';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 /** Prepare/validate all calculations first. Storage failure restores the local
  * ledger and prevents a success confirmation. No writes occur in React updaters. */
@@ -19,7 +20,7 @@ export function commitCashChange(stored: StoredProfile, user: UserPayload, entri
     if (contributions) {
       localStorage.setItem(keys[2], JSON.stringify(contributions));
       const digest = btoa(JSON.stringify(totalsByGoal(contributions)));
-      document.cookie = `rightdue_goal_contributions_digest=${digest}; path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `rightdue_goal_contributions_digest=${digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
       if (document.cookie.match(/(?:^|; )rightdue_goal_contributions_digest=([^;]*)/)?.[1] !== digest)
         throw new Error('Goal contributions could not be saved. No cash action was logged.');
     }
@@ -30,8 +31,8 @@ export function commitCashChange(stored: StoredProfile, user: UserPayload, entri
     if (!saveProfileClient({...stored,user})) throw new Error('Your profile did not save. No cash action was logged.');
   } catch(e) {
     keys.forEach((k,i) => { try { if(previous[i] === null) localStorage.removeItem(k); else localStorage.setItem(k,previous[i]!); } catch { /* Continue restoring the other slices. */ } });
-    document.cookie = beforeActivity === undefined ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${beforeActivity}; path=/; SameSite=Lax`;
-    if (contributions) document.cookie = beforeDigest === undefined ? 'rightdue_goal_contributions_digest=; path=/; max-age=0' : `rightdue_goal_contributions_digest=${beforeDigest}; path=/; SameSite=Lax`;
+    document.cookie = beforeActivity === undefined ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${beforeActivity}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
+    if (contributions) document.cookie = beforeDigest === undefined ? 'rightdue_goal_contributions_digest=; path=/; max-age=0' : `rightdue_goal_contributions_digest=${beforeDigest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
     throw e;
   }
   void syncSliceToServer('activity',entries);

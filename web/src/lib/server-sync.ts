@@ -646,7 +646,7 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
       writeCookie(target.name, serialized);
     } else {
       if (typeof localStorage === 'undefined') continue;
-      localStorage.setItem(target.name, serialized);
+      try { localStorage.setItem(target.name, serialized); } catch { /* storage full: keep loading the other parts */ }
     }
   }
   // activity_deltas is a derived cache (activity entries × loans → cookie)
@@ -673,7 +673,10 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
   if (Array.isArray(data.monthly_spend)) {
     const { latestByMonth } = await import('./monthly-spend');
     if (!isCurrent()) return;
-    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
+    // Same 24-month trim as writeMonthlySpendClient, so the cookie stays under 4 KB.
+    const all = latestByMonth(data.monthly_spend);
+    const digest = Object.fromEntries(Object.keys(all).sort().slice(-24).map((k) => [k, all[k]]));
+    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(digest))}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
 }
 
@@ -709,11 +712,13 @@ export async function hydrateFromServer(): Promise<boolean> {
     const revision = localRevision, generation = accountGeneration;
     const account = activeAccount();
     const res = await api.getUserState();
-    if (account) storeVersion(account, res.version);
     // A different tab can change shared storage before its storage event
     // reaches this tab. Check the identity itself, including after imports.
     const isCurrent = () => revision === localRevision && generation === accountGeneration && account === activeAccount();
     if (!res.data || !isCurrent()) return false;
+    // Only now: a version stored for a fetch that was discarded let a stale
+    // local edit overwrite another device's change without a 412.
+    if (account) storeVersion(account, res.version);
     await hydrateLocalStores(res.data, isCurrent);
     return isCurrent();
   } catch {
