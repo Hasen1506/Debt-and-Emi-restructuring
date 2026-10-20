@@ -7,22 +7,46 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
-import { isAbortedChunkError, isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
+import { isAbortedChunkError, isCutOffChunk, isLeftoverChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
 type Violation = { id: string; impact: string | null; help: string; nodes: { target: string[] }[] };
 
 /** Watch a page for hydration and runtime errors from here on. */
-function watchErrors(page: Page): { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => void } {
+function watchErrors(page: Page): { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => Promise<void> } {
   const errors: string[] = [];
   const aborted = new Set<string>();
+  const attempts: { url: string; gen: number; done: boolean; status: number }[] = [];
+  let generation = 0;
   let abortedThisNavigation = 0;
+  const chunkUrl = (url: string) => url.includes('/_next/static/chunks/');
+  const openAttempt = (url: string) => {
+    for (let i = attempts.length - 1; i >= 0; i--) if (attempts[i].url === url && !attempts[i].done) return attempts[i];
+    return undefined;
+  };
+  page.on('request', (req) => {
+    const url = req.url();
+    if (chunkUrl(url)) attempts.push({ url, gen: generation, done: false, status: 0 });
+  });
+  page.on('requestfinished', (req) => {
+    const url = req.url();
+    if (!chunkUrl(url)) return;
+    const attempt = openAttempt(url);
+    if (!attempt) return;
+    attempt.done = true;
+    void req.response().then((response) => {
+      attempt.status = response?.status() ?? 0;
+    });
+  });
   page.on('requestfailed', (req) => {
+    const url = req.url();
+    const attempt = chunkUrl(url) ? openAttempt(url) : undefined;
+    if (attempt) attempt.done = true;
     const why = req.failure()?.errorText ?? '';
     if (!/abort|cancel/i.test(why)) return;
     abortedThisNavigation += 1;
-    if (req.url().includes('/_next/static/chunks/')) aborted.add(req.url());
+    if (chunkUrl(url)) aborted.add(url);
   });
   page.on('pageerror', (e) => {
     // WebKit reports the page being left's requests, cut off by the next
@@ -40,19 +64,46 @@ function watchErrors(page: Page): { errors: string[]; beginNavigation: () => voi
   });
   return {
     errors,
-    beginNavigation() { abortedThisNavigation = 0; },
-    dropCutOffChunks() {
+    beginNavigation() { generation += 1; abortedThisNavigation = 0; },
+    async dropCutOffChunks() {
       const path = (() => { try { return new URL(page.url()).pathname; } catch { return '/'; } })();
+      // A chunk requested by the page we just left, with no response and
+      // no requestfailed. WebKit still reports it as a page error on the
+      // page we landed on. A 400+ response is not this case.
+      const prior = new Set<string>();
+      for (const attempt of attempts) {
+        if (attempt.gen >= generation) continue;
+        // A finished 2xx from the previous page is not evidence of an abort.
+        if (attempt.done && attempt.status >= 200 && attempt.status < 400) continue;
+        if (attempts.some((other) => other.url === attempt.url && other.gen === generation && other.status >= 400)) continue;
+        prior.add(attempt.url);
+      }
       for (let i = errors.length - 1; i >= 0; i--) {
         const line = errors[i];
         // A bare "Load failed" is also what WebKit says for a request the
         // navigation aborted. Drop it only when this navigation did abort
         // a request; a Load failed on its own is still a failure.
         const bareLoadFailed = /^pageerror: (TypeError: )?Load failed$/i.test(line) && abortedThisNavigation > 0;
-        if (bareLoadFailed || isAbortedChunkError(line, aborted) || isCutOffChunk(line, path)) errors.splice(i, 1);
+        if (bareLoadFailed || isAbortedChunkError(line, aborted) || isLeftoverChunk(line, prior) || isCutOffChunk(line, path)) errors.splice(i, 1);
+      }
+      // WebKit can report the previous document's chunk error without a
+      // request or requestfailed event (run 39412021789: both sets empty).
+      // The new document does not list that script. A chunk the open page
+      // actually requested stays in resource timing or in document.scripts.
+      for (let i = errors.length - 1; i >= 0; i--) {
+        const url = errors[i].replace(/^pageerror:\s*/, '').match(/https?:\/\/[^)\s]+/)?.[0];
+        if (!url || !url.includes('/_next/static/chunks/')) continue;
+        const present = await page.evaluate((src) => {
+          const script = [...document.scripts].some((s) => s.src === src);
+          const timed = performance.getEntriesByType('resource').some((e) => e.name === src);
+          return script || timed;
+        }, url).catch(() => true);
+        if (!present) errors.splice(i, 1);
       }
       if (errors.some((line) => /Loading chunk/.test(line))) {
         errors.push(`aborted-chunks: ${[...aborted].join(' | ') || '(none)'}`);
+        errors.push(`prior-chunks: ${[...prior].join(' | ') || '(none)'}`);
+        errors.push(`chunk-attempts: ${attempts.length}`);
       }
     },
   };
@@ -71,7 +122,7 @@ async function axe(page: Page): Promise<string[]> {
     .map((v) => `${v.id} (${v.impact}): ${v.help} · ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
 }
 
-async function check(page: Page, path: string, watched: { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => void }) {
+async function check(page: Page, path: string, watched: { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => Promise<void> }) {
   watched.errors.length = 0;
   watched.beginNavigation();
   await page.goto(path, { waitUntil: 'load' });
@@ -80,7 +131,7 @@ async function check(page: Page, path: string, watched: { errors: string[]; begi
   // request record its failure before the assertion drops it.
   await page.waitForTimeout(2500);
   const found = await axe(page);
-  watched.dropCutOffChunks();
+  await watched.dropCutOffChunks();
   expect.soft(found, `axe on ${path}`).toEqual([]);
   expect.soft(watched.errors, `errors on ${path}`).toEqual([]);
 }
@@ -149,6 +200,6 @@ test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', asy
   expect(faded, 'the disabled row\'s explanation sits inside a faded wrapper').toBe(false);
   const found = await axe(page);
   expect(found, 'axe on /plan (fixed-rate loans, WHAT IF open)').toEqual([]);
-  watched.dropCutOffChunks();
+  await watched.dropCutOffChunks();
   expect.soft(watched.errors, 'errors on /plan').toEqual([]);
 });

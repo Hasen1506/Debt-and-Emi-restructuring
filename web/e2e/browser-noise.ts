@@ -45,3 +45,22 @@ export function isAbortedChunkError(message: string, abortedUrls: ReadonlySet<st
   }
   return false;
 }
+
+/** A chunk the previous page had already asked for, and which never
+ *  finished, when WebKit does not emit requestfailed for the abort
+ *  (a11y, WebKit, CI run 39405390117: "aborted-chunks: (none)"). A URL
+ *  that returned 400 or more is a real miss and is not in this set. */
+export function isLeftoverChunk(message: string, priorUrls: ReadonlySet<string>): boolean {
+  const body = message.replace(/^pageerror:\s*/, '');
+  if (!isChunkLoadError('', body)) return false;
+  const url = body.match(/https?:\/\/[^)\s]+/)?.[0];
+  if (!url) return false;
+  if (priorUrls.has(url)) return true;
+  try {
+    const path = new URL(url).pathname;
+    for (const prior of priorUrls) if (new URL(prior).pathname === path) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}

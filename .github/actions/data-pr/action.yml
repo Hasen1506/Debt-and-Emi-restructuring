@@ -56,9 +56,34 @@ runs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         branch="data/$BOT"
-        git checkout -B "$branch"
+        # Replay only the bot's files onto the default branch. Cutting the
+        # data branch from the workflow ref proposes that ref's commits
+        # when the job was dispatched from anywhere but the default branch
+        # (rate-disclosure PRs 96 and 98, 20 Oct 2026).
+        git fetch --depth=1 origin "$BASE"
+        saved=$(mktemp -d)
+        # shellcheck disable=SC2086
+        for p in $PATHS; do
+          if [ -e "$p" ]; then
+            mkdir -p "$saved/$(dirname "$p")"
+            cp -a "$p" "$saved/$p"
+          fi
+        done
+        git checkout -B "$branch" "origin/$BASE"
+        # shellcheck disable=SC2086
+        for p in $PATHS; do
+          if [ -e "$saved/$p" ]; then
+            mkdir -p "$(dirname "$p")"
+            rm -rf "$p"
+            cp -a "$saved/$p" "$p"
+          fi
+        done
         # shellcheck disable=SC2086
         git add -- $PATHS
+        if git diff --cached --quiet; then
+          echo "No change in $PATHS versus $BASE; nothing to propose." | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
         git commit -q -m "$TITLE"
         git push -q --force origin "$branch"
 
