@@ -141,15 +141,21 @@ test('B26: the masthead nav has no Portfolio/Goals/Tax tab of its own', () => {
 });
 
 // ── B20: payoff order ─────────────────────────────────────────────────────
-test('B20: the payoff order is a labelled radio group with a word for every strategy', () => {
+test('B20: the header names the payoff order; Plan is the one labelled radio group', () => {
   const { STRATEGIES } = lib('strategy.ts');
   const sw = require(path.join(root, 'components/chrome/PayoffOrderSwitch.tsx'));
   for (const s of STRATEGIES) assert.ok(sw.PAYOFF_SEGMENT[s] && sw.PAYOFF_SEGMENT[s].length <= 10, s);
   const t = src('components/chrome/PayoffOrderSwitch.tsx');
-  assert.match(t, /role="radiogroup"/);
-  assert.match(t, /role="radio"/);
-  assert.match(t, /aria-checked=\{on\}/);
-  assert.match(t, /ArrowRight/);
+  assert.match(t, /data-testid="payoff-order-summary"/);
+  assert.match(t, /Edit payoff order on Plan/);
+  assert.doesNotMatch(t, /role="radio"/);
+  assert.doesNotMatch(t, /writeStrategyClient/);
+  const plan = src('components/StrategySwitcher.tsx');
+  assert.match(plan, /role="radiogroup"/);
+  assert.match(plan, /aria-label="Payoff order"/);
+  assert.match(plan, /role="radio"/);
+  assert.match(plan, /aria-checked=\{selected\}/);
+  assert.match(plan, /ArrowRight/);
   assert.ok(!fs.existsSync(path.join(root, 'components/personas/StrategyMedallion.tsx')), 'medallion deleted');
   for (const { rel, text } of FILES) assert.doesNotMatch(text, /StrategyMedallion/, rel);
 });

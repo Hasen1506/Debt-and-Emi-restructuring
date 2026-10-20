@@ -2738,7 +2738,7 @@ function ProfileEditor({
               </div>
             )}
 
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
+            <div id="pf-efund" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Emergency fund — current"
                 kind="money"

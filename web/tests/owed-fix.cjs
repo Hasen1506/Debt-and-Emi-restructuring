@@ -157,20 +157,28 @@ test('debt budget: each suggested figure says how it is made up, and the sum mat
   assert.match(f.allSpareLine(other, inr), /^₹90,000 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354 − other set-asides ₹8,646/);
 });
 
-test('debt budget: the prompt asks, with three choices, and labels the plan until then', () => {
-  const { DebtBudgetPrompt } = comp('plan/DebtBudgetControl.tsx');
+test('debt budget: asked once, on Plan, with three choices, and labelled until then', () => {
+  const { DebtBudgetControl, DebtBudgetSummary } = comp('plan/DebtBudgetControl.tsx');
   const fig = { takeHome: 150000, costs: 40000, fund: 11354, goals: 0, other: 0, required: 10000, allSpare: 98646, suggested: 54323,
     minimums: [{ label: 'Axis credit card', amount: 10000, card: true }] };
-  const html = text(renderToStaticMarkup(React.createElement(DebtBudgetPrompt, { choice: 'unset', budget: '', figures: fig, currency: 'INR', hasFundTarget: false })));
+  const html = text(renderToStaticMarkup(React.createElement(DebtBudgetControl, { choice: 'unset', budget: '', figures: fig, currency: 'INR', hasFundTarget: false })));
   assert.match(html, /How much a month toward debts\?/);
   assert.match(html, /THIS PLAN: EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
   assert.match(html, /EMIs \+ all spare cash · ₹98,646/);
-  assert.match(html, /Set an amount/);
+  assert.match(html, /A set total a month/);
   assert.match(html, /Only EMIs and minimums · ₹10,000/);
   assert.match(html, /₹98,646 = take-home ₹1,50,000 − spending ₹40,000 − emergency fund ₹11,354/);
-  assert.match(src('components/plan/LedgerPlan.tsx'), /debtBudgetChoice === 'unset'/);
-  assert.match(src('components/home/HomeDebtFree.tsx'), /debtBudgetChoice === 'unset'/);
-  assert.match(src('components/plan/PlanAssumptions.tsx'), /EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT/);
+  const summary = text(renderToStaticMarkup(React.createElement(DebtBudgetSummary, { choice: 'set', budget: '45000', currency: 'INR' })));
+  assert.match(summary, /₹45,000 A MONTH/);
+  assert.match(summary, /EDIT/);
+  assert.doesNotMatch(summary, /How much a month toward debts\?/);
+  assert.match(src('components/home/HomeDebtFree.tsx'), /<DebtBudgetSummary/);
+  assert.doesNotMatch(src('components/home/HomeDebtFree.tsx'), /<DebtBudgetControl|DebtBudgetPrompt/);
+  assert.doesNotMatch(src('components/plan/LedgerPlan.tsx'), /<DebtBudgetControl|DebtBudgetPrompt/);
+  assert.match(src('components/plan/PlanAssumptions.tsx'), /<DebtBudgetControl/);
+  const b = lib('debt-budget.ts');
+  assert.equal(b.debtBudgetChoiceLabel('unset', '', 'INR'), 'EMIS AND MINIMUMS ONLY — CHOOSE AN AMOUNT');
+  assert.equal(b.debtBudgetChoiceLabel('set', '₹45,000', 'INR'), '₹45,000 A MONTH');
 });
 
 test('chart balances equal the schedule BALANCE column, including the start and the debt-free month', () => {

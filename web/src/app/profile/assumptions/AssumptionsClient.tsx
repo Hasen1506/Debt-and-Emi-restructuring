@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatPct, type AssetType, type Country, type UserPayload } from '@/lib/api';
+import { formatCurrencyWhole, formatPct, type AssetType, type Country, type UserPayload } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { readEfSplitClient } from '@/lib/ef-split';
 import {
@@ -36,8 +36,6 @@ export function AssumptionsClient() {
   const [hurdle, setHurdle] = useState('');
   const [returns, setReturns] = useState<Record<string, string>>({});
   const [costs, setCosts] = useState<Record<string, string>>({});
-  const [efM, setEfM] = useState('');
-  const [efAmt, setEfAmt] = useState('');
   const [buffer, setBuffer] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -51,8 +49,6 @@ export function AssumptionsClient() {
     setHurdle(pct(u.prepay_hurdle));
     setReturns(Object.fromEntries(Object.entries(u.asset_returns ?? {}).map(([k, v]) => [k, pct(v)])));
     setCosts(Object.fromEntries(Object.entries(u.liquidation_costs ?? {}).map(([k, v]) => [k, pct(v)])));
-    setEfM(u.assumptions?.ef_months ? String(u.assumptions.ef_months) : '');
-    setEfAmt(u.assumptions?.ef_save_amount ?? '');
     setBuffer(pct(u.assumptions?.goal_buffer_pct));
     setSplit(readEfSplitClient());
   }, []);
@@ -61,8 +57,19 @@ export function AssumptionsClient() {
     return <p className="muted">Finish setup first: assumptions apply to your saved profile.</p>;
   }
   const country: Country = user.country;
-  const sym = country === 'US' ? '$' : '₹';
+  const ccy = country === 'US' ? 'USD' : 'INR';
   const spend = Number(user.fixed_expenses || 0) + Number(user.variable_expenses || 0);
+  const target = Number(user.efund_target || 0);
+  const coverMonths = spend > 0 && target > 0 ? Math.round(target / spend) : null;
+  const cover = !(target > 0)
+    ? 'No target set'
+    : coverMonths
+      ? `${formatCurrencyWhole(Math.round(target), ccy)} · ${coverMonths} months of spending`
+      : formatCurrencyWhole(Math.round(target), ccy);
+  const fixedTopUp = Number(user.assumptions?.ef_save_amount || 0);
+  const topUp = fixedTopUp > 0
+    ? `${formatCurrencyWhole(Math.round(fixedTopUp), ccy)} a month`
+    : `${Math.round(Number(split) * 100)}% of spare cash`;
 
   function save() {
     const errs: Record<string, string> = {};
@@ -80,25 +87,18 @@ export function AssumptionsClient() {
       const p = parseRateInput(v, 0, 1);
       if (p.ok) c[k] = p.value; else errs[`c-${k}`] = p.error;
     }
-    const months = efM.trim() === '' ? null : Number(efM);
-    if (months != null && !(Number.isInteger(months) && months >= 1 && months <= 24)) errs.efM = 'Whole months, 1 to 24.';
-    const amt = efAmt.trim() === '' ? null : Number(efAmt);
-    if (amt != null && !(Number.isFinite(amt) && amt >= 0)) errs.efAmt = 'An amount of zero or more, or empty.';
     setErrors(errs);
     if (Object.keys(errs).length > 0 || !user) return;
-    const prevMonths = user.assumptions?.ef_months ?? null;
     const next: UserPayload = {
       ...user,
       prepay_hurdle: h.ok ? h.value : null,
       asset_returns: cleanMap(r),
       liquidation_costs: cleanMap(c),
+      // Months of cover and the monthly top-up are edited on Profile and Plan.
       assumptions: {
-        ef_months: months,
-        ef_save_amount: amt != null && amt > 0 ? String(amt) : null,
+        ...user.assumptions,
         goal_buffer_pct: b.ok ? b.value : null,
       },
-      // New months of cover: the emergency-fund target follows (months × monthly spending).
-      ...(months != null && months !== prevMonths && spend > 0 ? { efund_target: String(Math.round(months * spend)) } : {}),
     };
     const stored = loadProfileClient();
     if (!saveProfileClient({ user: next, marginalRate: stored.marginalRate, creditScore: stored.creditScore })) {
@@ -144,10 +144,24 @@ export function AssumptionsClient() {
 
       <section aria-label="Emergency fund">
         <h2 style={{ fontSize: 13, letterSpacing: '0.12em' }}>EMERGENCY FUND</h2>
-        {row('Months of cover', `${DEFAULT_EF_MONTHS} months`, box(efM, setEfM, 'Months of cover', 'months', String(DEFAULT_EF_MONTHS)),
-          spend > 0 ? `Target = months × your monthly spending (${sym}${Math.round(spend).toLocaleString(country === 'US' ? 'en-US' : 'en-IN')})` : undefined, errors.efM)}
-        {row('Fixed monthly top-up', `${Math.round(Number(split) * 100)}% of spare cash (Plan slider)`, box(efAmt, setEfAmt, 'Fixed monthly top-up', sym, '—'),
-          'A fixed amount each month until the fund is full, instead of a share of spare cash', errors.efAmt)}
+        {row(
+          'Months of cover',
+          `${DEFAULT_EF_MONTHS} months`,
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 12 }}>{cover}</span>
+            <LBracket href="/profile?step=savings&focus=efund" label="Edit emergency fund target">EDIT</LBracket>
+          </span>,
+          'The target is set beside your savings in Profile',
+        )}
+        {row(
+          'Fixed monthly top-up',
+          `${Math.round(Number(split) * 100)}% of spare cash (Plan)`,
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 12 }}>{topUp}</span>
+            <LBracket href="/plan?set=ef#plan-assumption" label="Edit on Plan: the emergency fund top-up">EDIT ON PLAN</LBracket>
+          </span>,
+          'A share of spare cash, or a fixed amount, until the fund is full',
+        )}
       </section>
 
       <section aria-label="Paying debt or investing">

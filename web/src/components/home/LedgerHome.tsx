@@ -211,7 +211,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
     // Worked out from take-home until gross pay is entered in Profile.
     // B14 / E9: "30% slab + 4% cess", or "no income tax on your pay", not "26.0%" / "0.0%".
     `TAX: ${taxRateLabel(String(profile.marginalRate || 0), u.country, { estimated: !(gross > 0), regime: u.country === 'IN' ? (u.tax_regime ?? 'new') : null, stateRate: u.state_marginal_rate }).toUpperCase()}`,
-    // The payoff order isn't repeated here: the masthead shows it and switches it.
+    // The payoff order isn't repeated here: the masthead shows the saved order and links to Plan.
   ];
   return (
     <section

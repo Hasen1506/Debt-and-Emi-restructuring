@@ -87,5 +87,9 @@ test('wired: Plan\'s top-up, a new goal\'s buffer, the EF tier, goal projections
   assert.match(src('lib/goal-line.ts'), /monthsUntil\(g, today\), user\.asset_returns\)/);
   const page = src('app/profile/assumptions/AssumptionsClient.tsx');
   for (const s of ['Months of cover', 'Fixed monthly top-up', 'Prepay margin', 'Buffer on a new goal', 'EXPECTED RETURNS', 'SELLING COSTS', 'default ']) assert.ok(page.includes(s), s);
-  assert.match(page, /efund_target: String\(Math\.round\(months \* spend\)\)/);
+  // The target amount is edited once, beside savings. This page only shows it.
+  assert.doesNotMatch(page, /efund_target\s*:/);
+  assert.match(page, /\/profile\?step=savings&focus=efund/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /label="Emergency fund — target"/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /id="pf-efund"/);
 });

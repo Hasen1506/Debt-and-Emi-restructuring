@@ -41,11 +41,22 @@ test('unset debt total: spare cash, spending and pay-this-month agree', async ({
   await expect(body.getByText('Spending ₹30,000 + EMIs and card minimums ₹21,696')).toBeVisible();
   await expect(body.getByText(/This ₹28,304 is spare after the amount due/)).toBeVisible();
   await expect(body.getByText(/does not add it on top/)).toBeVisible();
-  await expect(body.getByText('₹50,000 = take-home ₹80,000 − spending ₹30,000')).toBeVisible();
   await expect(body.getByText(/− costs ₹/)).toHaveCount(0);
   await expect(page.getByTestId('pay-left-over')).toContainText('₹28,304 is spare after the EMIs and minimums');
   await expect(page.getByTestId('pay-left-over')).not.toContainText('safe return');
   await expect(body.getByText('₹17,708/MO')).toBeVisible();
+  // The monthly total is asked once, on Plan. Home states the saved figure.
+  const summary = page.getByTestId('debt-budget-summary');
+  await expect(summary).toContainText('EMIS AND MINIMUMS ONLY');
+  await expect(body.getByText('How much a month toward debts?')).toHaveCount(0);
+  await summary.getByRole('link', { name: 'Edit how much a month goes toward debts' }).click();
+  await expect(page).toHaveURL(/\/plan\?set=budget/);
+  const control = page.getByTestId('debt-budget-control');
+  await expect(control).toBeVisible();
+  await expect(control.getByText('How much a month toward debts?')).toBeVisible();
+  await expect(control.getByText('₹50,000 = take-home ₹80,000 − spending ₹30,000')).toBeVisible();
+  await page.goto('/');
+  await expect(month).toBeVisible();
 
   // Mark the only payment. The paid note has to appear; seeded data used to
   // stop one payment short of it.

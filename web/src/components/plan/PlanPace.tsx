@@ -7,12 +7,9 @@
  * the user make it the plan's total.
  */
 import { localTerms } from '@/lib/terms';
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { loanToUser } from '@/lib/currency';
-import { writeDebtBudgetClient } from '@/lib/debt-budget';
 import { formatMonth, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { PACE_MIN_MONTHS } from '@/lib/pace';
 import { LBracket, L_T } from '@/components/ledger/primitives';
@@ -20,9 +17,6 @@ import { LBracket, L_T } from '@/components/ledger/primitives';
 const monthLabel = (m: string) => formatMonth(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 'short');
 
 export function PlanPace({ plan }: { plan: PlanData }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const pace = plan.pace;
   if (!pace) return null;
   const ccy = plan.displayCurrency;
@@ -35,17 +29,6 @@ export function PlanPace({ plan }: { plan: PlanData }) {
   }, 0);
   const oneOff = pace.months.reduce((s, m) => s + m.oneOff, 0);
   const label = (n: number) => monthIndexToCountryLabel(n, plan.user.country);
-
-  function adoptTotal(v: number) {
-    try {
-      writeDebtBudgetClient(String(v));
-    } catch (e) {
-      setError((e as Error).message);
-      return;
-    }
-    setError(null);
-    startTransition(() => router.refresh());
-  }
 
   let says: React.ReactNode;
   let actions: React.ReactNode = null;
@@ -99,8 +82,8 @@ export function PlanPace({ plan }: { plan: PlanData }) {
     actions = (
       <>
         {avg >= required - 1 && (
-          <LBracket active onClick={() => adoptTotal(avg)} label={pending ? 'Working it out' : `Use ${fc(avg)} a month as the plan's total to debts`}>
-            {pending ? 'WORKING IT OUT…' : `USE ${fc(avg)} A MONTH`}
+          <LBracket href={`/plan?set=budget&pace=${Math.round(avg)}#plan-assumption`} label={`Use ${fc(avg)} a month as the plan's total to debts`}>
+            {`USE ${fc(avg)} A MONTH`}
           </LBracket>
         )}
         <LBracket href="/profile?step=income">UPDATE SPENDING →</LBracket>
@@ -121,8 +104,8 @@ export function PlanPace({ plan }: { plan: PlanData }) {
     );
     actions =
       budget > 0 && avg > budget ? (
-        <LBracket active onClick={() => adoptTotal(avg)} label={pending ? 'Working it out' : `Raise my total to ${fc(avg)} a month: the plan's total to debts`}>
-          {pending ? 'WORKING IT OUT…' : `RAISE MY TOTAL TO ${fc(avg)}`}
+        <LBracket href={`/plan?set=budget&pace=${Math.round(avg)}#plan-assumption`} label={`Raise my total to ${fc(avg)} a month: the plan's total to debts`}>
+          {`RAISE MY TOTAL TO ${fc(avg)}`}
         </LBracket>
       ) : (
         <LBracket href="/profile?step=income">UPDATE PROFILE →</LBracket>
@@ -172,11 +155,6 @@ export function PlanPace({ plan }: { plan: PlanData }) {
         </p>
       )}
       {actions && <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>{actions}</div>}
-      {error && (
-        <p role="alert" style={{ margin: '6px 0 0', color: L_T.negative }}>
-          {error}
-        </p>
-      )}
     </section>
   );
 }

@@ -146,15 +146,22 @@ test.describe('visual system @w7', () => {
     });
   }
 
-  test('B20: the header payoff order is a labelled text control, not artwork', async ({ page }) => {
+  test('B20: the header names the payoff order; Plan holds the one control', async ({ page }) => {
     test.skip(ONLY_MEASURE, 'new header control');
     await setUpPersona(page, 'w7-visual@rightdue.app');
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.goto('/plan');
+    const header = page.locator('header.rd-masthead');
+    await expect(header.getByText('Payoff order')).toBeVisible();
+    await expect(header.getByTestId('payoff-order-summary')).toBeVisible();
+    await expect(header.getByRole('radiogroup')).toHaveCount(0);
+    await expect(header.locator('svg')).toHaveCount(0);
+    await header.getByRole('link', { name: /Edit payoff order on Plan/ }).click();
     const group = page.getByRole('radiogroup', { name: 'Payoff order' });
-    for (const name of ['Cheapest', 'Smallest', 'Mine']) await expect(group.getByRole('radio', { name: new RegExp(`^${name}`) })).toBeVisible();
+    await expect(group.getByRole('radio', { name: /cheapest path/i })).toBeVisible();
+    await expect(group.getByRole('radio', { name: /smallest first/i })).toBeVisible();
+    await expect(group.getByRole('radio', { name: /your own order/i })).toBeVisible();
     await expect(group.getByRole('radio', { checked: true })).toHaveCount(1);
-    await expect(page.locator('header.rd-masthead svg')).toHaveCount(0);
   });
 
   test('Plan table + E13: plan reads on a phone and to a screen reader', async ({ page }) => {

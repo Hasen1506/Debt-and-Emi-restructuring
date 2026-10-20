@@ -16,6 +16,7 @@
  * Both surfaces share the same state + cookie write so a user who toggles
  * themes keeps their strategy preference.
  */
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { OfflineStrategyNote, useStrategyRefresh } from '@/components/useStrategyRefresh';
 import {
   STRATEGIES,
@@ -167,12 +168,26 @@ export function StrategySwitcher({
 }) {
   // R6B-9: offline, the choice is saved and the refresh waits for the connection.
   const { pending, offline, refresh } = useStrategyRefresh();
+  const [current, setCurrent] = useState(active);
+  useEffect(() => setCurrent(active), [active]);
+  const refs = useRef<Partial<Record<StrategyName, HTMLButtonElement | null>>>({});
 
   function pick(s: StrategyName) {
-    if (s === active || pending) return;
+    if (s === current || pending) return;
+    setCurrent(s);
     writeStrategyClient(s);
     // Server component re-renders with the new cookie value.
     refresh();
+  }
+
+  function onKey(e: KeyboardEvent<HTMLButtonElement>, s: StrategyName) {
+    const i = STRATEGIES.indexOf(s);
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = STRATEGIES[(i + step + STRATEGIES.length) % STRATEGIES.length];
+    refs.current[next]?.focus();
+    pick(next);
   }
 
   if (variant === 'ledger') {
@@ -206,15 +221,22 @@ export function StrategySwitcher({
             </div>
           </InfoTip>
         </span>
+        <div role="radiogroup" aria-label="Payoff order" style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         {STRATEGIES.map((s, i) => {
-          const selected = s === active;
+          const selected = s === current;
           return (
             <span key={s} style={{ display: 'inline-flex', gap: 4 }}>
               {i > 0 && <span style={{ color: 'var(--muted)' }}>·</span>}
               <button
+                ref={(el) => {
+                  refs.current[s] = el;
+                }}
                 type="button"
-                aria-pressed={selected}
+                role="radio"
+                aria-checked={selected}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => pick(s)}
+                onKeyDown={(e) => onKey(e, s)}
                 disabled={pending}
                 style={{
                   background: 'transparent',
@@ -234,6 +256,7 @@ export function StrategySwitcher({
             </span>
           );
         })}
+        </div>
         <span
           style={{
             color: 'var(--muted)',
@@ -243,7 +266,7 @@ export function StrategySwitcher({
             fontSize: 11,
           }}
         >
-          {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
+          {pending ? 'Working it out…' : STRATEGY_SHORT[current]}
         </span>
       </div>
       <OfflineStrategyNote show={offline} />
@@ -267,7 +290,7 @@ export function StrategySwitcher({
             <CompareRow
               key={s}
               strategy={s}
-              isActive={s === active}
+              isActive={s === current}
               compare={compare}
               country={country}
               mono
@@ -275,7 +298,7 @@ export function StrategySwitcher({
           ))}
         </div>
       )}
-      {active === 'rules' && user && (
+      {current === 'rules' && user && (
         <PayoffRulesEditor
           user={user}
           cost={compare ? rulesCost(compare.rules, compare.avalanche) : null}
@@ -320,7 +343,7 @@ export function StrategySwitcher({
         }}
       >
         {STRATEGIES.map((s) => {
-          const selected = s === active;
+          const selected = s === current;
           return (
             <button
               key={s}
@@ -347,7 +370,7 @@ export function StrategySwitcher({
         className="muted"
         style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 480 }}
       >
-        {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
+        {pending ? 'Working it out…' : STRATEGY_SHORT[current]}
       </span>
       <OfflineStrategyNote show={offline} />
       {compare && (
@@ -366,7 +389,7 @@ export function StrategySwitcher({
             <CompareRow
               key={s}
               strategy={s}
-              isActive={s === active}
+              isActive={s === current}
               compare={compare}
               country={country}
               mono={false}

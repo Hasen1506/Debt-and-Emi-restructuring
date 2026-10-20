@@ -47,8 +47,8 @@ test('R10-2: every button and link name in the app starts with its visible words
   assert.ok(results.length >= 50, `checked ${results.length}`);
   assert.deepEqual(results.filter((r) => !r.ok).map((r) => `${r.file}:${r.line} [${r.visible}] "${r.names.join(' / ')}"`), []);
   // The ones the re-test named.
-  // Audit 80+ B20: the medallion is gone; the payoff order is a labelled radio group.
-  assert.match(src('components/chrome/PayoffOrderSwitch.tsx'), /role="radiogroup"\s+aria-labelledby="rd-payoff-order-label"/);
+  // The payoff order is chosen once, on Plan, as a labelled radio group.
+  assert.match(src('components/StrategySwitcher.tsx'), /role="radiogroup"\s+aria-label="Payoff order"/);
   assert.match(src('components/home/OpenPositions.tsx'), /`Why \$\{fmtPct\(d\.effective\)\}\? What the \$\{name\} costs a year, line by line`/);
   assert.match(src('components/profile/ProfileSummary.tsx'), /'Old vs new regime, loan by loan: open the Tax page' : 'Tax page'/);
   assert.match(src('components/goals/GoalsPage.tsx'), /label=\{`\$\{funded \? 'Archive' : 'Cancel goal'\}: \$\{goal\.label\}`\}/);

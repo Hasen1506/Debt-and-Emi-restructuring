@@ -29,7 +29,7 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
-import { DebtBudgetPromptLazy as DebtBudgetPrompt } from '@/components/plan/DebtBudgetPromptLazy';
+import { DebtBudgetSummary } from '@/components/plan/DebtBudgetControl';
 import { debtBudgetFigures } from '@/lib/debt-budget-figures';
 import { CashFlow } from './LedgerHome';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
@@ -255,17 +255,16 @@ export async function HomePayThisMonth() {
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
+  const budgetFigures = debtBudgetFigures(plan);
   return (
     <>
-      {/* Founder 18 Oct 2026: the monthly total for debts is asked, never
-          defaulted; until then the list holds EMIs and minimums only. */}
-      {plan.profileIsLive && plan.debtBudgetChoice === 'unset' && (
-        <DebtBudgetPrompt
+      {/* The monthly total is chosen once, on Plan. This line is the saved figure. */}
+      {plan.profileIsLive && plan.user.loans.some((l) => Number(l.outstanding) > 0) && (
+        <DebtBudgetSummary
           choice={plan.debtBudgetChoice}
           budget={plan.debtBudget ?? ''}
-          figures={debtBudgetFigures(plan)}
           currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
-          hasFundTarget={Number(plan.user.efund_target || 0) > 0}
+          nothingSpare={budgetFigures.allSpare - budgetFigures.required < 1}
         />
       )}
       <PayThisMonth

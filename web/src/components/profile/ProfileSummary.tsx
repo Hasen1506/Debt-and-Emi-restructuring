@@ -257,7 +257,7 @@ export function ProfileSummary({
 
       {payoffOrder && (
         <section id="strategy" aria-labelledby="pf-order" style={{ scrollMarginTop: 16 }}>
-          <LSectionHeader step={7} right={<LBracket accent href="/plan" label="See on Plan: the payoff order">SEE ON PLAN</LBracket>}>
+          <LSectionHeader step={7} right={<LBracket accent href="/plan?set=order#plan-assumption" label="Edit on Plan: the payoff order">EDIT ON PLAN</LBracket>}>
             <span id="pf-order">Payoff order</span>
           </LSectionHeader>
           {payoffOrder}
