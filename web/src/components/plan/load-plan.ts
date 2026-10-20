@@ -590,14 +590,15 @@ export async function loadPlan(
       };
       return cachedEngineCall('restructuring', req, () => api.restructuring(req));
     });
+    const baselineArgs = {
+      user: adjustedUser,
+      horizon_months: HORIZON_MONTHS,
+      lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
+      paid_off_this_month: simBaseArgs.paid_off_this_month,
+    };
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
       scenarioCall,
-      cachedEngineCall('baseline', {
-        user: adjustedUser,
-        horizon_months: HORIZON_MONTHS,
-        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
-      }, () => api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS,
-        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined })),
+      cachedEngineCall('baseline', baselineArgs, () => api.baseline(baselineArgs)),
       restructuringCall,
       ...otherStrategies.map((s) => cachedEngineCall('simulate', { ...simBaseArgs, strategy: s }, () => api.simulate({ ...simBaseArgs, strategy: s }))),
     ]);

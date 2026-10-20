@@ -383,6 +383,14 @@ def _gap_closed(user, req, kwargs, result) -> GapClosedOut | None:
     )
 
 
+def _paid_off_map(req) -> dict | None:
+    """Money already gone out this month that the opening balance still
+    holds, by loan index. None when nothing was logged, so a caller that
+    omits it runs exactly as before."""
+    off = getattr(req, "paid_off_this_month", None) or []
+    return {p.loan_index: p.amount for p in off} or None
+
+
 def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
     """The plan's own settings as simulate_plan keyword arguments, shared
     by /simulate and the what-if compare so both run the same plan.
@@ -404,6 +412,9 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         goals=_build_goal_states(req.goals) if req.goals else None,
         debt_budget=req.debt_budget,
         gap_as_debt=req.gap_as_debt,
+        # Already paid this month: both the plan and the minimums line
+        # start from what's owed today, not the statement.
+        paid_off_this_month=_paid_off_map(req),
         **_low_rate_kwargs(req),
     )
 
@@ -600,8 +611,7 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
 def _owed_today_fields(user, req) -> dict:
     """UX walkthrough fix 4: the one "what you owe today" figure."""
     from engine.owed_today import owed_today
-    off = {p.loan_index: p.amount for p in getattr(req, "paid_off_this_month", None) or []}
-    o = owed_today(user, req.paid_emi_this_month, off)
+    o = owed_today(user, req.paid_emi_this_month, _paid_off_map(req))
     return dict(owed_today=o.total, owed_start_of_month=o.start_of_month, owed_today_interest_in_paid=o.interest_in_paid,
                 owed_today_paid_off=o.paid_off)
 
@@ -654,6 +664,7 @@ def _baseline_uncached(req: BaselineRequest) -> SimulateResponse:
         ),
         gap_as_debt=req.gap_as_debt,
         stop_owed_multiple=ENGINE_STOP_MULTIPLE,
+        paid_off_this_month=_paid_off_map(req),
     )
     stop = _non_amortising_response(user, result)
     if stop is not None:

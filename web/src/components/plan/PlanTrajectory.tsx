@@ -11,7 +11,7 @@
 import { useMemo } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
-import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate } from '@/lib/today';
+import { formatMonthDate, getCountryToday, monthIndexToCountryLabel, monthIndexToDate, trajectoryPointDate, trajectoryTimeFraction } from '@/lib/today';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
@@ -88,8 +88,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     // (plan.debtFreeMonth is null, load-plan's shownDebtFreeMonth); the line
     // stops at the first unfundable month and the note says so.
     const shown = series.filter((p) => p.month <= end);
-    const span = Math.max(1, end - first);
-    const tOf = (m: number) => (m - first) / span;
+    // One point per month, spaced by the calendar: today to the end of
+    // this month is a few days, and each later month is its own length.
+    const tOf = (m: number) => trajectoryTimeFraction(m, first, end, today);
     const maxBal = shown.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
     const norm = (v: number) => (maxBal > 0 ? v / maxBal : 0);
     const money = (v: number) => formatCurrencyWhole(Math.round(v), ccy);
@@ -152,7 +153,17 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
             ? 'MINIMUMS NEVER CLEAR IT →'
             : undefined;
 
-    const xLabels = chartAxisMonths(first, end, 5).map((m) => ({ t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) }));
+    const tickMonths = chartAxisMonths(first, end, 5);
+    const seenMonth = new Set<string>();
+    const xLabels = tickMonths.flatMap((m) => {
+      const d = trajectoryPointDate(m, today);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      // NOW and the end of this month name the same calendar month. Keep
+      // the last tick (the debt-free month); drop a middle one that repeats it.
+      if (seenMonth.has(key) && m !== tickMonths[tickMonths.length - 1]) return [];
+      seenMonth.add(key);
+      return [{ t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) }];
+    });
     // The same whole-rupee figures as the BALANCE cells, not a compact scale.
     const yLabels = [
       { y: 1, l: formatCurrencyWhole(Math.round(maxBal), ccy) },

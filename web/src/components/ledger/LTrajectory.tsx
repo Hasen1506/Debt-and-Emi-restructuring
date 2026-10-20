@@ -298,6 +298,7 @@ export function LTrajectory({
               fill="transparent"
               data-month={p.month}
               data-balance={p.balance}
+              data-t={p.t}
             >
               <title>{p.tip}</title>
             </rect>

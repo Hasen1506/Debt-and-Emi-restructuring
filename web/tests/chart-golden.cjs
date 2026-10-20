@@ -33,6 +33,7 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { PlanTrajectory } = require(path.join(root, 'components/plan/PlanTrajectory.tsx'));
 const { chartBalances } = require(path.join(root, 'lib/schedule-chart.ts'));
+const { formatCurrencyWhole } = require(path.join(root, 'lib/api.ts'));
 const today = require(path.join(root, 'lib/today.ts'));
 
 test('chart golden: a leftover stops the axis, markers stay, balances match the schedule', () => {
@@ -99,4 +100,75 @@ test('chart golden: a leftover stops the axis, markers stay, balances match the 
   const ys = [...dipped.matchAll(/L?\d+\.?\d*,(\d+\.?\d*)/g)].map((m) => Number(m[1]));
   const axis = Math.max(...ys);
   assert.ok(ys.every((y) => y <= axis + 0.2), 'the line stays on or above ₹0');
+});
+
+test('chart golden: 20 Oct 2026 card — no doubled balance, partial month is a short slot', () => {
+  // Vijay's tablet screenshot. Statement ₹2,00,000, ₹1,01,519 already paid,
+  // so ₹98,481 is owed now. The unreduced run drew minimums at ₹1,96,962
+  // and a plan that rose, then cleared in December. The series here is the
+  // run that starts from today's balance (engine/tests/test_trajectory_opening.py).
+  const oct20 = new Date(2026, 9, 20, 12, 0, 0, 0);
+  const endOct = today.trajectoryPointDate(1, oct20);
+  const endNov = today.trajectoryPointDate(2, oct20);
+  assert.equal(today.localIsoDate(today.trajectoryPointDate(0, oct20)), '2026-10-20');
+  assert.equal(today.localIsoDate(endOct), '2026-10-31');
+  assert.equal(today.localIsoDate(endNov), '2026-11-30');
+  const days = (a, b) => Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  const nowToOct = days(oct20, endOct);
+  const octToNov = days(endOct, endNov);
+  assert.equal(nowToOct, 11);
+  assert.ok(nowToOct < octToNov / 2, 'NOW and the end of October are the same month');
+  const t1 = today.trajectoryTimeFraction(1, 0, 2, oct20);
+  assert.ok(Math.abs(t1 - 11 / 41) < 1e-9, `month 1 sits at ${t1}, not halfway`);
+
+  const trajectory = [
+    { month: 1, avalanche: 2159.15, minimums: 91849.23, balancesByLoanIndex: { 0: 2159.15 } },
+    { month: 2, avalanche: 0, minimums: 84982.69, balancesByLoanIndex: { 0: 0 } },
+  ];
+  const plan = {
+    live: true,
+    user: {
+      country: 'IN',
+      loans: [{
+        id: 'card', bank: 'HDFC Bank', loan_type: 'credit_card', outstanding: '200000',
+        nominal_rate: '0.36', scheduled_emi: '10000', tenure_months_remaining: 0,
+      }],
+      monthly_income: '150000', fixed_expenses: '0', efund_balance: '0',
+    },
+    displayCurrency: 'INR',
+    marginalRate: '0.3',
+    strategy: 'snowball',
+    trajectory,
+    monthlyPayments: [{ month: 1, perLoan: { 0: '98646' }, totalPaid: 98646, extraPaid: 88646 }],
+    debtFreeMonth: 2,
+    infeasibleFrom: null,
+    baselineNeverClears: false,
+    gap: null,
+    gaps: [],
+    owedToday: { today: 98481, startOfMonth: 200000, interestInPaid: 0, paidOff: 101519 },
+    strategyCompare: {
+      avalanche: { debtFreeMonth: 2, totalInterest: '2375.11' },
+      rules: { debtFreeMonth: 2, totalInterest: '2375.11' },
+      snowball: { debtFreeMonth: 2, totalInterest: '2375.11' },
+    },
+  };
+  const html = renderToStaticMarkup(React.createElement(PlanTrajectory, { plan, short: false }));
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const start = formatCurrencyWhole(98481, 'INR');
+  const doubled = formatCurrencyWhole(196962, 'INR');
+  assert.match(text, new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(text, new RegExp(doubled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  const free = today.monthIndexToCountryLabel(2, 'IN');
+  assert.match(text, new RegExp(`DEBT-FREE · ${free.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+
+  const tips = [...html.matchAll(/data-month="(\d+)" data-balance="(-?\d+)" data-t="([0-9.]+)"/g)].map((m) => ({
+    month: Number(m[1]), balance: Number(m[2]), t: Number(m[3]),
+  }));
+  assert.deepEqual(tips.map((p) => p.month), [0, 1, 2]);
+  assert.deepEqual(tips.map((p) => p.balance), [98481, 2159, 0]);
+  assert.ok(tips.every((p, i) => i === 0 || p.balance <= tips[i - 1].balance));
+  const wall = today.getCountryToday('IN');
+  assert.equal(tips[0].t, 0);
+  assert.equal(tips[2].t, 1);
+  assert.ok(Math.abs(tips[1].t - today.trajectoryTimeFraction(1, 0, 2, wall)) < 0.0001);
 });

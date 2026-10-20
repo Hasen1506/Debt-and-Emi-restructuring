@@ -1604,6 +1604,9 @@ export const api = {
     /** Same planned rate resets as the plan, so "saved vs minimums"
      *  compares like with like. */
     lifecycle_events?: LifecycleEventInput[];
+    /** Payments already logged this month, so the dashed line starts at
+     *  what's owed today, the same figure the plan line starts at. */
+    paid_off_this_month?: { loan_index: number; amount: string }[];
   }, opts?: RequestOptions) => post<unknown>('/api/baseline', req, opts?.signal).then((v) => parseSimulateResponse('/api/baseline', v)),
 
   /** Both runs take the plan's own settings (PlanRunArgs), so the
