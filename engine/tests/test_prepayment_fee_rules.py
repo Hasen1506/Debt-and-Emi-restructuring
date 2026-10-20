@@ -7,6 +7,12 @@ Sources, read 19 Oct 2026:
   https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8868&Mode=0
   no foreclosure charge or prepayment penalty on any floating-rate term
   loan to an individual borrower (scheduled commercial banks, excluding RRBs).
+* UBD.CO.BPD.PCB.Cir.No.64/12.05.001/2013-14, 26 May 2014, urban
+  co-operative banks, and RPCD.CO.RCBD.RRB.BC.No.102/07.51.013/2013-14,
+  27 May 2014, state and central co-operative banks and RRBs: the same
+  bar, and it was not narrowed to non-business loans in 2019.
+  https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8896&Mode=0
+  https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8905&Mode=0
 * DBR.Dir.BC.No.08/13.03.00/2019-20, 2 August 2019:
   https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=11646&Mode=0
   the bar is for purposes other than business, with or without co-obligants.
@@ -73,16 +79,30 @@ def test_each_rule_case():
                    "nbfc", "hfc"):
         d = f("home_loan", "floating", "IN", lender, False, 2014, D("8000000"))
         assert d.status == "assumed" and d.pct == 0, lender
-    # RRBs and co-operative banks: asked before 2026, zero from 2026 (para 4).
+    # RRBs and co-operative banks: 0 before 2026 as well. UBD.CO.BPD.PCB.Cir.No.64
+    # (26 May 2014) and RPCD.CO.RCBD.RRB.BC.No.102 (27 May 2014) bar the charge
+    # on every floating-rate term loan to an individual borrower. The 2 August
+    # 2019 non-business clarification was not addressed to them.
     for lender in ("cooperative_bank", "regional_rural_bank"):
-        assert f("home_loan", "floating", "IN", lender, False, 2014).status == "unknown", lender
-        assert f("home_loan", "floating", "IN", lender, False, None).status == "unknown", lender
+        assert f("home_loan", "floating", "IN", lender, False, 2014).status == "assumed", lender
+        assert f("home_loan", "floating", "IN", lender, False, None).status == "assumed", lender
         assert f("home_loan", "floating", "IN", lender, False, 2026).status == "assumed", lender
-    # A blank business answer: personal for most loans, asked for LAP and gold.
+        assert f("personal_loan", "floating", "IN", lender, True, 2014, D("8000000")).status == "assumed", lender
+        assert f("personal_loan", "floating", "IN", lender, True, None).status == "assumed", lender
+    # A blank business answer: personal for most loans. LAP and gold are asked
+    # only when the purpose can change the fee.
     assert f("home_loan", "floating", "IN", "bank", None).status == "assumed"
     for lt in ("loan_against_property", "gold_loan"):
-        assert f(lt, "floating", "IN", "bank", None, 2026).status == "unknown", lt
+        # Before 2026 a commercial bank may charge on a business loan (2019 clarification).
+        assert f(lt, "floating", "IN", "bank", None, 2025).status == "unknown", lt
+        # From 2026 para 5(i) and 5(ii)(a) are both 0, so the blank answer cannot keep a fee.
+        assert f(lt, "floating", "IN", "bank", None, 2026, D("20000000")).status == "assumed", lt
         assert f(lt, "floating", "IN", "bank", False, 2026).status == "assumed", lt
+        # An RRB's May 2014 circular covers a business purpose too, so a blank answer is 0.
+        assert f(lt, "floating", "IN", "regional_rural_bank", None, 2019).status == "assumed", lt
+        # From 2026 an RRB may charge above ₹50 lakh, so a blank answer is asked.
+        assert f(lt, "floating", "IN", "regional_rural_bank", None, 2026, CAP + 1).status == "unknown", lt
+        assert f(lt, "floating", "IN", "regional_rural_bank", None, 2026, CAP).status == "assumed", lt
     # A lender RBI does not regulate is not covered.
     assert f("home_loan", "floating", "IN", "other", False).status == "unknown"
     # Fixed rate: para 5 does not apply. Para 6 leaves the charge to the lender.
@@ -103,8 +123,13 @@ def test_each_rule_case():
         assert f("personal_loan", "floating", "IN", lender, True, 2026, CAP).status == "assumed", lender
         assert f("personal_loan", "floating", "IN", lender, True, 2026, CAP + 1).status == "unknown", lender
         assert f("personal_loan", "floating", "IN", lender, True, 2026, None).status == "unknown", lender
+    # Before 2026 the 2019 clarification left a business loan to the lender, except
+    # RRBs and co-operative banks, whose May 2014 circulars were not narrowed.
+    for lender in ("small_finance_bank", "hfc", "nbfc", "bank"):
         assert f("personal_loan", "floating", "IN", lender, True, 2025, CAP).status == "unknown", lender
-    # An NBFC's layer and a co-operative bank's tier are not known, so a charge can apply.
+    for lender in ("regional_rural_bank", "cooperative_bank"):
+        assert f("personal_loan", "floating", "IN", lender, True, 2025, CAP).status == "assumed", lender
+    # An NBFC's layer and a co-operative bank's tier are not known, so from 2026 a charge can apply.
     for lender in ("nbfc", "cooperative_bank"):
         assert f("personal_loan", "floating", "IN", lender, True, 2026, CAP).status == "unknown", lender
         assert f("personal_loan", "floating", "IN", lender, True, 2026, D("10000000")).status == "unknown", lender

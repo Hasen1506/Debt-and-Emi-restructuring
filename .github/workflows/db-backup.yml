@@ -85,7 +85,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: auto
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: |
             scripts
@@ -149,7 +149,7 @@ jobs:
       AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
       BACKUP_DRILL_DISABLED: ${{ vars.BACKUP_DRILL_DISABLED }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: |
             scripts

@@ -40,7 +40,7 @@ jobs:
       python: ${{ steps.diff.outputs.python }}
       cross_browser: ${{ steps.diff.outputs.cross_browser }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: diff
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Round 2: every workflow the app relies on has an entry in
       # docs/FOUNDER-RECORDS.md section (c) "Always running".
       # The line-count gate (size_report.py) was removed 19 Oct 2026.
@@ -121,8 +121,8 @@ jobs:
     env:
       RIGHTDUE_TEST_DATABASE_URL: postgresql://rightdue_test:local-fixture-password@127.0.0.1:5432/rightdue_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -140,8 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -160,10 +160,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the pre-PR-29 engine is read from commit c753849
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -186,8 +186,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -226,14 +226,14 @@ jobs:
       E2E_PYTHON: python
       E2E_FROZEN_NOW: "2026-10-07T04:30:00.000Z"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -285,7 +285,7 @@ jobs:
             echo "::group::$f"; cat "$f"; echo "::endgroup::"
           done
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
@@ -326,14 +326,14 @@ jobs:
       E2E_PYTHON: python
       E2E_FROZEN_NOW: "2026-10-07T04:30:00.000Z"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -360,7 +360,7 @@ jobs:
             echo "::group::$f"; cat "$f"; echo "::endgroup::"
           done
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-browsers
           path: |

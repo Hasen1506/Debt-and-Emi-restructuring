@@ -30,7 +30,8 @@ and never blocks the plan. A blank fee is read as:
   Institutions, and the repealed circulars covered banks, UCBs, RRBs,
   HFCs and NBFCs for older loans too, so 0% is assumed for any RBI-
   regulated lender (`lender_type` bank / small_finance_bank /
-  cooperative_bank / nbfc / hfc, or not given). A lender RBI doesn't
+  regional_rural_bank / cooperative_bank / nbfc / hfc, or not given).
+  A lender RBI doesn't
   regulate (`lender_type="other"`: an employer, a chit fund, a private
   lender) gets "Not known".
 * **Business purpose** (`business_purpose=True`, grill #28): para 5(ii)
@@ -50,9 +51,18 @@ and never blocks the plan. A blank fee is read as:
   above ₹50 lakh a middle-layer HFC may charge, so that case is asked).
   A co-operative bank's tier is not something the borrower knows, and an
   NBFC's layer (base / middle / upper) decides whether a charge can apply,
-  so those are "Not known" and the form asks. Before 2026 the 2019
-  circular kept the bar to non-business loans, so a business loan
-  sanctioned earlier is asked too.
+  so those are "Not known" and the form asks. Before 2026 the 2 August
+  2019 clarification kept the bar to non-business loans for commercial
+  banks, small finance banks and NBFCs (HFCs: Master Direction para
+  85.7), so a business loan sanctioned earlier is asked too. Regional
+  rural banks and co-operative banks were not in that clarification.
+  Their own circulars still bar the charge on every floating-rate term
+  loan to an individual borrower (UBD.CO.BPD.PCB.Cir.No.64, 26 May 2014,
+  urban co-operative banks; RPCD.CO.RCBD.RRB.BC.No.102, 27 May 2014,
+  state and central co-operative banks and regional rural banks), and
+  the 2025 Directions annex lists those as the instructions in force
+  until 1 January 2026. A business loan from one of them, sanctioned
+  before 2026 or with no year given, is therefore 0 as well.
   A dual-rate loan follows the rate it is on when prepaid (5(iv)): the
   loan's current rate type is what counts here.
 * **Fixed rate: the bar does not apply.** Para 5 is floating-rate loans
@@ -133,16 +143,22 @@ BUSINESS_UNANSWERED_REASON = (
     "Not known: a loan against property or a gold loan is often taken for a business, and RBI's "
     "rule differs for business loans. Answer \"Is this loan for a business?\" or check your Key Facts Statement."
 )
-OLDER_LENDER_REASON = (
-    "Not known: before 2026 RBI's floating-rate rule was issued to commercial banks, NBFCs and HFCs, "
-    "not regional rural or co-operative banks. Check your loan agreement or Key Facts Statement."
-)
 # A blank business answer is read as personal except for these, which are
-# commonly taken for a business: there a stored fee is kept, not zeroed.
+# commonly taken for a business. Even then, a stored fee is kept only when
+# the two answers would not both be 0. Where the law is 0 either way, the
+# charge is 0.
 BUSINESS_CAPABLE_TYPES = frozenset({"loan_against_property", "gold_loan"})
-# Lenders the pre-2026 circulars (2012 NHB, 2014 banks excl. RRBs, 2014
-# NBFCs, 2019) did not clearly reach. From 2026 para 4 covers them all.
-PRE_2026_UNCOVERED = frozenset({"regional_rural_bank", "cooperative_bank"})
+# May 2014 circulars that bar the charge on every floating-rate term loan
+# to an individual, and that the 2 August 2019 non-business clarification
+# did not amend. In force for loans before the 2025 Directions.
+# https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8896&Mode=0
+# https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8905&Mode=0
+PRE_2026_ALL_INDIVIDUAL = frozenset({"regional_rural_bank", "cooperative_bank"})
+INDIVIDUAL_2014_REASON = (
+    "Assumed 0%: RBI barred foreclosure charges on all floating-rate term loans to individual "
+    "borrowers from regional rural banks (27 May 2014) and co-operative banks (26–27 May 2014). "
+    "The August 2019 non-business limit was not addressed to them."
+)
 
 UNKNOWN_REASON = (
     "Not known, so no fee is assumed. If you can, check your loan agreement or "
@@ -203,15 +219,33 @@ def prepayment_fee_default(
         return FeeDefault(Decimal("0"), "unknown", UNKNOWN_REASON)
     if lender == "other":
         return FeeDefault(Decimal("0"), "unknown", OTHER_LENDER_REASON)
-    new_rule = sanction_year is not None and sanction_year >= RULE_START_YEAR
     if business_purpose is None and lt in BUSINESS_CAPABLE_TYPES:
+        personal = _purpose_fee(lender, False, sanction_year, sanctioned_amount)
+        business = _purpose_fee(lender, True, sanction_year, sanctioned_amount)
+        # The question cannot change the fee: both answers are a statutory 0.
+        if personal.status == "assumed" and business.status == "assumed":
+            return personal
         return FeeDefault(Decimal("0"), "unknown", BUSINESS_UNANSWERED_REASON)
-    # 2012 home loans, 2014 term loans, 2019 non-business clarification, 2025 para 5(i).
+    return _purpose_fee(lender, bool(business_purpose), sanction_year, sanctioned_amount)
+
+
+def _purpose_fee(
+    lender: str | None,
+    business_purpose: bool,
+    sanction_year: int | None,
+    sanctioned_amount: Decimal | None,
+) -> FeeDefault:
+    """The fee once the purpose is known. A blank answer has already been
+    read as personal, except for the loan types that ask."""
+    new_rule = sanction_year is not None and sanction_year >= RULE_START_YEAR
+    # 2012 home loans, May 2014 term loans (banks, co-ops, RRBs), 14 July
+    # 2014 NBFCs, 14 August 2014 HFCs, 2019 non-business clarification, 2025 para 5(i).
     if not business_purpose:
-        if lender in PRE_2026_UNCOVERED and not new_rule:
-            return FeeDefault(Decimal("0"), "unknown", OLDER_LENDER_REASON)
         return FeeDefault(Decimal("0"), "assumed", ASSUMED_REASON)
-    # A business loan: para 5(ii), loans sanctioned or renewed from 2026 only.
+    # RRBs and co-operative banks: the May 2014 circulars were not narrowed in 2019.
+    if not new_rule and lender in PRE_2026_ALL_INDIVIDUAL:
+        return FeeDefault(Decimal("0"), "assumed", INDIVIDUAL_2014_REASON)
+    # A business loan from 2026: para 5(ii).
     if new_rule and lender in _COMMERCIAL:
         return FeeDefault(Decimal("0"), "assumed", BUSINESS_BANK_REASON)
     cap_reason = _CAP_50.get(lender or "")

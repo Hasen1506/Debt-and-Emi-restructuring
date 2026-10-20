@@ -78,11 +78,28 @@ function canonLender(lenderType?: string): string | undefined {
 
 const BUSINESS_UNANSWERED_REASON =
   'Not known: a loan against property or a gold loan is often taken for a business, and RBI\'s rule differs for business loans. Answer "Is this loan for a business?" or check your Key Facts Statement.';
-const OLDER_LENDER_REASON =
-  "Not known: before 2026 RBI's floating-rate rule was issued to commercial banks, NBFCs and HFCs, not regional rural or co-operative banks. Check your loan agreement or Key Facts Statement.";
 /** Same sets as engine/prepayment_fee.py. */
 const BUSINESS_CAPABLE_TYPES = new Set<string>(['loan_against_property', 'gold_loan']);
-const PRE_2026_UNCOVERED = new Set<string>(['regional_rural_bank', 'cooperative_bank']);
+/** May 2014 circulars the 2 August 2019 non-business clarification did not amend. */
+const PRE_2026_ALL_INDIVIDUAL = new Set<string>(['regional_rural_bank', 'cooperative_bank']);
+const INDIVIDUAL_2014_REASON =
+  'Assumed 0%: RBI barred foreclosure charges on all floating-rate term loans to individual borrowers from regional rural banks (27 May 2014) and co-operative banks (26–27 May 2014). The August 2019 non-business limit was not addressed to them.';
+
+function purposeFee(lender: string | undefined, businessPurpose: boolean, sanctionYear: number | undefined, sanctionedAmount: string | number | undefined): FeeDefault {
+  const newRule = sanctionYear !== undefined && sanctionYear !== null && sanctionYear >= RULE_START_YEAR;
+  if (!businessPurpose) return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
+  if (!newRule && lender && PRE_2026_ALL_INDIVIDUAL.has(lender)) {
+    return { pct: '0', status: 'assumed', reason: INDIVIDUAL_2014_REASON };
+  }
+  if (newRule && lender === 'bank') return { pct: '0', status: 'assumed', reason: BUSINESS_BANK_REASON };
+  const capReason = lender ? CAP_50_REASON[lender] : undefined;
+  const rawAmt = sanctionedAmount as unknown;
+  const amt = rawAmt == null || String(rawAmt).trim() === '' ? NaN : Number(rawAmt);
+  if (newRule && capReason && Number.isFinite(amt) && amt <= SMALL_LENDER_BUSINESS_CAP) {
+    return { pct: '0', status: 'assumed', reason: capReason };
+  }
+  return { pct: '0', status: 'unknown', reason: BUSINESS_REASON };
+}
 
 export function prepaymentFeeDefault(loanType: LoanType, rateType: string, market: Country, ctx: FeeContext = {}): FeeDefault {
   const lender = canonLender(ctx.lenderType);
@@ -91,25 +108,13 @@ export function prepaymentFeeDefault(loanType: LoanType, rateType: string, marke
     return { pct: '0', status: 'unknown', reason: UNKNOWN_REASON };
   }
   if (lender === 'other') return { pct: '0', status: 'unknown', reason: OTHER_LENDER_REASON };
-  const newRule = ctx.sanctionYear !== undefined && ctx.sanctionYear !== null && ctx.sanctionYear >= RULE_START_YEAR;
   if ((ctx.businessPurpose === undefined || ctx.businessPurpose === null) && BUSINESS_CAPABLE_TYPES.has(loanType)) {
+    const personal = purposeFee(lender, false, ctx.sanctionYear, ctx.sanctionedAmount);
+    const business = purposeFee(lender, true, ctx.sanctionYear, ctx.sanctionedAmount);
+    if (personal.status === 'assumed' && business.status === 'assumed') return personal;
     return { pct: '0', status: 'unknown', reason: BUSINESS_UNANSWERED_REASON };
   }
-  if (!ctx.businessPurpose) {
-    if (lender && PRE_2026_UNCOVERED.has(lender) && !newRule) {
-      return { pct: '0', status: 'unknown', reason: OLDER_LENDER_REASON };
-    }
-    return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
-  }
-  // A business loan: RBI 2025 Directions para 5(ii), loans sanctioned from 2026 only.
-  if (newRule && lender === 'bank') return { pct: '0', status: 'assumed', reason: BUSINESS_BANK_REASON };
-  const capReason = lender ? CAP_50_REASON[lender] : undefined;
-  const rawAmt = ctx.sanctionedAmount as unknown;
-  const amt = rawAmt == null || String(rawAmt).trim() === '' ? NaN : Number(rawAmt);
-  if (newRule && capReason && Number.isFinite(amt) && amt <= SMALL_LENDER_BUSINESS_CAP) {
-    return { pct: '0', status: 'assumed', reason: capReason };
-  }
-  return { pct: '0', status: 'unknown', reason: BUSINESS_REASON };
+  return purposeFee(lender, ctx.businessPurpose === true, ctx.sanctionYear, ctx.sanctionedAmount);
 }
 
 const LENDER_SUFFIXES = new Set(['limited', 'ltd', 'co', 'company']);

@@ -25,12 +25,10 @@ function rankLoan<T extends UserPayload['loans'][number]>(loan: T, country: User
   const cap = lender === 'small_finance_bank' || lender === 'regional_rural_bank' || lender === 'hfc';
   // Same branch order as prepaymentFeeDefault / engine/prepayment_fee.py.
   const inScope = market === 'IN' && loan.rate_type === 'floating' && loan.loan_type !== 'credit_card' && lender !== 'other';
+  const olderIndividual = (lender === 'regional_rural_bank' || lender === 'cooperative_bank') && year < 2026;
+  const businessBarred = olderIndividual || (year >= 2026 && (lender === 'bank' || (cap && Number.isFinite(amt) && amt <= 5_000_000)));
   const unanswered = loan.business_purpose == null && (loan.loan_type === 'loan_against_property' || loan.loan_type === 'gold_loan');
-  const olderUncovered = (lender === 'regional_rural_bank' || lender === 'cooperative_bank') && year < 2026;
-  const barred = inScope && !unanswered && (
-    !loan.business_purpose
-      ? !olderUncovered
-      : year >= 2026 && (lender === 'bank' || (cap && Number.isFinite(amt) && amt <= 5_000_000)));
+  const barred = inScope && (unanswered ? businessBarred : (loan.business_purpose ? businessBarred : true));
   if (!barred) return loan;
   const lock = year >= 2026 ? 0 : loan.prepay_lock_in_months;
   const raw = (loan.prepayment_penalty_pct ?? '').trim();
