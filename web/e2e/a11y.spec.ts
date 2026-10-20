@@ -7,7 +7,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices, continueToPlan } from './fixtures';
-import { isAbortedChunkError, isCutOffChunk, isWebKitNavigationNoise } from './browser-noise';
+import { isAbortedChunkError, isCutOffChunk, isLeftoverChunk, isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -17,12 +17,36 @@ type Violation = { id: string; impact: string | null; help: string; nodes: { tar
 function watchErrors(page: Page): { errors: string[]; beginNavigation: () => void; dropCutOffChunks: () => void } {
   const errors: string[] = [];
   const aborted = new Set<string>();
+  const attempts: { url: string; gen: number; done: boolean; status: number }[] = [];
+  let generation = 0;
   let abortedThisNavigation = 0;
+  const chunkUrl = (url: string) => url.includes('/_next/static/chunks/');
+  const openAttempt = (url: string) => {
+    for (let i = attempts.length - 1; i >= 0; i--) if (attempts[i].url === url && !attempts[i].done) return attempts[i];
+    return undefined;
+  };
+  page.on('request', (req) => {
+    const url = req.url();
+    if (chunkUrl(url)) attempts.push({ url, gen: generation, done: false, status: 0 });
+  });
+  page.on('requestfinished', (req) => {
+    const url = req.url();
+    if (!chunkUrl(url)) return;
+    const attempt = openAttempt(url);
+    if (!attempt) return;
+    attempt.done = true;
+    void req.response().then((response) => {
+      attempt.status = response?.status() ?? 0;
+    });
+  });
   page.on('requestfailed', (req) => {
+    const url = req.url();
+    const attempt = chunkUrl(url) ? openAttempt(url) : undefined;
+    if (attempt) attempt.done = true;
     const why = req.failure()?.errorText ?? '';
     if (!/abort|cancel/i.test(why)) return;
     abortedThisNavigation += 1;
-    if (req.url().includes('/_next/static/chunks/')) aborted.add(req.url());
+    if (chunkUrl(url)) aborted.add(url);
   });
   page.on('pageerror', (e) => {
     // WebKit reports the page being left's requests, cut off by the next
@@ -40,19 +64,29 @@ function watchErrors(page: Page): { errors: string[]; beginNavigation: () => voi
   });
   return {
     errors,
-    beginNavigation() { abortedThisNavigation = 0; },
+    beginNavigation() { generation += 1; abortedThisNavigation = 0; },
     dropCutOffChunks() {
       const path = (() => { try { return new URL(page.url()).pathname; } catch { return '/'; } })();
+      // A chunk requested by the page we just left, with no response and
+      // no requestfailed. WebKit still reports it as a page error on the
+      // page we landed on. A 400+ response is not this case.
+      const prior = new Set<string>();
+      for (const attempt of attempts) {
+        if (attempt.gen >= generation || attempt.done) continue;
+        if (attempts.some((other) => other.url === attempt.url && other.status >= 400)) continue;
+        prior.add(attempt.url);
+      }
       for (let i = errors.length - 1; i >= 0; i--) {
         const line = errors[i];
         // A bare "Load failed" is also what WebKit says for a request the
         // navigation aborted. Drop it only when this navigation did abort
         // a request; a Load failed on its own is still a failure.
         const bareLoadFailed = /^pageerror: (TypeError: )?Load failed$/i.test(line) && abortedThisNavigation > 0;
-        if (bareLoadFailed || isAbortedChunkError(line, aborted) || isCutOffChunk(line, path)) errors.splice(i, 1);
+        if (bareLoadFailed || isAbortedChunkError(line, aborted) || isLeftoverChunk(line, prior) || isCutOffChunk(line, path)) errors.splice(i, 1);
       }
       if (errors.some((line) => /Loading chunk/.test(line))) {
         errors.push(`aborted-chunks: ${[...aborted].join(' | ') || '(none)'}`);
+        errors.push(`prior-chunks: ${[...prior].join(' | ') || '(none)'}`);
       }
     },
   };
