@@ -17,7 +17,7 @@ for (const ext of ['.ts', '.tsx'])
   require.extensions[ext] = (m, f) =>
     m._compile(ts.transpileModule(fs.readFileSync(f, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true } }).outputText, f);
 const lib = (n) => require(path.join(root, 'lib', n));
-const { profileChanges } = lib('change-log.ts');
+const { profileChanges } = lib('profile-changes.ts');
 const { whatChanged } = lib('what-changed.ts');
 
 const home = { loan_type: 'home_loan', bank: 'HDFC Bank', outstanding: '3500000', nominal_rate: '0.0850', scheduled_emi: '35200', tenure_months_remaining: 180 };

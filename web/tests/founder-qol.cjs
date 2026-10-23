@@ -89,7 +89,8 @@ test('every mutation is written to the change log, with before and after', async
   stores(u);
   try {
     const { addActivityEntry } = lib('activity.ts');
-    const { activityChanges, profileChanges, recordChanges, readChangeLog } = lib('change-log.ts');
+    const { activityChanges, recordChanges, readChangeLog } = lib('change-log.ts');
+    const { profileChanges } = lib('profile-changes.ts');
     const { writeMonthlySpendClient } = lib('monthly-spend.ts');
     const { writeGoalsClient } = lib('goals.ts');
     const { writeStrategyClient } = lib('strategy.ts');
