@@ -121,8 +121,8 @@ test('every mutation is written to the change log, with before and after', async
     assert.equal(spend.after, '27500.50');
     assert.ok(spend.at);
     const loanEdit = rows.find((e) => e.what.startsWith('Edited'));
-    assert.match(loanEdit.before, /500000/);
-    assert.match(loanEdit.after, /480000/);
+    assert.match(loanEdit.before, /₹5,00,000/);
+    assert.match(loanEdit.after, /balance ₹5,00,000 → ₹4,80,000/);
     assert.match(src('components/activity/ChangeLogPanel.tsx'), /change-filter-\$\{f\.id\}/);
     assert.match(src('components/home/PayThisMonth.tsx'), /openAmount\(row\)/);
     assert.match(src('components/activity/LogDialog.tsx'), /amt\.gt\(planned\) \? 'extra'/);
@@ -139,9 +139,9 @@ test('what changed is only the log, and a calendar file repeats with a stable id
     { id: '4', at: '2026-10-07T10:00:00Z', kind: 'settings', what: 'Interest on the plan', before: '100', after: '90', month },
   ];
   const card = whatChanged(entries, month, 30000);
-  assert.match(card.lines.join('\n'), /One payment recorded, 6000/);
-  assert.match(card.lines.join('\n'), /Spending logged at 30000/);
-  assert.match(card.lines.join('\n'), /The recent average is 30000/);
+  assert.match(card.lines.join('\n'), /One payment recorded, ₹6,000/);
+  assert.match(card.lines.join('\n'), /Spending logged at ₹30,000/);
+  assert.match(card.lines.join('\n'), /The recent average is ₹30,000/);
   assert.match(card.lines.join('\n'), /Debt-free date moved from Mar 2031 to Jan 2031/);
   assert.match(card.lines.join('\n'), /Interest on the plan: 100 → 90/);
   assert.equal(whatChanged([], month, null).lines[0], 'Nothing recorded this month yet.');

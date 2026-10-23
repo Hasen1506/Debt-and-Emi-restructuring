@@ -8,7 +8,8 @@
  * of this log (lib/what-changed.ts).
  */
 import type { ActivityEntry } from './activity';
-import type { AssetPayload, IncomeStreamPayload, LoanPayload, UserPayload } from './api';
+import { formatCurrencyWhole, formatPct, type AssetPayload, type Country, type IncomeStreamPayload, type LoanPayload, type UserPayload } from './api';
+import { loanLabel } from './loan-types';
 
 export const CHANGE_LOG_KEY = 'rightdue_change_log';
 
@@ -112,38 +113,88 @@ const money = (v: string | number | null | undefined) => {
   return Number.isFinite(n) ? String(Math.round(n)) : '';
 };
 
-function loanLine(l: LoanPayload): string {
-  const who = (l.bank || l.nickname || l.loan_type || 'loan').trim();
-  return `${who}: balance ${money(l.outstanding)}, rate ${l.nominal_rate || '0'}, EMI ${money(l.scheduled_emi)}, months ${l.tenure_months_remaining}`;
+/** "₹2,50,000" in the loan's own currency; '' when blank. */
+function amount(v: string | number | null | undefined, l: LoanPayload, country: Country): string {
+  const n = money(v);
+  return n === '' ? '' : formatCurrencyWhole(n, l.currency ?? (country === 'US' ? 'USD' : 'INR'));
+}
+
+function rate(v: string | null | undefined): string {
+  const n = Number(v ?? '');
+  return v && Number.isFinite(n) ? formatPct(v) : '';
+}
+
+/** A card has a payment, not an EMI; a US loan has a payment too. */
+function paymentWord(l: LoanPayload, country: Country): string {
+  return l.loan_type === 'credit_card' || country === 'US' ? 'payment' : 'EMI';
+}
+
+/** "balance ₹2,50,000, 13.50% a year, EMI ₹9,800, 30 months left": the
+ *  figures only, since the row already names the loan. */
+function loanLine(l: LoanPayload, country: Country): string {
+  const bits = [`balance ${amount(l.outstanding, l, country) || 'not set'}`];
+  if (rate(l.nominal_rate)) bits.push(`${rate(l.nominal_rate)} a year`);
+  if (amount(l.scheduled_emi, l, country)) bits.push(`${paymentWord(l, country)} ${amount(l.scheduled_emi, l, country)}`);
+  if (l.loan_type !== 'credit_card' && (l.tenure_months_remaining ?? 0) > 0) bits.push(`${l.tenure_months_remaining} months left`);
+  return bits.join(', ');
+}
+
+/** Same loan on both sides: matched by id, else by identical figures (a
+ *  loan that only gained an id on load is not "removed" and "added"). */
+function pairLoans(prev: LoanPayload[], next: LoanPayload[]) {
+  const sig = (l: LoanPayload) =>
+    [l.loan_type, l.bank ?? '', money(l.outstanding), l.nominal_rate ?? '', money(l.scheduled_emi), l.tenure_months_remaining ?? ''].join('|');
+  const used = new Set<number>();
+  const match = new Map<number, number>();
+  next.forEach((l, j) => {
+    const i = l.id ? prev.findIndex((p, k) => !used.has(k) && p.id === l.id) : -1;
+    if (i >= 0) { used.add(i); match.set(j, i); }
+  });
+  next.forEach((l, j) => {
+    if (match.has(j)) return;
+    const i = prev.findIndex((p, k) => !used.has(k) && sig(p) === sig(l));
+    if (i >= 0) { used.add(i); match.set(j, i); }
+  });
+  // Without ids, an edited loan is the one left over with the same type and
+  // lender, when there is exactly one such loan on each side. Two different
+  // ids are two different loans.
+  const kind = (l: LoanPayload) => `${l.loan_type}|${(l.bank ?? '').trim().toLowerCase()}`;
+  next.forEach((l, j) => {
+    if (match.has(j)) return;
+    const olds = prev.flatMap((p, k) => (!used.has(k) && kind(p) === kind(l) && !(p.id && l.id) ? [k] : []));
+    const news = next.filter((n, m) => !match.has(m) && kind(n) === kind(l));
+    if (olds.length === 1 && news.length === 1) { used.add(olds[0]); match.set(j, olds[0]); }
+  });
+  return {
+    pairs: next.map((l, j) => [match.has(j) ? prev[match.get(j)!] : undefined, l] as const),
+    removed: prev.filter((_, k) => !used.has(k)),
+  };
 }
 
 /** What a profile save changed, one entry per difference. */
 export function profileChanges(before: UserPayload | null, after: UserPayload): Array<Omit<ChangeEntry, 'id' | 'at'>> {
   if (!before) return [{ kind: 'settings', what: 'Profile saved', after: 'created' }];
   const out: Array<Omit<ChangeEntry, 'id' | 'at'>> = [];
-  const prevLoans = new Map((before.loans ?? []).map((l) => [l.id ?? loanLine(l), l]));
-  const nextLoans = new Map((after.loans ?? []).map((l) => [l.id ?? loanLine(l), l]));
-  for (const [id, l] of nextLoans) {
-    const old = prevLoans.get(id);
+  const country = after.country;
+  const { pairs, removed } = pairLoans(before.loans ?? [], after.loans ?? []);
+  for (const [old, l] of pairs) {
     if (!old) {
       out.push({
         kind: l.imported_from === 'credit_report' ? 'import' : 'loan',
-        what: l.imported_from === 'credit_report' ? `Imported ${l.bank || 'a loan'}` : `Added ${l.bank || l.loan_type}`,
-        after: loanLine(l),
+        what: `${l.imported_from === 'credit_report' ? 'Imported' : 'Added'} ${loanLabel(l)}`,
+        after: loanLine(l, country),
       });
       continue;
     }
     const bits: string[] = [];
-    if (money(old.outstanding) !== money(l.outstanding)) bits.push(`balance ${money(old.outstanding)} → ${money(l.outstanding)}`);
-    if ((old.nominal_rate || '') !== (l.nominal_rate || '')) bits.push(`rate ${old.nominal_rate || '0'} → ${l.nominal_rate || '0'}`);
-    if (money(old.scheduled_emi) !== money(l.scheduled_emi)) bits.push(`EMI ${money(old.scheduled_emi)} → ${money(l.scheduled_emi)}`);
-    if (old.tenure_months_remaining !== l.tenure_months_remaining) bits.push(`months ${old.tenure_months_remaining} → ${l.tenure_months_remaining}`);
+    if (money(old.outstanding) !== money(l.outstanding)) bits.push(`balance ${amount(old.outstanding, old, country) || 'not set'} → ${amount(l.outstanding, l, country) || 'not set'}`);
+    if ((old.nominal_rate || '') !== (l.nominal_rate || '')) bits.push(`rate ${rate(old.nominal_rate) || 'not set'} → ${rate(l.nominal_rate) || 'not set'}`);
+    if (money(old.scheduled_emi) !== money(l.scheduled_emi)) bits.push(`${paymentWord(l, country)} ${amount(old.scheduled_emi, old, country) || 'not set'} → ${amount(l.scheduled_emi, l, country) || 'not set'}`);
+    if (old.tenure_months_remaining !== l.tenure_months_remaining) bits.push(`months left ${old.tenure_months_remaining ?? 0} → ${l.tenure_months_remaining ?? 0}`);
     if ((old.repayment || 'emi') !== (l.repayment || 'emi')) bits.push(`repayment ${old.repayment || 'emi'} → ${l.repayment || 'emi'}`);
-    if (bits.length) out.push({ kind: 'loan', what: `Edited ${l.bank || l.nickname || l.loan_type}`, before: loanLine(old), after: bits.join('; ') });
+    if (bits.length) out.push({ kind: 'loan', what: `Edited ${loanLabel(l)}`, before: loanLine(old, country), after: bits.join('; ') });
   }
-  for (const [id, l] of prevLoans) {
-    if (!nextLoans.has(id)) out.push({ kind: 'loan', what: `Removed ${l.bank || l.loan_type}`, before: loanLine(l), after: 'removed' });
-  }
+  for (const l of removed) out.push({ kind: 'loan', what: `Removed ${loanLabel(l)}`, before: loanLine(l, country), after: 'removed' });
   const fields: Array<[ChangeKind, string, string, string]> = [
     ['income', 'Take-home pay', money(before.monthly_income), money(after.monthly_income)],
     ['spend', 'Monthly spending figure', String(Number(before.fixed_expenses || 0) + Number(before.variable_expenses || 0)), String(Number(after.fixed_expenses || 0) + Number(after.variable_expenses || 0))],
@@ -165,6 +216,15 @@ export function profileChanges(before: UserPayload | null, after: UserPayload): 
   return out;
 }
 
+const PAYMENT_WHAT: Record<ActivityEntry['kind'], string> = {
+  paid_full: 'Payment',
+  paid_partial: 'Part payment',
+  missed: 'Missed payment',
+  paid_extra: 'Extra payment',
+  closed: 'Loan closed',
+  balance_correction: 'Balance correction',
+};
+
 /** Payments added, edited or removed between two activity lists. */
 export function activityChanges(before: ActivityEntry[], after: ActivityEntry[]): Array<Omit<ChangeEntry, 'id' | 'at'>> {
   const out: Array<Omit<ChangeEntry, 'id' | 'at'>> = [];
@@ -176,7 +236,7 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
     if (!old) {
       out.push({
         kind: e.kind === 'paid_extra' ? 'prepayment' : 'payment',
-        what: `Payment ${e.kind.replace('_', ' ')}`,
+        what: `${PAYMENT_WHAT[e.kind] ?? 'Payment'} recorded`,
         after: e.amount,
         before: e.scheduledEmi,
         month,
@@ -186,8 +246,8 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
       out.push({
         kind: 'payment',
         what: 'Payment edited',
-        before: `${old.kind} ${old.amount}`,
-        after: `${e.kind} ${e.amount}`,
+        before: `${(PAYMENT_WHAT[old.kind] ?? 'payment').toLowerCase()} ${old.amount}`,
+        after: `${(PAYMENT_WHAT[e.kind] ?? 'payment').toLowerCase()} ${e.amount}`,
         month,
         refId: e.id,
       });
@@ -195,7 +255,7 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
   }
   for (const e of before) {
     if (!next.has(e.id)) {
-      out.push({ kind: 'payment', what: 'Payment removed', before: `${e.kind} ${e.amount}`, after: 'removed', month: e.date.slice(0, 7), refId: e.id });
+      out.push({ kind: 'payment', what: 'Payment removed', before: `${(PAYMENT_WHAT[e.kind] ?? 'payment').toLowerCase()} ${e.amount}`, after: 'removed', month: e.date.slice(0, 7), refId: e.id });
     }
   }
   return out;

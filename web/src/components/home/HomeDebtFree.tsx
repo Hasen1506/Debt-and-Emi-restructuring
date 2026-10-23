@@ -179,6 +179,7 @@ export async function HomePayThisMonth() {
       month={countryMonthKey(country)}
       debtFree={plan.debtFreeMonth ? monthIndexToCountryLabel(plan.debtFreeMonth, country) : 'not on this plan'}
       interest={interestPoint?.interest != null ? formatCurrencyWhole(Math.round(interestPoint.interest), userDefaultCurrency(country)) : ''}
+      currency={userDefaultCurrency(country)}
     />
   );
   const today = getCountryToday(country);

@@ -11,10 +11,12 @@ export function WhatChangedCard({
   month,
   debtFree,
   interest,
+  currency,
 }: {
   month: string;
   debtFree?: string;
   interest?: string;
+  currency: 'INR' | 'USD';
 }) {
   const [rows, setRows] = useState<ChangeEntry[]>([]);
   const [average, setAverage] = useState<number | null>(null);
@@ -27,7 +29,7 @@ export function WhatChangedCard({
     return () => window.removeEventListener('storage', on);
   }, [month, debtFree, interest]);
 
-  const card = whatChanged(rows, month, average);
+  const card = whatChanged(rows, month, average, currency);
   return (
     <section aria-labelledby="what-changed-h" data-testid="what-changed">
       <LSectionHeader right={<LBracket href="/activity">THE FULL LOG →</LBracket>}>

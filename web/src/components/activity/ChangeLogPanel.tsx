@@ -11,6 +11,7 @@ import { readActivityClient, removeActivityEntry } from '@/lib/activity';
 import { commitActivity } from '@/lib/commit-activity';
 import { readMonthlySpendClient, writeMonthlySpendClient } from '@/lib/monthly-spend';
 import { loadProfileClient } from '@/lib/user-store';
+import { formatCurrencyWhole } from '@/lib/api';
 import { LSectionHeader, L_T, LBracket } from '@/components/ledger/primitives';
 
 const FILTERS: Array<{ id: ChangeKind | 'all'; label: string }> = [
@@ -28,17 +29,30 @@ const FILTERS: Array<{ id: ChangeKind | 'all'; label: string }> = [
   { id: 'settings', label: 'Settings' },
 ];
 
+/** A new payment row: "before" is the EMI that was due, "after" what was paid. */
+const fresh = (r: ChangeEntry) => (r.kind === 'payment' || r.kind === 'prepayment') && r.what.endsWith(' recorded');
+
 function when(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(d);
 }
 
+/** Money rows store plain numbers ("6000", "part payment 1000"); show the
+ *  trailing amount in the household's currency. Loan rows arrive formatted. */
+const MONEY_KINDS: ChangeKind[] = ['payment', 'prepayment', 'spend'];
+function money(v: string, kind: ChangeKind, currency: 'INR' | 'USD'): string {
+  if (!MONEY_KINDS.includes(kind)) return v;
+  return v.replace(/(^|\s)(-?\d+(?:\.\d+)?)$/, (_, sp: string, n: string) => sp + formatCurrencyWhole(Math.round(Number(n)), currency));
+}
+
 export function ChangeLogPanel() {
   const [rows, setRows] = useState<ChangeEntry[]>([]);
   const [filter, setFilter] = useState<ChangeKind | 'all'>('all');
+  const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
 
   useEffect(() => {
+    setCurrency(loadProfileClient().user?.country === 'US' ? 'USD' : 'INR');
     const read = () => setRows(readChangeLog());
     read();
     window.addEventListener('storage', read);
@@ -102,9 +116,9 @@ export function ChangeLogPanel() {
               </div>
               {(r.before || r.after) && (
                 <div style={{ color: L_T.inkSoft }}>
-                  {r.before ? <span>Before: {r.before}</span> : null}
+                  {r.before ? <span>{fresh(r) ? 'Due' : 'Before'}: {money(r.before, r.kind, currency)}</span> : null}
                   {r.before && r.after ? ' · ' : null}
-                  {r.after ? <span>After: {r.after}</span> : null}
+                  {r.after ? <span>{fresh(r) ? 'Paid' : 'After'}: {money(r.after, r.kind, currency)}</span> : null}
                 </div>
               )}
               {r.refId && (r.kind === 'payment' || r.kind === 'prepayment' || r.kind === 'spend') && (
