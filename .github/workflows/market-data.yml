@@ -62,12 +62,17 @@ jobs:
           python -m pytest -q -p no:cacheprovider engine/tests/test_market_data.py engine/tests/test_rate_cards.py
           (cd web && node --test tests/walkthrough.cjs tests/roadmap-g-rates.cjs)
 
+      # The github context has no run date (github.run_started_at is empty),
+      # so the title takes today's UTC date from this step.
+      - name: Today's date
+        id: today
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Propose new figures, if any
         uses: ./.github/actions/data-pr
         with:
           bot: market-data
           paths: web/src/lib/market-data.json api/data/rate_pages.json
-          title: "data: market figures as of ${{ github.run_started_at }}"
+          title: "data: market figures as of ${{ steps.today.outputs.date }}"
           mode: ${{ vars.DATA_PR_MODE || 'merge' }}
 
       - name: Open, update or close the data-check issue

@@ -41,12 +41,17 @@ jobs:
         run: python scripts/fetch_rate_disclosures.py
       - name: The data still passes its checks
         run: python -m pytest engine/tests/test_rate_disclosures.py -q
+      # The github context has no run date (github.run_started_at is empty),
+      # so the title takes today's UTC date from this step.
+      - name: Today's date
+        id: today
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Propose the new figures, if any
         uses: ./.github/actions/data-pr
         with:
           bot: rate-disclosures
           paths: api/data/rate_disclosures web/src/lib/rate-disclosures.json
-          title: "data: banks' loan-rate disclosures as of ${{ github.run_started_at }}"
+          title: "data: banks' loan-rate disclosures as of ${{ steps.today.outputs.date }}"
           mode: ${{ vars.DATA_PR_MODE || 'merge' }}
       # audit80 D18: a failed scheduled run opens (or comments on) an issue.
       - name: Open an issue if this run failed

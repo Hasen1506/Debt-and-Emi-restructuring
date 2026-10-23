@@ -73,12 +73,17 @@ jobs:
         run: python scripts/fetch_policy_rates.py --summary "$GITHUB_STEP_SUMMARY"
       - name: Data tests only
         run: python -m pytest api/tests/test_rates_feed.py api/tests/test_loan_check.py -q -p no:cacheprovider
+      # The github context has no run date (github.run_started_at is empty),
+      # so the title takes today's UTC date from this step.
+      - name: Today's date
+        id: today
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Propose the new file, if any
         uses: ./.github/actions/data-pr
         with:
           bot: policy-rates
           paths: api/data/policy_rates_live.json
-          title: "data: policy rates as of ${{ github.run_started_at }}"
+          title: "data: policy rates as of ${{ steps.today.outputs.date }}"
           mode: ${{ vars.DATA_PR_MODE || 'merge' }}
       - name: Fail the run if a source could not be read
         if: steps.fetch.outcome == 'failure'
