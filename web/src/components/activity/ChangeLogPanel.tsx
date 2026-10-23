@@ -6,12 +6,11 @@
  * from here; that removes the underlying record too.
  */
 import { useEffect, useState } from 'react';
-import { readChangeLog, removeChange, type ChangeEntry, type ChangeKind } from '@/lib/change-log';
+import { readChangeLog, removeChange, wholeMoney, type ChangeEntry, type ChangeKind } from '@/lib/change-log';
 import { readActivityClient, removeActivityEntry } from '@/lib/activity';
 import { commitActivity } from '@/lib/commit-activity';
 import { readMonthlySpendClient, writeMonthlySpendClient } from '@/lib/monthly-spend';
 import { loadProfileClient } from '@/lib/user-store';
-import { formatCurrencyWhole } from '@/lib/api';
 import { LSectionHeader, L_T, LBracket } from '@/components/ledger/primitives';
 
 const FILTERS: Array<{ id: ChangeKind | 'all'; label: string }> = [
@@ -43,7 +42,7 @@ function when(iso: string): string {
 const MONEY_KINDS: ChangeKind[] = ['payment', 'prepayment', 'spend'];
 function money(v: string, kind: ChangeKind, currency: 'INR' | 'USD'): string {
   if (!MONEY_KINDS.includes(kind)) return v;
-  return v.replace(/(^|\s)(-?\d+(?:\.\d+)?)$/, (_, sp: string, n: string) => sp + formatCurrencyWhole(Math.round(Number(n)), currency));
+  return v.replace(/(^|\s)(-?\d+(?:\.\d+)?)$/, (_, sp: string, n: string) => sp + wholeMoney(Number(n), currency));
 }
 
 export function ChangeLogPanel() {

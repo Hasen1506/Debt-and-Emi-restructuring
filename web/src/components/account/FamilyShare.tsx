@@ -5,8 +5,6 @@
 import { useEffect, useState } from 'react';
 import { api, type ShareLinkState } from '@/lib/api';
 import { L_T } from '@/components/ledger/primitives';
-import { useStoredProfile } from '@/lib/use-profile';
-import { localTerms } from '@/lib/terms';
 
 const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
 const BUTTON: React.CSSProperties = {
@@ -15,7 +13,6 @@ const BUTTON: React.CSSProperties = {
 };
 
 export function FamilyShare() {
-  const us = useStoredProfile().user.country === 'US';
   const [link, setLink] = useState<ShareLinkState | null>(null);
   const [hide, setHide] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -73,9 +70,10 @@ export function FamilyShare() {
     <section aria-labelledby="family-share-h" data-testid="family-share">
       <h2 id="family-share-h" style={{ margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}>FAMILY LINK</h2>
       <p style={P}>
-        {localTerms('A read-only page for a spouse or family member. It shows the debt-free date and, unless you hide them, each loan’s name, balance and EMI.', us ? 'US' : 'IN')}{' '}
-        {us ? 'It never shows your email, Social Security number or account numbers.' : 'It never shows your email, PAN, account number or UPI id.'}{' '}
-        You can turn it off, and the old address stops working.
+        {/* Worded for both countries: reading the profile here for the
+            country pulled the whole profile store into /account. */}
+        A read-only page for a spouse or family member. It shows the debt-free date and, unless you hide them, each loan’s name, balance and
+        monthly payment. It never shows your email, tax ID or account numbers. You can turn it off, and the old address stops working.
       </p>
       {link?.active && href && (
         <p style={P}>

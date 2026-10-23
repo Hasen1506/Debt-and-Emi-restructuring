@@ -8,7 +8,7 @@
  * of this log (lib/what-changed.ts).
  */
 import type { ActivityEntry } from './activity';
-import { formatCurrencyWhole, formatPct, type AssetPayload, type Country, type IncomeStreamPayload, type LoanPayload, type UserPayload } from './api';
+import type { AssetPayload, Country, IncomeStreamPayload, LoanPayload, UserPayload } from './api';
 import { loanLabel } from './loan-types';
 
 export const CHANGE_LOG_KEY = 'rightdue_change_log';
@@ -113,15 +113,22 @@ const money = (v: string | number | null | undefined) => {
   return Number.isFinite(n) ? String(Math.round(n)) : '';
 };
 
+/** "₹2,50,000" or "$2,500", whole. Kept here, not from api.ts: this module
+ *  is loaded on most pages, and api.ts would come with it. */
+export function wholeMoney(n: number, currency: 'INR' | 'USD'): string {
+  const s = new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-IN', { maximumFractionDigits: 0 }).format(Math.abs(Math.round(n)));
+  return `${n < 0 ? '-' : ''}${currency === 'USD' ? '$' : '₹'}${s}`;
+}
+
 /** "₹2,50,000" in the loan's own currency; '' when blank. */
 function amount(v: string | number | null | undefined, l: LoanPayload, country: Country): string {
   const n = money(v);
-  return n === '' ? '' : formatCurrencyWhole(n, l.currency ?? (country === 'US' ? 'USD' : 'INR'));
+  return n === '' ? '' : wholeMoney(Number(n), (l.currency as 'INR' | 'USD' | undefined) ?? (country === 'US' ? 'USD' : 'INR'));
 }
 
 function rate(v: string | null | undefined): string {
   const n = Number(v ?? '');
-  return v && Number.isFinite(n) ? formatPct(v) : '';
+  return v && Number.isFinite(n) ? `${(n * 100).toFixed(2)}%` : '';
 }
 
 /** A card has a payment, not an EMI; a US loan has a payment too. */

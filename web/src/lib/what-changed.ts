@@ -3,8 +3,7 @@
  * log (lib/change-log.ts). It does not re-run the plan, so it cannot
  * drift from what was recorded.
  */
-import type { ChangeEntry, ChangeKind } from './change-log';
-import { formatCurrencyWhole } from './api';
+import { wholeMoney, type ChangeEntry, type ChangeKind } from './change-log';
 
 export interface WhatChanged {
   month: string;
@@ -27,7 +26,7 @@ export function whatChanged(
   spendAverage: number | null,
   currency: 'INR' | 'USD' = 'INR',
 ): WhatChanged {
-  const money = (n: number) => formatCurrencyWhole(Math.round(n), currency);
+  const money = (n: number) => wholeMoney(n, currency);
   const rows = entries.filter((e) => inMonth(e, month));
   const lines: string[] = [];
   const payments = rows.filter((e) => e.kind === 'payment' || e.kind === 'prepayment');
