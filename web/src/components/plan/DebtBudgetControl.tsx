@@ -166,14 +166,17 @@ export function DebtBudgetSummary({
   budget,
   currency,
   nothingSpare = false,
+  fundFirst = false,
 }: {
   choice: DebtBudgetKind;
   budget: string;
   currency: 'INR' | 'USD';
   nothingSpare?: boolean;
+  /** Part of the spare goes to the emergency fund this month. */
+  fundFirst?: boolean;
 }) {
   const amount = choice === 'set' && Number(budget) > 0 ? formatCurrencyWhole(budget, currency) : '';
-  const text = debtBudgetChoiceLabel(choice, amount, currency, nothingSpare);
+  const text = debtBudgetChoiceLabel(choice, amount, currency, nothingSpare, fundFirst);
   return (
     <section
       aria-label="Monthly total for debts"

@@ -53,7 +53,8 @@ export function whatChanged(
     lines.push(`Spending logged at ${money(spent)}.${avg}`);
   }
   const free = rows.find((e) => e.what === 'Debt-free date');
-  if (free) lines.push(free.before ? `Debt-free date moved from ${free.before} to ${free.after}.` : `Debt-free date: ${free.after}.`);
+  // A date that didn't move isn't a change; Where you stand shows it.
+  if (free?.before) lines.push(`Debt-free date moved from ${free.before} to ${free.after}.`);
   const interest = rows.find((e) => e.what === 'Interest on the plan');
   if (interest?.before && interest.before !== interest.after) lines.push(`Interest on the plan: ${interest.before} → ${interest.after}.`);
   const restKinds: ChangeKind[] = ['goal', 'asset', 'income', 'tax', 'letter', 'settings'];

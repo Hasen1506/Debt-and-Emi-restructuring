@@ -232,7 +232,7 @@ export async function HomePayThisMonth() {
   const several = m.loans.filter((l) => l.outstanding.gt(0)).length > 1;
   const why = target
     ? mc
-      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirstShort(mc.total, target.nominal)}. `
+      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}` : 'The extra goes on your only loan'}${several && (plan.strategy === 'avalanche' || !WHY[plan.strategy]) ? ':' : '. It costs'} ${whyFirstShort(mc.total, target.nominal)}. `
       : `${several ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. `
     : '';
   const reason =
@@ -266,6 +266,7 @@ export async function HomePayThisMonth() {
           budget={plan.debtBudget ?? ''}
           currency={plan.displayCurrency === 'USD' ? 'USD' : 'INR'}
           nothingSpare={budgetFigures.allSpare - budgetFigures.required < 1}
+          fundFirst={data.rows.some((r) => r.kind === 'ef' && r.amount >= 1)}
         />
       )}
       <PayThisMonth
