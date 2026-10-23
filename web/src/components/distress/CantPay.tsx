@@ -23,6 +23,7 @@ import { formatCurrencyWhole } from '@/lib/api';
 import { formatMonthDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
+import { localTerms } from '@/lib/terms';
 import {
   LShell,
   LSectionHeader,
@@ -233,7 +234,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
                     (availableTouched || !fromProfile
                       ? `Your take-home minus spending${paidSoFar > 0 ? ', less what you’ve paid on loans this month,' : ''} is ${fc(leftBeforeEmis)}.`
                       : `Filled from your profile (take-home minus spending${paidSoFar > 0 ? `, less the ${fc(paidSoFar)} you’ve paid on loans this month` : ''}). Change it if this month is different.`) +
-                    ` EMIs and minimums still due this month: ${fc(due)}.`
+                    localTerms(` EMIs and minimums still due this month: ${fc(due)}.`, country)
                   }
                 />
               </div>
@@ -241,7 +242,7 @@ export function CantPay({ planRows = [] }: { planRows?: CantPayPlanRow[] }) {
                 {planToGo != null && planTotal != null ? (
                   <p style={{ margin: 0 }}>
                     <strong>Still to pay this month: {fc(planToGo)}</strong>
-                    {paidSoFar > 0 ? ` (the plan’s ${fc(planTotal)} less ${fc(paidSoFar)} already paid)` : ''}, of which {fc(due)} is EMIs and minimums.
+                    {paidSoFar > 0 ? ` (the plan’s ${fc(planTotal)} less ${fc(paidSoFar)} already paid)` : ''}, of which {fc(due)} is {localTerms('EMIs and minimums', country)}.
                   </p>
                 ) : null}
                 {paidLines.map((l) => (
