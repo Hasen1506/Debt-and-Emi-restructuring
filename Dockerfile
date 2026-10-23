@@ -7,8 +7,20 @@
 #                                            ▼ (next.config.mjs rewrites.fallback)
 #                                         uvicorn 127.0.0.1:8000 (FastAPI)
 
-# ── 1. Build the web app (Node 24) ───────────────────────────────────────────
-FROM node:24-bookworm-slim AS web-build
+# ── 1. Build the web app (Node 24.22.1) ──────────────────────────────────────
+# 24.22.1 is the 21 Oct 2026 security release: Brotli decoder RCE
+# (CVE-2026-111497), TLS hostname bypasses, and the NSS 3.131.1 root store
+# that drops the compromised eMudhra emSign ECC Root CA - G3.
+FROM node:24.22.1-bookworm-slim AS web-build
+# Same Debian trust-store update as the runtime stage. npm itself uses
+# Node's patched store; this covers anything in the build that uses OpenSSL.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && if grep -F "emSign ECC Root CA - G3" /etc/ssl/certs/ca-certificates.crt; then \
+      echo "compromised eMudhra root still in the trust store" >&2; \
+      exit 1; \
+    fi
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -35,12 +47,18 @@ RUN npm run build \
  && mkdir -p .next/standalone/.next \
  && cp -r .next/static .next/standalone/.next/static
 
-# ── 2. Runtime: Python 3.12 + the Node 24 binary ─────────────────────────────
+# ── 2. Runtime: Python 3.12 + the Node 24.22.1 binary ────────────────────────
 FROM python:3.12-slim-bookworm AS runtime
-# The node binary needs libstdc++ (already in most slim images; cheap if not).
+# libstdc++ is for the copied node binary. ca-certificates is upgraded to
+# Debian's DLA-4845-1 build (20250419~deb12u2 or newer), which removes the
+# compromised eMudhra root from the system trust store Python uses.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libstdc++6 \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends libstdc++6 ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && if grep -F "emSign ECC Root CA - G3" /etc/ssl/certs/ca-certificates.crt; then \
+      echo "compromised eMudhra root still in the trust store" >&2; \
+      exit 1; \
+    fi
 COPY --from=web-build /usr/local/bin/node /usr/local/bin/node
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

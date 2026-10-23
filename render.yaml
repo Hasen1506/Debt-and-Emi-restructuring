@@ -191,7 +191,7 @@ services:
 #     startCommand: npm run start -- --port $PORT --hostname 0.0.0.0
 #     envVars:
 #       - key: NODE_VERSION
-#         value: "24"
+#         value: "24.22.1"
 #       - key: INTERNAL_API_TOKEN
 #         fromService:
 #           type: web

@@ -2,12 +2,15 @@ fastapi==0.142.2
 pydantic[email]==2.10.4
 uvicorn[standard]==0.34.0
 httpx==0.28.1
+# httpx verifies TLS with this bundle. 2026.10.19 drops emSign ECC Root CA - G3
+# (GHSA-6q48-6c7w-9gw2); earlier bundles still trust the compromised eMudhra root.
+certifi==2026.10.19
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 aiosqlite==0.20.0
 python-dotenv==1.2.4
 resend==2.5.1
-pypdf==6.19.0
+pypdf==6.21.2
 alembic==1.16.5
 # AES-encrypted (password) PDFs: bank and bureau PDFs use AES, which pypdf needs this for (grill #18).
 cryptography==50.0.2
