@@ -386,7 +386,9 @@ export function PayThisMonth({
         <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6 }}>
           {data.budget > 0
             ? `Your own total for debts: ${fmt(data.budget)} a month.`
-            : `${fmt(data.extraUser)} of this is extra: all of your spare cash this month. Prefer to keep some?`}{' '}
+            : data.total - data.duesUser - data.extraUser >= 1
+              ? `${fmt(data.extraUser)} of this is extra: your spare cash after the ${fmt(data.total - data.duesUser - data.extraUser)} set aside below. Prefer to keep some?`
+              : `${fmt(data.extraUser)} of this is extra: all of your spare cash this month. Prefer to keep some?`}{' '}
           <LBracket href="/plan?set=budget">{data.budget > 0 ? 'CHANGE IT' : 'SET YOUR OWN TOTAL'} →</LBracket>
         </p>
       )}

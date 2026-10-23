@@ -178,7 +178,7 @@ test('R9-3: the 16-loan case: Home pays what is available, not ₹1 more, and th
   const money = (v) => `₹${Math.round(v)}`;
   const line = homeThisMonthLine(d, 0, money, 'IN').text;
   assert.match(line, new RegExp(`pay ₹${d.total}\\. Every EMI and card minimum \\(₹${d.duesUser}\\), plus ₹${d.extraUser} extra`));
-  // Plan's PAYING THIS MONTH reads the same parts.
+  // Plan's TO DEBTS THIS MONTH reads the same parts.
   assert.match(src('components/plan/LedgerPlan.tsx'), /\(ptm \? ptm\.duesUser \+ ptm\.extraUser : undefined\)/);
 });
 

@@ -225,7 +225,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   };
                 })()
               : {
-                  l: 'PAYING THIS MONTH',
+                  l: 'TO DEBTS THIS MONTH',
                   v: fc(monthlyOutlay),
                   s: localTerms('EMIS + MINIMUMS + EXTRA', plan.user.country),
                 },

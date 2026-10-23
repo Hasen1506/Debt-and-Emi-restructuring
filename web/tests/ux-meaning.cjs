@@ -58,15 +58,15 @@ test('when nothing is spare, the line says so without inventing a leftover', () 
   assert.match(line.text, /Nothing is spare above the EMIs and minimums/);
 });
 
-test('cash flow LEFT does not claim Pay this month adds spare it is not adding', () => {
+test('cash flow SPARE does not claim Pay this month adds spare it is not adding', () => {
   const { cashFlowLeftNote } = lib('home-this-month.ts');
   const held = cashFlowLeftNote({ income: 80000, spend: 30000, due: 21696, left: 28304, addsSpare: false, money: inr });
   assert.match(held, /Take-home ₹80,000 − spending ₹30,000 − due ₹21,696/);
   assert.match(held, /does not add it on top/);
   assert.doesNotMatch(held, /adds this ₹28,304/);
   const added = cashFlowLeftNote({ income: 120000, spend: 45000, due: 46295, left: 28705, addsSpare: true, money: inr });
-  assert.match(added, /adds this ₹28,705/);
-  assert.match(added, /It is not cash left after that payment/);
+  assert.match(added, /puts this ₹28,705 into extra payments and set-asides/);
+  assert.doesNotMatch(added, /not cash left/);
 });
 
 test('the line under Pay this month gives the reason that matches the choice', () => {
