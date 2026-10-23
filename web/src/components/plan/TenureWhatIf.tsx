@@ -171,10 +171,12 @@ export function TenureWhatIf({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
         {/* UI revert 2: the card is open again, so at 320px the loan picker
             (label + widest option) was 3px wider than the card; it may now
-            shrink to the card's width. */}
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
+            shrink to the card's width. When "Loan" and the whole option
+            don't fit on one line (390px: "HDFC home loan · EMI ₹35,2…"), the
+            picker wraps under "Loan" instead of cutting the EMI off. */}
+        <label style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
           Loan
-          <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch" style={{ minWidth: 0, flex: '1 1 auto', maxWidth: '100%' }}>
+          <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch" style={{ minWidth: 0, flex: '1 1 max-content', maxWidth: '100%' }}>
             {options.map(({ l, i }) => (
               <option key={i} value={i}>
                 {loanLabel(l)} · {pw.one === 'EMI' ? 'EMI' : 'Payment'} {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
