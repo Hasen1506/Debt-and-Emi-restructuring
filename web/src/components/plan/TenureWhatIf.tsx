@@ -173,13 +173,15 @@ export function TenureWhatIf({
             (label + widest option) was 3px wider than the card; it may now
             shrink to the card's width. When "Loan" and the whole option
             don't fit on one line (390px: "HDFC home loan · EMI ₹35,2…"), the
-            picker wraps under "Loan" instead of cutting the EMI off. */}
+            picker wraps under "Loan" instead of cutting the EMI off. The
+            option is the loan and its monthly amount only: "HDFC home loan ·
+            ₹35,200" fits 390px at the inputs' 16px. */}
         <label style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
           Loan
           <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch" style={{ minWidth: 0, flex: '1 1 max-content', maxWidth: '100%' }}>
             {options.map(({ l, i }) => (
               <option key={i} value={i}>
-                {loanLabel(l)} · {pw.one === 'EMI' ? 'EMI' : 'Payment'} {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
+                {loanLabel(l)} · {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
               </option>
             ))}
           </select>
