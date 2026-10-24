@@ -9,7 +9,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { LoanPayload, UserPayload } from '@/lib/api';
 import { forgivenessAnswerPending } from '@/lib/us-loans';
-import { loanLabel } from '@/lib/loan-types';
+import { loanName } from '@/lib/loan-types';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 
@@ -28,7 +28,7 @@ export function heldStudentLoan(user: Pick<UserPayload, 'loans' | 'country'>): {
 
 export function holdLine(loan: LoanPayload, money: (v: number) => string): string {
   const emi = Number(loan.scheduled_emi) || 0;
-  return `Your ${loanLabel(loan).toLowerCase()} isn’t marked federal or private yet, so no spare cash goes on it: once your other debts are paid, the money sits unused and the plan pays only its required ${emi > 0 ? `${money(emi)} a month` : 'payment'}. That sets your debt-free date. What kind is it?`;
+  return `Your ${loanName(loan)} isn’t marked federal or private yet, so no spare cash goes on it: once your other debts are paid, the money sits unused and the plan pays only its required ${emi > 0 ? `${money(emi)} a month` : 'payment'}. That sets your debt-free date. What kind is it?`;
 }
 
 export function StudentLoanHold({ user, money, testId = 'student-loan-hold' }: { user: Pick<UserPayload, 'loans' | 'country'>; money: (v: number) => string; testId?: string }) {

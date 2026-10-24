@@ -75,7 +75,7 @@ function homeThisMonthLineIn(
   // minimums only". That is not the same as having nothing left.
   const spare = Math.round(data.leftOver || 0);
   if (spare >= 1) {
-    // Same figure as cash flow's LEFT (take-home − spending − due): the
+    // Same figure as cash flow's SPARE (take-home − spending − due): the
     // set-aside is part of it, so name both rather than show a smaller "spare".
     const gross = spare + (setAside >= 1 ? Math.round(setAside) : 0);
     const why = data.budgetChoice === 'all'
@@ -98,7 +98,7 @@ function homeThisMonthLineIn(
   };
 }
 
-/** Cash flow's LEFT caption. The arithmetic is always take-home − spending
+/** Cash flow's SPARE caption. The arithmetic is always take-home − spending
  *  − due. Whether Pay this month adds that spare on top depends on the
  *  monthly total for debts, so the sentence must not claim it does when
  *  the plan is still paying EMIs and minimums only. */
@@ -116,7 +116,7 @@ export function cashFlowLeftNote(a: {
   if (a.left < 0) return 'Spending and the amount due are more than take-home';
   if (a.left === 0) return 'Nothing spare this month';
   if (a.addsSpare) {
-    return `${sum}. Pay this month adds this ${a.money(a.left)} (extra and set-aside) on top of the ${a.money(a.due)} due. It is not cash left after that payment.`;
+    return `${sum}. Pay this month puts this ${a.money(a.left)} into extra payments and set-asides, on top of the ${a.money(a.due)} due.`;
   }
   if (a.budgetChoice === 'all') {
     return `${sum}. This ${a.money(a.left)} is spare after the amount due. No open loan costs more than a safe return, so the plan keeps it.`;

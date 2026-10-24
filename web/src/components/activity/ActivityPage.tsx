@@ -283,7 +283,6 @@ export function ActivityPage({
       <FirstVisitIntro id="activity" style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', color: L_T.inkSoft, lineHeight: 1.6 }}>
         What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
       </FirstVisitIntro>
-      <ChangeLogPanel />
       <section aria-labelledby="activity-h">
         <LSectionHeader right={<LBracket accent href="/activity?log=entry" onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
           {/* Audit 80 B25: no "0 entries" above "2 to log". */}
@@ -356,6 +355,10 @@ export function ActivityPage({
           No loans on file. Log your spending here, or add a loan in Profile to track its payments.
         </p>
       )}
+
+      {/* The full change log comes after the months: the tab opens on what
+          is due and what was paid, not on an audit trail. */}
+      <ChangeLogPanel />
 
       {dialog && (
         <LogDialog

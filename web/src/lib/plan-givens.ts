@@ -14,6 +14,7 @@ import { LOAN_TYPE_NAME } from './loan-types';
 import { explainMinPayment } from './min-payment';
 import { likelyRateType } from './rate-type';
 import { formatIso, MONTH_NAMES } from './today';
+import { localTerms } from './terms';
 
 export type GivenSource = 'YOU SAID' | 'ASSUMED' | 'CHECK';
 
@@ -80,7 +81,7 @@ export function planGivens(
     out.push({
       key: 'balances',
       label: 'Balances',
-      lines: [...lines, 'Loans move on by their EMIs since; a missed or extra payment counts once logged in Activity.'],
+      lines: [...lines, localTerms('Loans move on by their EMIs since; a missed or extra payment counts once logged in Activity.', country)],
       source: worst(src),
       fix: { href: '/profile?step=loans', text: 'UPDATE A BALANCE' },
     });

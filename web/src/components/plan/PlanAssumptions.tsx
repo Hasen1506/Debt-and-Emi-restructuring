@@ -132,6 +132,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
         plan.debtBudgetChoice === 'set' && budget > 0 ? formatCurrencyWhole(String(budget), ccy) : '',
         ccy,
         allSpare - required < 1,
+        efGap && (efPct > 0 || Number(configured.assumptions?.ef_save_amount || 0) > 0),
       ),
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),

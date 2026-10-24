@@ -288,6 +288,9 @@ test('fix 6: an unmarked US student loan says why spare cash sits unused, with a
   const html = text(renderToStaticMarkup(React.createElement(h.StudentLoanHold, { user: us, money: usd })));
   assert.match(html, /isn’t marked federal or private yet, so no spare cash goes on it/);
   assert.match(html, /pays only its required \$320 a month/);
+  // The lender keeps its capitals mid-sentence ("Sallie Mae", not "sallie mae").
+  const named = text(renderToStaticMarkup(React.createElement(h.StudentLoanHold, { user: { country: 'US', loans: [card, { ...edu, bank: 'Sallie Mae' }] }, money: usd })));
+  assert.match(named, /Your Sallie Mae education loan isn’t marked/);
   for (const a of ['PRIVATE', 'FEDERAL, NO FORGIVENESS PLAN', 'FEDERAL, ON PSLF OR AN INCOME-DRIVEN PLAN']) assert.ok(html.includes(a), a);
   // Each answer clears the hold (private / federal with no plan: extra goes to it; PSLF/IDR: answered).
   const us2 = lib('us-loans.ts');

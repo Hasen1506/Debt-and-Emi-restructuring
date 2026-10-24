@@ -70,8 +70,10 @@ export function FamilyShare() {
     <section aria-labelledby="family-share-h" data-testid="family-share">
       <h2 id="family-share-h" style={{ margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}>FAMILY LINK</h2>
       <p style={P}>
-        A read-only page for a spouse or family member. It shows the debt-free date and, unless you hide them, each loan’s name, balance and EMI.
-        It never shows your email, PAN, account number or UPI id. You can turn it off, and the old address stops working.
+        {/* Worded for both countries: reading the profile here for the
+            country pulled the whole profile store into /account. */}
+        A read-only page for a spouse or family member. It shows the debt-free date and, unless you hide them, each loan’s name, balance and
+        monthly payment. It never shows your email, tax ID or account numbers. You can turn it off, and the old address stops working.
       </p>
       {link?.active && href && (
         <p style={P}>

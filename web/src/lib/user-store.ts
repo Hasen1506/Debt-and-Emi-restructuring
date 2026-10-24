@@ -216,7 +216,7 @@ export function saveProfileClient(profile: {
   if (typeof window !== 'undefined') {
     try {
       const prevUser = previousProfile ? (JSON.parse(previousProfile) as UserPayload) : null;
-      void import('./change-log').then(({ profileChanges, recordChanges }) => recordChanges(profileChanges(prevUser, profile.user)));
+      void Promise.all([import('./profile-changes'), import('./change-log')]).then(([{ profileChanges }, { recordChanges }]) => recordChanges(profileChanges(prevUser, profile.user)));
     } catch { /* a bad cookie still saves */ }
     // UX2 #23: other open tabs see the stamp change and say they may be out of date.
     // The time plus a per-save tag: two saves in the same millisecond (or under a stopped

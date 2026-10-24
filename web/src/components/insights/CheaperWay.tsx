@@ -200,26 +200,33 @@ export function CheaperWay({
       )}
       {runArgs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            Got a quote? Rate a year (%)
-            <input
-              inputMode="decimal"
-              aria-label="Quoted rate, % a year"
-              value={rate}
-              onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))}
-              placeholder="e.g. 15.5"
-              style={{ width: 90, padding: '4px 6px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 13 }}
-            />
-            Fee (%)
-            <input
-              inputMode="decimal"
-              aria-label="Processing fee, % of the loan"
-              value={fee}
-              onChange={(e) => setFee(e.target.value.replace(/[^\d.]/g, ''))}
-              placeholder={india ? 'KFS' : 'offer'}
-              style={{ width: 90, padding: '4px 6px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 13 }}
-            />
-          </label>
+          {/* Each box fits its example ("e.g. 15.5") at the inputs' real
+              font size; at 390px a fixed 90px cut it to "e.g. 15.". */}
+          <div style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span>Got a quote?</span>
+            <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+              Rate a year (%)
+              <input
+                inputMode="decimal"
+                aria-label="Quoted rate, % a year"
+                value={rate}
+                onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))}
+                placeholder="e.g. 15.5"
+                style={{ width: 'calc(10ch + 14px)', padding: '4px 6px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+              Fee (%)
+              <input
+                inputMode="decimal"
+                aria-label={`Processing fee, % of the loan${india ? ' (on the KFS)' : ' (on the offer)'}`}
+                value={fee}
+                onChange={(e) => setFee(e.target.value.replace(/[^\d.]/g, ''))}
+                placeholder="e.g. 2"
+                style={{ width: 'calc(7ch + 14px)', padding: '4px 6px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 13 }}
+              />
+            </label>
+          </div>
           <LChipRow label="Over how long?">
             {[12, 24, 36, 48, 60].map((n) => (
               <LChip small key={n} on={tenure === n} onClick={() => { setTenure(n); void requote(n); }}>

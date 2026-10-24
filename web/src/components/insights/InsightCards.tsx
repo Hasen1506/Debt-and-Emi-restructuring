@@ -16,7 +16,7 @@ export function DisagreementCard({ data, money, compact = false }: { data: Disag
   return (
     <section aria-labelledby="disagree-h" data-testid="disagree-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <LSectionHeader>
-        <span id="disagree-h">Where we disagree with a plain calculator</span>
+        <span id="disagree-h">{data.items.length === 0 ? 'Checked against a plain calculator' : 'Where we disagree with a plain calculator'}</span>
       </LSectionHeader>
       <p data-testid="check-only" style={{ margin: 0, fontSize: 11, color: L_T.muted }}>Check only; nothing changes until you update your loan or plan.</p>
       {data.items.length === 0 ? (

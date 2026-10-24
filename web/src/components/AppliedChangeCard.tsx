@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrencyWhole } from '@/lib/api';
 import { monthIndexToCountryLabel } from '@/lib/today';
+import { localTerms } from '@/lib/terms';
 import {
   APPLIED_CHANGE_EVENT, dismissAppliedChange, readAppliedChange, undoAppliedChange,
   type AppliedChange, type AppliedUndo, type PlanFigures,
@@ -73,9 +74,12 @@ export function AppliedChangeCard({ kinds, banner = false }: { kinds?: AppliedUn
           </dl>
           {c.budgetHolds && (
             <p data-testid="applied-change-budget" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>
-              {c.budgetHolds === 'unset'
-                ? 'You haven’t chosen a monthly debt budget, so the plan pays EMIs and minimums only.'
-                : 'Your monthly debt budget is EMIs and minimums only.'}{' '}
+              {localTerms(
+                c.budgetHolds === 'unset'
+                  ? 'You haven’t chosen a monthly debt budget, so the plan pays EMIs and minimums only.'
+                  : 'Your monthly debt budget is EMIs and minimums only.',
+                c.country,
+              )}{' '}
               The money you free up won&apos;t reach your debts until you choose an amount.{' '}
               <LBracket href="/plan?set=budget#plan-assumption">CHOOSE AN AMOUNT</LBracket>
             </p>

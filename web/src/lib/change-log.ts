@@ -8,7 +8,6 @@
  * of this log (lib/what-changed.ts).
  */
 import type { ActivityEntry } from './activity';
-import type { AssetPayload, IncomeStreamPayload, LoanPayload, UserPayload } from './api';
 
 export const CHANGE_LOG_KEY = 'rightdue_change_log';
 
@@ -107,63 +106,26 @@ export function removeChange(id: string): ChangeEntry[] {
   return next;
 }
 
-const money = (v: string | number | null | undefined) => {
+export const money = (v: string | number | null | undefined) => {
   const n = Number(v ?? '');
   return Number.isFinite(n) ? String(Math.round(n)) : '';
 };
 
-function loanLine(l: LoanPayload): string {
-  const who = (l.bank || l.nickname || l.loan_type || 'loan').trim();
-  return `${who}: balance ${money(l.outstanding)}, rate ${l.nominal_rate || '0'}, EMI ${money(l.scheduled_emi)}, months ${l.tenure_months_remaining}`;
+/** "₹2,50,000" or "$2,500", whole. Kept here, not from api.ts: this module
+ *  is loaded on most pages, and api.ts would come with it. */
+export function wholeMoney(n: number, currency: 'INR' | 'USD'): string {
+  const s = new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-IN', { maximumFractionDigits: 0 }).format(Math.abs(Math.round(n)));
+  return `${n < 0 ? '-' : ''}${currency === 'USD' ? '$' : '₹'}${s}`;
 }
 
-/** What a profile save changed, one entry per difference. */
-export function profileChanges(before: UserPayload | null, after: UserPayload): Array<Omit<ChangeEntry, 'id' | 'at'>> {
-  if (!before) return [{ kind: 'settings', what: 'Profile saved', after: 'created' }];
-  const out: Array<Omit<ChangeEntry, 'id' | 'at'>> = [];
-  const prevLoans = new Map((before.loans ?? []).map((l) => [l.id ?? loanLine(l), l]));
-  const nextLoans = new Map((after.loans ?? []).map((l) => [l.id ?? loanLine(l), l]));
-  for (const [id, l] of nextLoans) {
-    const old = prevLoans.get(id);
-    if (!old) {
-      out.push({
-        kind: l.imported_from === 'credit_report' ? 'import' : 'loan',
-        what: l.imported_from === 'credit_report' ? `Imported ${l.bank || 'a loan'}` : `Added ${l.bank || l.loan_type}`,
-        after: loanLine(l),
-      });
-      continue;
-    }
-    const bits: string[] = [];
-    if (money(old.outstanding) !== money(l.outstanding)) bits.push(`balance ${money(old.outstanding)} → ${money(l.outstanding)}`);
-    if ((old.nominal_rate || '') !== (l.nominal_rate || '')) bits.push(`rate ${old.nominal_rate || '0'} → ${l.nominal_rate || '0'}`);
-    if (money(old.scheduled_emi) !== money(l.scheduled_emi)) bits.push(`EMI ${money(old.scheduled_emi)} → ${money(l.scheduled_emi)}`);
-    if (old.tenure_months_remaining !== l.tenure_months_remaining) bits.push(`months ${old.tenure_months_remaining} → ${l.tenure_months_remaining}`);
-    if ((old.repayment || 'emi') !== (l.repayment || 'emi')) bits.push(`repayment ${old.repayment || 'emi'} → ${l.repayment || 'emi'}`);
-    if (bits.length) out.push({ kind: 'loan', what: `Edited ${l.bank || l.nickname || l.loan_type}`, before: loanLine(old), after: bits.join('; ') });
-  }
-  for (const [id, l] of prevLoans) {
-    if (!nextLoans.has(id)) out.push({ kind: 'loan', what: `Removed ${l.bank || l.loan_type}`, before: loanLine(l), after: 'removed' });
-  }
-  const fields: Array<[ChangeKind, string, string, string]> = [
-    ['income', 'Take-home pay', money(before.monthly_income), money(after.monthly_income)],
-    ['spend', 'Monthly spending figure', String(Number(before.fixed_expenses || 0) + Number(before.variable_expenses || 0)), String(Number(after.fixed_expenses || 0) + Number(after.variable_expenses || 0))],
-    ['tax', 'Tax regime', before.tax_regime || '', after.tax_regime || ''],
-    ['settings', 'Country', before.country, after.country],
-    ['income', 'Income type', before.income_type || '', after.income_type || ''],
-  ];
-  for (const [kind, what, b, a] of fields) {
-    if (b !== a) out.push({ kind, what, before: b, after: a });
-  }
-  const stream = (s: IncomeStreamPayload) => `${s.kind} ${s.gross_annual}`;
-  const bs = (before.income_streams ?? []).map(stream).sort().join('; ');
-  const as = (after.income_streams ?? []).map(stream).sort().join('; ');
-  if (bs !== as) out.push({ kind: 'tax', what: 'Income other than salary', before: bs || 'none', after: as || 'none' });
-  const asset = (x: AssetPayload) => `${x.label || x.asset_type} ${x.current_market_value}`;
-  const ba = (before.assets ?? []).map(asset).sort().join('; ');
-  const aa = (after.assets ?? []).map(asset).sort().join('; ');
-  if (ba !== aa) out.push({ kind: 'asset', what: 'Assets', before: ba || 'none', after: aa || 'none' });
-  return out;
-}
+const PAYMENT_WHAT: Record<ActivityEntry['kind'], string> = {
+  paid_full: 'Payment',
+  paid_partial: 'Part payment',
+  missed: 'Missed payment',
+  paid_extra: 'Extra payment',
+  closed: 'Loan closed',
+  balance_correction: 'Balance correction',
+};
 
 /** Payments added, edited or removed between two activity lists. */
 export function activityChanges(before: ActivityEntry[], after: ActivityEntry[]): Array<Omit<ChangeEntry, 'id' | 'at'>> {
@@ -176,7 +138,7 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
     if (!old) {
       out.push({
         kind: e.kind === 'paid_extra' ? 'prepayment' : 'payment',
-        what: `Payment ${e.kind.replace('_', ' ')}`,
+        what: `${PAYMENT_WHAT[e.kind] ?? 'Payment'} recorded`,
         after: e.amount,
         before: e.scheduledEmi,
         month,
@@ -186,8 +148,8 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
       out.push({
         kind: 'payment',
         what: 'Payment edited',
-        before: `${old.kind} ${old.amount}`,
-        after: `${e.kind} ${e.amount}`,
+        before: `${(PAYMENT_WHAT[old.kind] ?? 'payment').toLowerCase()} ${old.amount}`,
+        after: `${(PAYMENT_WHAT[e.kind] ?? 'payment').toLowerCase()} ${e.amount}`,
         month,
         refId: e.id,
       });
@@ -195,7 +157,7 @@ export function activityChanges(before: ActivityEntry[], after: ActivityEntry[])
   }
   for (const e of before) {
     if (!next.has(e.id)) {
-      out.push({ kind: 'payment', what: 'Payment removed', before: `${e.kind} ${e.amount}`, after: 'removed', month: e.date.slice(0, 7), refId: e.id });
+      out.push({ kind: 'payment', what: 'Payment removed', before: `${(PAYMENT_WHAT[e.kind] ?? 'payment').toLowerCase()} ${e.amount}`, after: 'removed', month: e.date.slice(0, 7), refId: e.id });
     }
   }
   return out;

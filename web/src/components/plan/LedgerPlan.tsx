@@ -160,8 +160,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
         </FirstVisitIntro>
         {/* Audit 80+ E13: the answer as a heading, the figures as a term
-            list ("Plan summary"), not one run of capitals. */}
-        <h2 data-rd-useful style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, lineHeight: 1.6 }}>
+            list ("Plan summary"), not one run of capitals. The heading is
+            for screen readers: on screen the DEBT-FREE box right under it
+            said the same date again. */}
+        <h2 data-rd-useful className="sr-only">
           {planHeadline({ debtFreeMonth: plan.debtFreeMonth, short, country: plan.user.country })}
         </h2>
         <LKpi
@@ -225,7 +227,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   };
                 })()
               : {
-                  l: 'PAYING THIS MONTH',
+                  l: 'TO DEBTS THIS MONTH',
                   v: fc(monthlyOutlay),
                   s: localTerms('EMIS + MINIMUMS + EXTRA', plan.user.country),
                 },

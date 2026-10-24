@@ -365,6 +365,7 @@ export function NewDebtTool() {
                   onPick={setSelectedBank}
                   fmt={fmt}
                   showMoney={Number(loanAmount) > 0 && tenureOk}
+                  goodScore={goodScore}
                 />
               ) : (
                 <LNote style={{ margin: '8px 0 0' }}>Loading bank rates…</LNote>
@@ -631,8 +632,11 @@ function BankRateTable({
   fmt,
   showMoney,
   country,
+  goodScore = false,
 }: {
   country?: string;
+  /** Sorted on the bottom of each range (750+ / 740+ score), else the middle. */
+  goodScore?: boolean;
   /** When the advertised ranges were noted, "14 May 2026". */
   noted: string | null;
   comparison: BankComparison;
@@ -703,8 +707,9 @@ function BankRateTable({
         </table>
       </div>
       <LNote style={{ margin: '8px 0 0' }}>
-        The big banks&apos; advertised ranges{noted ? `, noted ${noted}` : ''}. Banks change them, so check before you apply. Cheapest
-        first, at the middle of each range; your offer depends on your credit.
+        The big banks&apos; advertised ranges{noted ? `, noted ${noted}` : ''}. Banks change them, so check before you apply.{' '}
+        {comparison.existing.length > 0 ? 'Banks you already use first, then the rest; each cheapest first' : 'Cheapest first'}, at the{' '}
+        {goodScore ? 'bottom of each range for your score' : 'middle of each range'}; your offer depends on your credit.
       </LNote>
     </>
   );

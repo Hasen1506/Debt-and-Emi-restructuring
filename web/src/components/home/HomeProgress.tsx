@@ -176,7 +176,7 @@ export function HomeProgress({
         </div>
       )}
       <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
-        {s ? shavedLine(s) : ym ? `Debt-free in ${ymLabel(ym)}. Each extra payment you log moves it sooner, and this counter keeps score.` : shortLine ?? 'Once the plan has a debt-free date, this counts the months you take off it.'}
+        {s ? shavedLine(s) : ym ? 'Each extra payment you log moves your debt-free date sooner, and this counts the months you take off it.' : shortLine ?? 'Once the plan has a debt-free date, this counts the months you take off it.'}
       </p>
       {ym && realMove && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>

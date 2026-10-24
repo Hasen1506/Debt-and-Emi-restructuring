@@ -274,7 +274,7 @@ export function CashFlow({ profile, dues, addsSpare = false, budgetChoice, spend
           : localTerms(`Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`, profile.user.country),
     },
     {
-      label: left < 0 ? 'SHORT' : 'LEFT',
+      label: left < 0 ? 'SHORT' : 'SPARE',
       sign: '=',
       value: noFx ? '—' : fc(left),
       tone: noFx ? L_T.ink : left > 0 ? L_T.positive : left < 0 ? L_T.negative : L_T.ink,

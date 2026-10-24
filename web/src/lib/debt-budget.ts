@@ -45,12 +45,14 @@ export function debtBudgetChoiceLabel(
   amount: string,
   currency: 'INR' | 'USD',
   nothingSpare = false,
+  /** Part of the spare goes to the emergency fund first. */
+  fundFirst = false,
 ): string {
   const emi = currency === 'USD' ? 'PAYMENTS' : 'EMIS';
   if (choice === 'set' && amount) return `${amount} A MONTH`;
   if (choice === 'unset') return `${emi} AND MINIMUMS ONLY — CHOOSE AN AMOUNT`;
   if (choice === 'min' || nothingSpare) return `${emi} AND MINIMUMS ONLY`;
-  return `${emi} + ALL SPARE CASH`;
+  return fundFirst ? `${emi} + SPARE CASH AFTER THE FUND` : `${emi} + ALL SPARE CASH`;
 }
 
 export function debtBudgetKind(token: string): DebtBudgetKind {

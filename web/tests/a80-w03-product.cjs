@@ -79,6 +79,10 @@ test('A1: "where we disagree" is worth ₹X, from the engine, and says so in rup
   const zero = renderToStaticMarkup(h(DisagreementCard, { data: { ...d, items: [], total_over_plan: '0', zero_line: 'On your loans a plain calculator and RightDue agree.' }, money }));
   assert.match(zero, /data-testid="disagree-zero"/);
   assert.doesNotMatch(zero, /disagree-total/);
+  // …under a heading that doesn't claim a disagreement.
+  assert.match(zero, /Checked against a plain calculator/);
+  assert.doesNotMatch(zero, /Where we disagree/);
+  assert.match(html, /Where we disagree with a plain calculator/);
   assert.equal(disagreementTotal({ ...d, items: [] }), null);
 });
 

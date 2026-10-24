@@ -27,10 +27,11 @@ export function rateLine(nominal: Decimal.Value, effective: Decimal.Value): stri
   return `${main} \u00b7 about ${fmtPct(e)} ${ALL_IN}`;
 }
 
-/** Home's "why this loan first", with the one all-in figure only (the
+/** Home's "why this loan first": "42.00% a year on the statement, about
+ *  60.31% all-in". With the one all-in figure only (the
  *  breakdown stays in whyFirstLines, behind WHY on the loan row). */
 export function whyFirstShort(total: Decimal.Value, nominal: Decimal.Value): string {
   const t = new Decimal(total);
   const n = new Decimal(nominal);
-  return `It costs ${fmtPct(n)} a year on the statement, about ${fmtPct(t)} ${ALL_IN}, so each extra payment here saves about that much a year`;
+  return `${fmtPct(n)} a year on the statement, about ${fmtPct(t)} ${ALL_IN}`;
 }
