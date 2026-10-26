@@ -1,7 +1,7 @@
 -r requirements.txt
 pytest==9.1.1
-hypothesis==6.168.5
-httpx2==2.13.1
+hypothesis==6.170.8
+httpx2==2.16.0
 # Independent EMI reference for engine/tests/test_numpy_financial_golden.py.
 # Binary float, so the golden check is to the paisa, not to a fraction.
-numpy-financial==1.0.0
+numpy-financial==1.1.0
