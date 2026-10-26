@@ -1,10 +1,10 @@
 {
   "about": "Market figures the app quotes: what safe savings earn, and the inflation forecasts the plan grows costs by. Rates are fractions (0.0625 = 6.25%). Entries with \"how\": \"auto\" are re-read every week by scripts/refresh_market_data.py from the source named; \"by_hand\" entries have no page a script can read reliably, and the weekly run opens an issue once one is older than max_age_days.",
-  "updated": "2026-10-20",
+  "updated": "2026-10-26",
   "safe": {
     "fd_in": {
       "rate": "0.0625",
-      "as_of": "2026-10-20",
+      "as_of": "2026-10-26",
       "source": "1-yr FD rate at SBI (6.25%) and HDFC Bank (6.25%)",
       "url": "https://sbi.co.in/web/interest-rates/deposit-rates/retail-domestic-term-deposits",
       "how": "auto"
@@ -40,8 +40,8 @@
       "max_age_days": 45
     },
     "treasury_us": {
-      "rate": "0.0450",
-      "as_of": "2026-10-19",
+      "rate": "0.0444",
+      "as_of": "2026-10-23",
       "source": "US Treasury 1-yr yield",
       "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve",
       "how": "auto"
@@ -66,8 +66,8 @@
     }
   },
   "us_mortgage_30y": {
-    "rate": "0.0740",
-    "as_of": "2026-10-15",
+    "rate": "0.0732",
+    "as_of": "2026-10-22",
     "source": "Freddie Mac PMMS 30-year fixed average",
     "url": "https://fred.stlouisfed.org/series/MORTGAGE30US",
     "how": "auto"
