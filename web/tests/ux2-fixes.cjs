@@ -358,8 +358,10 @@ test('B8 (#24): glossary buttons on a loan row say which loan; /tools/loan-check
   const { renderToStaticMarkup } = require('react-dom/server');
   const { Term } = require(path.join(root, 'components/Term.tsx'));
   const html = renderToStaticMarkup(React.createElement(Term, { id: 'revolving', about: 'Axis Bank credit card' }, 'REVOLVING'));
-  assert.match(html, /aria-label="REVOLVING, Axis Bank credit card: what it means"/);
-  assert.doesNotMatch(renderToStaticMarkup(React.createElement(Term, { id: 'revolving' }, 'REVOLVING')), /aria-label/);
+  assert.match(html, />REVOLVING<span class="sr-only">, Axis Bank credit card: what it means<\/span>/);
+  // The name is the button's own text, so it always contains what is on screen.
+  assert.doesNotMatch(html, /aria-label/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(Term, { id: 'revolving' }, 'REVOLVING')), /sr-only/);
   const op = src('components/home/OpenPositions.tsx');
   assert.match(op, /<Term id="cost_a_year" about=\{name\}>ALL-IN<\/Term>/);
   assert.match(op, /<Term key="rev" id="revolving" about=\{name\}>REVOLVING<\/Term>/);

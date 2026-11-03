@@ -11,7 +11,10 @@ import { L_T } from '@/components/ledger/primitives';
 
 /** UX2B-24: `about` names what the term is on (a loan's name), so six
  *  "ALL-IN" buttons on Home read "ALL-IN, Axis Bank credit card" to a
- *  screen reader, not six identical "ALL-IN"s. */
+ *  screen reader, not six identical "ALL-IN"s. The loan name is hidden
+ *  text inside the button, not an aria-label: the label would leave out
+ *  the visible ⓘ, and voice control matches on what is on screen
+ *  (axe label-content-name-mismatch). */
 export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | string; children?: ReactNode; about?: string }) {
   const entry = GLOSSARY[id];
   const [open, setOpen] = useState(false);
@@ -29,7 +32,6 @@ export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | stri
           if (e.key === 'Escape') setOpen(false);
         }}
         title={`What is ${entry.term}?`}
-        aria-label={about ? `${typeof children === 'string' ? children : entry.term}, ${about}: what it means` : undefined}
         style={{
           background: 'none',
           border: 'none',
@@ -42,6 +44,7 @@ export function Term({ id, children, about }: { id: keyof typeof GLOSSARY | stri
         }}
       >
         {children ?? entry.term}
+        {about && <span className="sr-only">, {about}: what it means</span>}
         <span aria-hidden style={{ fontSize: '0.8em', color: L_T.muted, marginLeft: 2 }}>ⓘ</span>
       </button>
       {open && (

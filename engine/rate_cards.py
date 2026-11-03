@@ -140,7 +140,7 @@ class InstitutionRateCard:
 INDIA_TIER_A: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="IN_SBI", country=Country.IN, name="SBI", scrape_tier="A",
-        # Home 7.25% onwards w.e.f. 1 Apr 2026 on the 5.25% repo, +0.25.
+        # Home 7.50% onwards w.e.f. 15 Oct 2026 (re-read 24 Oct 2026).
         # Personal 10.00-15.00% (Xpress Credit, updated 28 Sep 2026); car
         # 8.40-9.35% (updated 16 Sep 2026). SBI Card: 3.75%/mo (45%) on
         # unsecured cards, 2.75%/mo (33%) on secured cards. Its 60-day 0%

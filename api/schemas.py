@@ -1906,3 +1906,9 @@ class RangeResponse(_Base):
     open_ended: bool
     rate_band: Decimal
     income_months: int
+
+
+# SimulateRequest names GoalIn, defined after it. Resolve it here so the
+# models that extend it (api/routes/insights) are complete when defined;
+# pydantic 2.14 no longer resolves the forward reference on a subclass.
+SimulateRequest.model_rebuild()

@@ -25,7 +25,7 @@ import { getCountryToday, localIsoDate } from './today';
 import { usMortgageMarginalRate } from './us-loans';
 import { fullCap24, taxType } from '@/lib/loan-types';
 
-const D = (v: string | number | Decimal) => new Decimal(v);
+const D = (v: Decimal.Value) => new Decimal(v);
 
 /** Audit 80+ C4: lock-in months still to run (from the stamped
  *  `prepay_lock_in_until`), not the months as first typed, so a loan whose

@@ -100,9 +100,9 @@
   "seen": {
     "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/home-loans-interest-rates-current": {
       "figures": [
-        "7.25"
+        "7.5"
       ],
-      "at": "2026-10-10"
+      "at": "2026-10-24"
     },
     "https://homeloans.hdfc.bank.in/checklist/home-loan-interest-rates": {
       "figures": [
@@ -166,14 +166,15 @@
         "1.59",
         "2",
         "3",
+        "5",
         "8.1",
         "8.4",
         "9.25",
         "9.99",
-        "11.45",
+        "11.6",
         "16.5"
       ],
-      "at": "2026-10-10"
+      "at": "2026-10-24"
     },
     "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges": {
       "figures": [
@@ -270,9 +271,10 @@
         "5",
         "16",
         "18.74",
-        "28.74"
+        "28.74",
+        "50"
       ],
-      "at": "2026-10-10"
+      "at": "2026-10-24"
     },
     "https://www.discover.com/credit-cards/balance-transfer/": {
       "figures": [
