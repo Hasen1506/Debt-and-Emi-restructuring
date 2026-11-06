@@ -115,6 +115,29 @@ test('412: the other device\'s copy is loaded here, this device\'s is kept aside
  }finally{global.fetch=fetch;cleanup()}
 });
 
+test('a later save of another part does not hide an open conflict (WebKit E2E: the change log synced after the 412)',async()=>{
+ const fetch=global.fetch,{sync}=setup('A',[['rightdue_state_version_A','1']]);const bodies=[];
+ try{
+  global.fetch=async(url,opts)=>{
+   const b=JSON.parse(opts.body);bodies.push(b);
+   if(bodies.length===1)return json({detail:{code:'stale_state',slices:['profile'],data:{profile:{monthly_income:'90000'}},version:4}},412);
+   return json({data:{...b.data},version:(b.base_version??0)+1});
+  };
+  await sync.syncSliceToServer('profile',{monthly_income:'80000'});
+  assert.equal(sync.getSyncState().problem,'conflict');
+  // The profile save's change-log entry reaches the account after the 412.
+  const sent=sync.syncSliceToServer('change_log',[{what:'Take-home pay'}]);
+  assert.equal(sync.getSyncState().problem,'conflict','still shown while the change log is sending');
+  await sent;
+  assert.deepEqual(bodies[1].data,{change_log:[{what:'Take-home pay'}]});
+  const s=sync.getSyncState();
+  assert.equal(s.problem,'conflict','still shown once it has been sent');assert.deepEqual(s.conflictSlices,['profile']);
+  // Choosing the other device's copy clears it.
+  sync.keepOtherDevice();
+  assert.equal(sync.getSyncState().status,'saved');assert.equal(sync.getSyncState().problem,undefined);
+ }finally{global.fetch=fetch;cleanup()}
+});
+
 test('a resent write the account already holds (its answer was lost) is not shown as a conflict',async()=>{
  const fetch=global.fetch,{sync,data}=setup('A',[['rightdue_state_version_A','0']]);let calls=0;
  try{

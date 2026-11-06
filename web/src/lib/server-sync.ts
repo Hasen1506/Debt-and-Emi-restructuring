@@ -240,6 +240,13 @@ function storeConflict(account: string, data: Record<string, unknown> | null): v
 }
 
 function setSyncState(next: SyncState): void {
+  // While this device's copy of a conflict is kept aside the person still has
+  // to choose, so a later save of another part (the change log, sent after
+  // the 412) must not replace the notice with "Sending…" or nothing.
+  if (next.problem !== 'conflict' && next.status !== 'failed') {
+    const kept = conflictCopy();
+    if (kept) next = { status: 'failed', problem: 'conflict', lastAttemptAt: next.lastAttemptAt, conflictSlices: Object.keys(kept) };
+  }
   syncState = next;
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(SYNC_CHANGED_EVENT));
 }
