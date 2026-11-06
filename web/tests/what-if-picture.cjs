@@ -127,8 +127,14 @@ test('a capped plan and a plan that never clears do not show a paper date', () =
     result: { ...result(24, 18, 40000, 20000), scenario_infeasible_from_month: 6 },
     country: 'IN', formatInterest: money,
   })));
-  assert.match(capped, /Sep 2028/);
-  assert.doesNotMatch(capped, /Mar 2028/);
+  // Month indexes are offsets from today, so the label has to come from the
+  // same helper the component uses. A fixed "Sep 2028" only matched in Oct 2026.
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const planWhen = today.monthIndexToCountryLabel(24, 'IN');
+  const droppedWhen = today.monthIndexToCountryLabel(18, 'IN');
+  assert.notEqual(planWhen, droppedWhen);
+  assert.match(capped, new RegExp(escape(planWhen)));
+  assert.doesNotMatch(capped, new RegExp(escape(droppedWhen)));
   assert.match(capped, /no date/);
 
   const stuck = textOf(renderToStaticMarkup(React.createElement(WhatIfPicture, {
