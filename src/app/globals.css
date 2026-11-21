@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.ledger {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-[#F8FAFC] text-slate-900 antialiased dark:bg-[#0B1120] dark:text-slate-100;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+}
+
+/* ============================================================================
+   PAPER LEDGER THEME (Restores RightDue's archival warm paper & ruled ledger UI)
+   ============================================================================ */
+html.ledger body,
+html.ledger .rd-canvas {
+  background-color: #F4EFE4 !important;
+  color: #1C1917 !important;
+  background-image: linear-gradient(to bottom, rgba(120, 102, 74, 0.04) 1px, transparent 1px);
+  background-size: 100% 32px;
+}
+
+html.ledger aside,
+html.ledger header,
+html.ledger footer {
+  background-color: #FBF8F1 !important;
+  border-color: #D8CEB8 !important;
+}
+
+html.ledger .bg-white {
+  background-color: #FFFDF7 !important;
+}
+
+html.ledger .bg-slate-50,
+html.ledger .bg-slate-100 {
+  background-color: #F3ECE0 !important;
+}
+
+html.ledger .border-slate-200,
+html.ledger .border-slate-300,
+html.ledger .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+html.ledger .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #D8CEB8 !important;
+}
+
+html.ledger .rounded-xl {
+  border-radius: 6px !important;
+  box-shadow: 0 1px 0 rgba(28, 25, 23, 0.06);
+}
+
+html.ledger .text-slate-900 {
+  color: #1C1917 !important;
+}
+
+html.ledger .text-slate-700,
+html.ledger .text-slate-600 {
+  color: #44403C !important;
+}
+
+html.ledger .text-slate-500,
+html.ledger .text-slate-400 {
+  color: #78716C !important;
+}
+
+html.ledger .text-teal-700,
+html.ledger .text-teal-800 {
+  color: #14532D !important;
+}
+
+html.ledger .bg-teal-700 {
+  background-color: #14532D !important;
+}
+
+html.ledger .bg-teal-700:hover,
+html.ledger .hover\:bg-teal-800:hover {
+  background-color: #166534 !important;
+}
+
+html.ledger .bg-teal-50 {
+  background-color: #ECE7D8 !important;
+}
+
+html.ledger .text-red-600,
+html.ledger .text-rose-700,
+html.ledger .text-rose-600 {
+  color: #991B1B !important;
+}
+
+html.ledger h1,
+html.ledger h2,
+html.ledger h3 {
+  font-family: var(--font-mono) !important;
+  letter-spacing: -0.02em;
+}
+
+html.ledger th {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+html.ledger :focus-visible {
+  outline-color: #14532D;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

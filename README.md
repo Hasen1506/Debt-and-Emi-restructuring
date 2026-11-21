@@ -1,35 +1,22 @@
-# RightDue
+# RightDue — Borrower Rights & Debt Recovery Platform
 
-A debt payoff and EMI planner for borrowers in India and the USA: enter your
-loans, cards and income, and RightDue's engine works out where each spare
-rupee or dollar should go, what each debt really costs (fees, GST, tax
-shield), and what your lender's terms mean for you. Plans are automatic
-estimates, not financial advice. Live at https://rightdue.app.
+**Independent borrower software. Zero lender commissions. 100% local-first privacy.**
 
-## Layout
+RightDue is a deterministic debt payoff, statutory rate-overcharge audit, and on-device bank SMS spend-leak workbench for India (₹) and US ($) borrowers.
 
-| Path | What it is |
-| --- | --- |
-| `engine/` | The math: a pure-Python library (amortisation, payoff orders, tax, fees). Its own [README](engine/README.md). |
-| `api/` | FastAPI gateway over the engine, plus email sign-in, saved state and account data rights (`api/auth/`). |
-| `web/` | The Next.js app. `web/public/welcome.html` is the public landing page. |
-| `e2e/`, `web/e2e/` | Playwright journeys and the local API they run against. |
-| `scripts/` | Data refreshers, exporters for golden fixtures, audit helpers. |
-| `docs/` | Working notes: rates, payoff order, hosting, privacy and retention. `docs/planning/module-02-design-spec.md` is the engine's formula reference. Old planning notes, audit records and design mock-ups were moved out of the tree: [docs/ARCHIVE.md](docs/ARCHIVE.md) lists them and how to restore any of them. |
-| `docs/CODE-HEALTH.md` | Size budgets, what the repo's lines are, where app state lives, and how CI is kept cheap. |
-| `ROADMAP.md` | What is done and what is next. |
-| `DEPLOY.md` | How the single Render service is deployed, and every setting it reads. |
-| [`docs/FOUNDER-RECORDS.md`](docs/FOUNDER-RECORDS.md) | What needs the founder's sign-off (legal reviews, facts to verify), the defaults he approved, and every scheduled job / workflow / env flag the app relies on ("Always running"; CI fails if a workflow is missing). |
+## Core Capabilities
 
-## Run the checks
+1. **Command Center**: Month-by-month debt execution plan ordered by **True All-In APR** (exposing India's 42% card = **60.31%** effective APR after monthly compounding + 18% GST, and New vs Old tax regime home loan effective cost), interactive Pay-This-Month ledger, live Recharts payoff trajectory, and "Where RightDue Disagrees with Plain Calculators" receipts.
+2. **Loan Shield & Rights Audit**: Deterministic audit of RBI EBLR reset transmission (using verified RBI repo history through Oct 2026 at 5.50% and Fed funds at 4.00%), month-by-month floored refund annexure, MCLR-to-EBLR switch savings, "Ask Your Own Bank First" conversion vs balance transfer math, statutory third-person letter generator (Bank Grievance → Internal Ombudsman → RBI Integrated Ombudsman / US RESPA & FCBA), and escalation countdown tracker.
+3. **On-Device SMS & Spend Pulse**: 100% browser-local parsing of bank SMS alerts and `.txt`/`.csv` exports (zero server upload, Play Store / App Store compliant without `READ_SMS`), automatic OTP & loan-promo stripping, 1-click EMI & card statement sync, and **Spend-Leak to Debt-Freedom Converter**.
+4. **Check Before Signing**: Deterministic Bank RM & AI advice verifier, "Don't Sign That" No-Cost EMI / Loan Offer true-IRR auditor, and tax-aware Invest vs Prepay break-even calculator.
+5. **Can't Pay Shield & Data Vault**: Zero-shame collateral protection triage, proactive hardship notice generator, live loan CRUD editor, and local JSON vault export/wipe.
 
-The exact commands CI runs are in [.github/workflows/ci.yml](.github/workflows/ci.yml):
-`python -m pytest engine/tests api/tests` for the engine and API, and in
-`web/`: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`,
-`npm run build`, then `npx playwright test` for the browser journeys.
+## Quick Start
 
-## Privacy
-
-What the app stores, where, for how long, and how a user downloads or
-deletes it: [docs/privacy-and-retention.md](docs/privacy-and-retention.md)
-and the in-app notice at `/privacy`.
+```bash
+npm install
+npm run test       # Run deterministic financial & regulatory engine unit tests
+npm run dev        # Start Next.js 15 dev server on http://0.0.0.0:3000
+npm run build      # Production standalone build
+```

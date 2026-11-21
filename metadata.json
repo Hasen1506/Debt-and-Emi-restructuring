@@ -1,0 +1,5 @@
+{
+  "name": "RightDue",
+  "description": "Borrower rights, interest recovery, and debt payoff command center for India and the US. Audits hidden bank overcharges, parses bank SMS on-device, verifies loan offers and RM advice, and generates statutory escalation letters with zero lender commissions.",
+  "requestFramePermissions": []
+}
